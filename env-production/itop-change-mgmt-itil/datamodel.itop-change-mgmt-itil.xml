@@ -1002,9 +1002,7 @@
                     <item id="title">
                       <rank>40</rank>
                     </item>
-					<item id="pais_ticket">
-                      <rank>50</rank>
-                    </item>
+					
 					<item id="servicefamily_key">
                       <rank>60</rank>
                     </item>
@@ -1014,9 +1012,7 @@
 					<item id="servicesubcategory_key">
                       <rank>80</rank>
                     </item>
-					<item id="external_id_cambios">
-                      <rank>100</rank>
-                    </item>
+					
                     <item id="description">
                       <rank>100</rank>
                     </item>
@@ -1127,9 +1123,7 @@
             <item id="description">
               <rank>50</rank>
             </item>
-			<item id="pais_ticket">
-              <rank>60</rank>
-            </item>
+			
 			<item id="servicefamily_key">
 			  <rank>70</rank>
 			</item>
@@ -1139,9 +1133,7 @@
 			<item id="servicesubcategory_key">
 			  <rank>90</rank>
 			</item>
-			<item id="external_id_cambios">
-			  <rank>100</rank>
-			</item>
+			
             <item id="caller_id">
               <rank>100</rank>
             </item>
@@ -1203,10 +1195,8 @@
             <item id="org_id">
               <rank>30</rank>
             </item>
-			<item id="pais_ticket">
-				<rank>30</rank>
-			</item>
-			<item id="servicefamily_key">
+			
+			 <item id="servicefamily_key">
 			  <rank>40</rank>
 			</item>
 			<item id="service_key">
@@ -1215,9 +1205,7 @@
 			<item id="servicesubcategory_key">
 			  <rank>60</rank>
 			</item>
-			<item id="external_id_cambios">
-			  <rank>70</rank>
-			</item>
+			
             <item id="start_date">
               <rank>70</rank>
             </item>
@@ -1844,9 +1832,7 @@
                     <item id="description">
                       <rank>50</rank>
                     </item>
-					 <item id="pais_ticket">
-                      <rank>60</rank>
-                    </item>
+					 
 					<item id="servicefamily_key">
 					  <rank>70</rank>
 					</item>
@@ -1856,9 +1842,7 @@
 					<item id="servicesubcategory_key">
 					  <rank>90</rank>
 					</item>
-					<item id="external_id_cambios">
-						<rank>100</rank>
-					</item>
+					
                   </items>
                 </item>
                 <item id="fieldset:Ticket:contact">
@@ -1966,9 +1950,7 @@
             <item id="description">
               <rank>50</rank>
             </item>
-			<item id="pais_ticket">
-			  <rank>60</rank>
-			</item>
+			
 			<item id="servicefamily_key">
 			  <rank>70</rank>
 			</item>
@@ -1978,9 +1960,7 @@
 			<item id="servicesubcategory_key">
 			  <rank>90</rank>
 			</item>
-			<item id="external_id_cambios">
-			  <rank>100</rank>
-			</item>
+			
             <item id="caller_id">
               <rank>100</rank>
             </item>
@@ -2864,9 +2844,7 @@
                     <item id="description">
                       <rank>50</rank>
                     </item>
-					<item id="pais_ticket">
-                      <rank>60</rank>
-                    </item>
+					
 					<item id="servicefamily_key">
 					  <rank>70</rank>
 					</item>
@@ -2876,9 +2854,7 @@
 					<item id="servicesubcategory_key">
 					  <rank>90</rank>
 					</item>
-					<item id="external_id_cambios">
-						<rank>100</rank>
-					</item>
+					
                     <item id="approval_comment">
                       <rank>100</rank>
                     </item>
@@ -2992,9 +2968,7 @@
             <item id="description">
               <rank>50</rank>
             </item>
-			<item id="pais_ticket">
-              <rank>60</rank>
-            </item>
+			
 			<item id="servicefamily_key">
 			  <rank>70</rank>
 			</item>
@@ -3004,9 +2978,7 @@
 			<item id="servicesubcategory_key">
 			  <rank>90</rank>
 			</item>
-			<item id="external_id_cambios">
-			  <rank>100</rank>
-			</item>
+			
             <item id="caller_id">
               <rank>100</rank>
             </item>
@@ -3578,9 +3550,7 @@
                     <item id="description">
                       <rank>50</rank>
                     </item>
-					<item id="pais_ticket">
-                      <rank>60</rank>
-                    </item>
+					
 					<item id="servicefamily_key">
 					  <rank>70</rank>
 					</item>
@@ -3590,9 +3560,7 @@
 					<item id="servicesubcategory_key">
 					  <rank>90</rank>
 					</item>
-					<item id="external_id_cambios">
-						<rank>100</rank>
-					</item>
+					
                     <item id="approval_comment">
                       <rank>100</rank>
                     </item>
@@ -3712,9 +3680,7 @@
             <item id="description">
               <rank>50</rank>
             </item>
-			 <item id="pais_ticket">
-              <rank>60</rank>
-            </item>
+			 
 			<item id="servicefamily_key">
 			  <rank>70</rank>
 			</item>
@@ -3724,9 +3690,7 @@
 			<item id="servicesubcategory_key">
 			  <rank>90</rank>
 			</item>
-			<item id="external_id_cambios">
-			  <rank>100</rank>
-			</item>
+			
             <item id="caller_id">
               <rank>100</rank>
             </item>
@@ -4369,9 +4333,7 @@
                     <item id="title">
                       <rank>40</rank>
                     </item>
-					<item id="pais_ticket">
-                      <rank>50</rank>
-                    </item>
+					
 					<item id="servicefamily_key">
                       <rank>60</rank>
                     </item>
@@ -4384,9 +4346,7 @@
 					<item id="description">
 						<rank>90</rank>
 					</item>
-                    <item id="external_id_cambios">
-                      <rank>100</rank>
-                    </item>					 
+                    				 
                     <item id="approval_comment">
                       <rank>110</rank>
                     </item>
@@ -4497,9 +4457,7 @@
             <item id="title">
               <rank>50</rank>
             </item>
-			<item id="pais_ticket">
-			  <rank>60</rank>
-			</item>
+			
 			<item id="servicefamily_key">
 			  <rank>70</rank>
 			</item>
@@ -4515,9 +4473,7 @@
 			<item id="caller_id">
 			  <rank>110</rank>
 			</item>			
-            <item id="external_id_cambios">
-              <rank>120</rank>
-            </item>
+            
             <item id="team_id">
               <rank>130</rank>
             </item>
@@ -4576,9 +4532,7 @@
             <item id="title">
               <rank>20</rank>
             </item>
-			<item id="pais_ticket">
-			  <rank>30</rank>
-			</item>
+			
 			<item id="servicefamily_key">
 			  <rank>40</rank>
 			</item>
@@ -4591,9 +4545,7 @@
             <item id="org_id">
               <rank>70</rank>
             </item>
-			<item id="external_id_cambios">
-				<rank>80</rank>
-			</item>			
+					
             <item id="start_date">
               <rank>90</rank>
             </item>

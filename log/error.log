@@ -211,3 +211,6 @@ Debug trace:
 #6 D:\servidor\htdocs\itop\application\loginwebpage.class.inc.php(727): LoginWebPage::Login(0)
 #7 D:\servidor\htdocs\itop\pages\ajax.render.php(44): LoginWebPage::DoLoginEx(NULL, false)
 #8 {main}
+2018-11-24 00:19:52 | Error | Unknown attribute pais_ticket from class UserRequest
+2018-11-24 00:20:59 | Error | Unknown attribute pais_ticket from class UserRequest
+2018-11-24 00:22:18 | Error | Unknown attribute id_instalador from class UserRequest

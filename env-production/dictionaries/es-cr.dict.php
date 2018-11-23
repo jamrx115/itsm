@@ -766,9 +766,9 @@ Operadores:<br/>
 	'BooleanLabel:yes' => 'si',
 	'BooleanLabel:no' => 'no',
 	'Menu:WelcomeMenu' => 'Bienvenido',
-	'Menu:WelcomeMenu+' => 'Mesa de Servicio Alltic',
+	'Menu:WelcomeMenu+' => 'Servicios Internos Alltic',
 	'Menu:WelcomeMenuPage' => 'Bienvenido',
-	'Menu:WelcomeMenuPage+' => 'Mesa de Servicio Alltic',
+	'Menu:WelcomeMenuPage+' => 'Servicios internos Alltic',
 	'UI:WelcomeMenu:Title' => 'Mesa de Servicio Alltic',
 	'UI:WelcomeMenu:LeftBlock' => '<p>iTop es un completo portal de administración de servicios de TI basado en código abierto.</p>
 <p>Incluye:</p>
@@ -4371,4 +4371,8 @@ Cuando se asocien con un disparador, cada acción recibe un número de "orden", 
 	'Class:ServiceSubcategory/Attribute:service_org_id' => 'Provider',
 	'Class:SLT/Attribute:request_type/Value:service_request' => 'service request',
 	'Class:SLT/Attribute:request_type/Value:service_request+' => 'service request',
+	'Class:Change/Attribute:external_id_cambios' => 'ID Externo',
+	'Class:Change/Attribute:servicefamily_key' => 'Plataforma',
+	'Class:Change/Attribute:service_key' => 'Servicio',
+	'Class:Change/Attribute:servicesubcategory_key' => 'Subcategoria',
 ));

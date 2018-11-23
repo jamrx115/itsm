@@ -29,7 +29,7 @@ $MySettings = array(
 
 	// app_root_url: Root URL used for navigating within the application, or from an email to the application (you can put $SERVER_NAME$ as a placeholder for the server's name)
 	//	default: ''
-	'app_root_url' => 'https://alltic.co/itsm/',
+	'app_root_url' => 'http://127.0.0.1/itsm/',
 
 	// buttons_position: Position of the forms buttons: bottom | top | both
 	//	default: 'both'
@@ -112,7 +112,7 @@ $MySettings = array(
 
 	// graphviz_path: Path to the Graphviz "dot" executable for graphing objects lifecycle
 	//	default: '/usr/bin/dot'
-	'graphviz_path' => '/usr/bin/dot',
+	'graphviz_path' => 'C:\\Program Files (x86)\\Graphviz2.38\\bin\\dot.exe',
 
 	// inline_image_max_display_width: The maximum width (in pixels) when displaying images inside an HTML formatted attribute. Images will be displayed using this this maximum width.
 	//	default: '250'
@@ -156,7 +156,7 @@ $MySettings = array(
 
 	// online_help: Hyperlink to the online-help web page
 	//	default: 'http://www.combodo.com/itop-help'
-	'online_help' => 'http://alltic.co/',
+	'online_help' => 'http://www.combodo.com/itop-help',
 
 	// php_path: Path to the php executable in CLI mode
 	//	default: 'php'
@@ -190,7 +190,7 @@ $MySettings = array(
 
 	// timezone: Timezone (reference: http://php.net/manual/en/timezones.php). If empty, it will be left unchanged and MUST be explicitely configured in PHP
 	//	default: 'Europe/Paris'
-	'timezone' => 'America/Bogota',
+	'timezone' => 'Europe/Paris',
 
 	// tracking_level_linked_set_default: Default tracking level if not explicitely set at the attribute level, for AttributeLinkedSet (defaults to NONE in case of a fresh install, LIST otherwise - this to preserve backward compatibility while upgrading from a version older than 2.0.3 - see TRAC #936)
 	//	default: 1
@@ -207,20 +207,6 @@ $MySettings = array(
  *
  */
 $MyModuleSettings = array(
-	'authent-ldap' => array (
-		'host' => 'localhost',
-		'port' => 389,
-		'default_user' => '',
-		'default_pwd' => '',
-		'base_dn' => 'dc=yourcompany,dc=com',
-		'user_query' => '(&(uid=%1$s)(inetuserstatus=ACTIVE))',
-		'options' => array (
-		  17 => 3,
-		  8 => 0,
-		),
-		'start_tls' => false,
-		'debug' => false,
-	),
 	'itop-attachments' => array (
 		'allowed_classes' => array (
 		  0 => 'Ticket',
@@ -237,9 +223,8 @@ $MyModuleSettings = array(
 		'debug' => false,
 	),
 	'combodo-sla-computation' => array (
-		'coverage_oql' => 'SELECT CoverageWindow AS cw JOIN lnkCustomerContractToService AS l1 ON l1.coveragewindow_id = cw.id JOIN CustomerContract AS cc ON l1.customercontract_id = cc.id WHERE cc.org_id= :this->org_id AND l1.service_id = :this->service_id',
+		'coverage_oql' => 'SELECT CoverageWindow',
 		'holidays_oql' => 'SELECT Holiday',
-		'deadline_format' => '$date$ ($difference$)',
 	),
 );
 

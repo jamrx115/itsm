@@ -20,18 +20,6 @@
           <rank>4</rank>
           <class>NetworkDevice</class>
         </dashlet>
-        <dashlet id="21" xsi:type="DashletBadge" _altered_in="itop-datacenter-mgmt">
-          <rank>1</rank>
-          <class>Rack</class>
-        </dashlet>
-        <dashlet id="22" xsi:type="DashletBadge" _altered_in="itop-datacenter-mgmt">
-          <rank>2</rank>
-          <class>Enclosure</class>
-        </dashlet>
-        <dashlet id="23" xsi:type="DashletBadge" _altered_in="itop-datacenter-mgmt">
-          <rank>9</rank>
-          <class>PowerConnection</class>
-        </dashlet>
         <dashlet id="33" xsi:type="DashletBadge" _altered_in="itop-storage-mgmt">
           <rank>5</rank>
           <class>StorageSystem</class>
