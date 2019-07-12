@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2010-2013 Combodo SARL
+// Copyright (C) 2010-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,7 +19,7 @@
 /**
  * Class PortalWebPage
  *
- * @copyright   Copyright (C) 2010-2016 Combodo SARL
+ * @copyright   Copyright (C) 2010-2017 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 
@@ -387,7 +387,7 @@ EOF
 		{
 			$sReadOnly = Dict::S('UI:AccessRO-Users');
 			$sAdminMessage = trim(MetaModel::GetConfig()->Get('access_message'));
-			$sApplicationBanner .= '<div id="admin-banner">';
+			$sApplicationBanner .= '<div class="app-message">';
 			$sApplicationBanner .= '<img src="../images/locked.png" style="vertical-align:middle;">';
 			$sApplicationBanner .= '&nbsp;<b>'.$sReadOnly.'</b>';
 			if (strlen($sAdminMessage) > 0)
@@ -807,7 +807,7 @@ EOF
 	 */
 	public function DoUpdateObjectFromPostedForm(DBObject $oObj, $aAttList = null)
 	{
-		$sTransactionId = utils::ReadPostedParam('transaction_id', '');
+		$sTransactionId = utils::ReadPostedParam('transaction_id', '', 'transaction_id');
 		if (!utils::IsTransactionValid($sTransactionId))
 		{
 			throw new TransactionException();
@@ -816,7 +816,7 @@ EOF
 		$sClass = get_class($oObj);
 
 		$sStimulus = trim(utils::ReadPostedParam('apply_stimulus', ''));
-		$sTargetState = '';
+		$aExpectedAttributes = array();
 		if (!empty($sStimulus))
 		{
 			// Compute the target state
@@ -826,10 +826,10 @@ EOF
 			{
 				throw new ApplicationException(Dict::Format('UI:Error:Invalid_Stimulus_On_Object_In_State', $sStimulus, $oObj->GetName(), $oObj->GetStateLabel()));
 			}
-			$sTargetState = $aTransitions[$sStimulus]['target_state'];
-		}
+			$aExpectedAttributes = $oObj->GetTransitionAttributes($sStimulus /*, current state*/);
+        }
 			
-		$oObj->UpdateObjectFromPostedForm('' /* form prefix */, $aAttList, $sTargetState);
+		$oObj->UpdateObjectFromPostedForm('' /* form prefix */, $aAttList, $aExpectedAttributes);
 
 		// Optional: apply a stimulus
 		//
@@ -952,7 +952,7 @@ EOF
 		$sTransactionId = utils::GetNewTransactionId();
 		$this->SetTransactionId($sTransactionId);
 		$this->add("<input type=\"hidden\" id=\"transaction_id\" name=\"transaction_id\" value=\"$sTransactionId\">\n");
-		$this->add_ready_script("$(window).unload(function() { OnUnload('$sTransactionId') } );\n");
+		$this->add_ready_script("$(window).on('unload', function() { OnUnload('$sTransactionId') } );\n");
 	}
 
 	public function WizardFormButtons($iButtonFlags)

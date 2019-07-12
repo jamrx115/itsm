@@ -1,33 +1,33 @@
 <?php
-// Copyright (C) 2010-2014 Combodo SARL
-//
-//   This file is part of iTop.
-//
-//   iTop is free software; you can redistribute it and/or modify	
-//   it under the terms of the GNU Affero General Public License as published by
-//   the Free Software Foundation, either version 3 of the License, or
-//   (at your option) any later version.
-//
-//   iTop is distributed in the hope that it will be useful,
-//   but WITHOUT ANY WARRANTY; without even the implied warranty of
-//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//   GNU Affero General Public License for more details.
-//
-//   You should have received a copy of the GNU Affero General Public License
-//   along with iTop. If not, see <http://www.gnu.org/licenses/>
-
 /**
- * @copyright   Copyright (C) 2010-2014 Combodo SARL
- * @license     http://opensource.org/licenses/AGPL-3.0
+ * Localized data
+ *
+ * @copyright Copyright (C) 2010-2018 Combodo SARL
+ * @license	http://opensource.org/licenses/AGPL-3.0
+ *
+ * This file is part of iTop.
+ *
+ * iTop is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * iTop is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with iTop. If not, see <http://www.gnu.org/licenses/>
  */
 
 Dict::Add('EN US', 'English', 'English', array(
 	'Menu:DataSources' => 'Synchronization Data Sources',
 	'Menu:DataSources+' => 'All Synchronization Data Sources',
 	'Menu:WelcomeMenu' => 'Welcome',
-	'Menu:WelcomeMenu+' => 'Helpdesk Alltic',
+	'Menu:WelcomeMenu+' => 'Welcome to iTop',
 	'Menu:WelcomeMenuPage' => 'Welcome',
-	'Menu:WelcomeMenuPage+' => 'Helpdesk Alltic',
+	'Menu:WelcomeMenuPage+' => 'Welcome to iTop',
 	'Menu:AdminTools' => 'Admin tools',
 	'Menu:AdminTools+' => 'Administration tools',
 	'Menu:AdminTools?' => 'Tools accessible only to users having the administrator profile',
@@ -55,4 +55,31 @@ Dict::Add('EN US', 'English', 'English', array(
 	'Menu:UserAccountsMenu+' => 'User Accounts',
 	'Menu:UserAccountsMenu:Title' => 'User Accounts',
 	'Menu:MyShortcuts' => 'My Shortcuts',
+));
+
+//
+// Class: AbstractResource
+//
+
+Dict::Add('EN US', 'English', 'English', array(
+	'Class:AbstractResource' => 'Abstract Resource',
+	'Class:AbstractResource+' => '',
+));
+
+//
+// Class: ResourceAdminMenu
+//
+
+Dict::Add('EN US', 'English', 'English', array(
+	'Class:ResourceAdminMenu' => 'Resource Admin Menu',
+	'Class:ResourceAdminMenu+' => '',
+));
+
+//
+// Class: ResourceRunQueriesMenu
+//
+
+Dict::Add('EN US', 'English', 'English', array(
+	'Class:ResourceRunQueriesMenu' => 'Resource Run Queries Menu',
+	'Class:ResourceRunQueriesMenu+' => '',
 ));

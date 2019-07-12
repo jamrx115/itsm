@@ -57,6 +57,7 @@ class EMail
 	{
 		$this->m_aData = array();
 		$this->m_oMessage = Swift_Message::newInstance();
+		$this->SetRecipientFrom(MetaModel::GetConfig()->Get('email_default_sender_address'), MetaModel::GetConfig()->Get('email_default_sender_label'));
 	}
 
 	/**
@@ -195,18 +196,29 @@ class EMail
 
 		$aFailedRecipients = array();
 		$this->m_oMessage->setMaxLineLength(0);
-		$iSent = $oMailer->send($this->m_oMessage, $aFailedRecipients);
-		if ($iSent === 0)
+		$oKPI = new ExecutionKPI();
+		try
 		{
-			// Beware: it seems that $aFailedRecipients sometimes contains the recipients that actually received the message !!!
-			IssueLog::Warning('Email sending failed: Some recipients were invalid, aFailedRecipients contains: '.implode(', ', $aFailedRecipients));
-			$aIssues = array('Some recipients were invalid.');
-			return EMAIL_SEND_ERROR;
+			$iSent = $oMailer->send($this->m_oMessage, $aFailedRecipients);
+			if ($iSent === 0)
+			{
+				// Beware: it seems that $aFailedRecipients sometimes contains the recipients that actually received the message !!!
+				IssueLog::Warning('Email sending failed: Some recipients were invalid, aFailedRecipients contains: '.implode(', ', $aFailedRecipients));
+				$aIssues = array('Some recipients were invalid.');
+				$oKPI->ComputeStats('Email Sent', 'Error received');
+				return EMAIL_SEND_ERROR;
+			}
+			else
+			{
+				$aIssues = array();
+				$oKPI->ComputeStats('Email Sent', 'Succeded');
+				return EMAIL_SEND_OK;
+			}
 		}
-		else
+		catch (Exception $e)
 		{
-			$aIssues = array();
-			return EMAIL_SEND_OK;
+			$oKPI->ComputeStats('Email Sent', 'Error received');
+			throw $e;
 		}
 	}
 	
@@ -222,19 +234,28 @@ class EMail
 			$oDOMDoc = new DOMDocument();
 			$oDOMDoc->preserveWhitespace = true;
 			@$oDOMDoc->loadHTML('<?xml encoding="UTF-8"?>'.$this->m_aData['body']['body']); // For loading HTML chunks where the character set is not specified
-			
+
 			$oXPath = new DOMXPath($oDOMDoc);
-			$sXPath = "//img[@data-img-id]";
+			$sXPath = '//img[@'.InlineImage::DOM_ATTR_ID.']';
 			$oImagesList = $oXPath->query($sXPath);
-			
+
 			if ($oImagesList->length != 0)
 			{
 				foreach($oImagesList as $oImg)
 				{
-					$iAttId = $oImg->getAttribute('data-img-id');
+					$iAttId = $oImg->getAttribute(InlineImage::DOM_ATTR_ID);
 					$oAttachment = MetaModel::GetObject('InlineImage', $iAttId, false, true /* Allow All Data */);
 					if ($oAttachment)
 					{
+						$sImageSecret = $oImg->getAttribute('data-img-secret');
+						$sAttachmentSecret = $oAttachment->Get('secret');
+						if ($sImageSecret !== $sAttachmentSecret)
+						{
+							// @see N°1921
+							// If copying from another iTop we could get an IMG pointing to an InlineImage with wrong secret
+							continue;
+						}
+
 						$oDoc = $oAttachment->Get('contents');
 						$oSwiftImage = new Swift_Image($oDoc->GetData(), $oDoc->GetFileName(), $oDoc->GetMimeType());
 						$sCid = $this->m_oMessage->embed($oSwiftImage);
@@ -249,6 +270,11 @@ class EMail
 
 	public function Send(&$aIssues, $bForceSynchronous = false, $oLog = null)
 	{
+		//select a default sender if none is provided.
+		if(empty($this->m_aData['from']['address']) && !empty($this->m_aData['to'])){
+			$this->SetRecipientFrom($this->m_aData['to']);
+		}
+
 		if ($bForceSynchronous)
 		{
 			return $this->SendSynchronous($aIssues, $oLog);

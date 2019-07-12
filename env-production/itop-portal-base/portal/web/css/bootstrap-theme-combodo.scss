@@ -1,5 +1,4 @@
 @import 'variables.scss';
-@import url("https://fonts.googleapis.com/css?family=Open+Sans:400,700");
 
 /*!
  * Combodo portal theme v1.0.0
@@ -528,7 +527,7 @@ pre code {
     color: inherit;
     white-space: pre-wrap;
     background-color: transparent;
-    border-radius: 0
+    border-radius: $border-radius-base
 }
 .pre-scrollable {
     max-height: 340px;
@@ -1362,13 +1361,13 @@ th {
     border-bottom-width: 2px
 }
 .table-striped>tbody>tr:nth-of-type(odd) {
-    background-color: #f9f9f9
+    background-color: $table-bg-accent;
 }
 .table-striped>tbody>tr:hover {
-	background-color: #fdf5d0;
+	background-color: $table-bg-hover;
 }
 .table-hover>tbody>tr:hover {
-    background-color: #f5f5f5
+    background-color: $table-bg-hover;
 }
 table col[class*="col-"] {
     position: static;
@@ -1542,6 +1541,9 @@ fieldset {
     border: 1px solid $gray-lighter;
 	border-radius: $border-radius-base;
     min-width: 0;
+}
+form fieldset {
+    background-color: #f9f9f9;
 }
 legend {
     display: block;
@@ -1740,7 +1742,7 @@ fieldset[disabled] .checkbox label {
     cursor: not-allowed
 }
 .form-control-static {
-    padding-top: 9px;
+    padding-top: 0px; /* 9px; */
     padding-bottom: 9px;
     margin-bottom: 0;
     min-height: 31px
@@ -2485,7 +2487,7 @@ fieldset[disabled] .btn-danger.active {
 .btn-link {
     color: $brand-primary;
     font-weight: normal;
-    border-radius: 0
+    border-radius: $border-radius-base
 }
 .btn-link,
 .btn-link:active,
@@ -2676,22 +2678,22 @@ tbody.collapse.in {
     text-decoration: none;
     background-color: transparent;
     background-image: none;
-    filter: progid: DXImageTransform.Microsoft.gradient(enabled=false);
-    cursor: not-allowed
+    filter: progid:DXImageTransform.Microsoft.gradient(enabled=false);
+    cursor: not-allowed;
 }
 .open>.dropdown-menu {
-    display: block
+    display: block;
 }
 .open>a {
-    outline: 0
+    outline: 0;
 }
 .dropdown-menu-right {
     left: auto;
-    right: 0
+    right: 0;
 }
 .dropdown-menu-left {
     left: 0;
-    right: auto
+    right: auto;
 }
 .dropdown-header {
     display: block;
@@ -2699,7 +2701,7 @@ tbody.collapse.in {
     font-size: $font-size-small;
     line-height: $line-height-base;
     color: #808080;
-    white-space: nowrap
+    white-space: nowrap;
 }
 .dropdown-backdrop {
     position: fixed;
@@ -2777,34 +2779,34 @@ tbody.collapse.in {
     margin-left: 5px
 }
 .btn-group>.btn:not(:first-child):not(:last-child):not(.dropdown-toggle) {
-    border-radius: 0
+    border-radius: $border-radius-base
 }
 .btn-group>.btn:first-child {
     margin-left: 0
 }
 .btn-group>.btn:first-child:not(:last-child):not(.dropdown-toggle) {
-    border-bottom-right-radius: 0;
-    border-top-right-radius: 0
+    border-bottom-right-radius: $border-radius-base;
+    border-top-right-radius: $border-radius-base
 }
 .btn-group>.btn:last-child:not(:first-child),
 .btn-group>.dropdown-toggle:not(:first-child) {
-    border-bottom-left-radius: 0;
-    border-top-left-radius: 0
+    border-bottom-left-radius: $border-radius-base;
+    border-top-left-radius: $border-radius-base
 }
 .btn-group>.btn-group {
     float: left
 }
 .btn-group>.btn-group:not(:first-child):not(:last-child)>.btn {
-    border-radius: 0
+    border-radius: $border-radius-base
 }
 .btn-group>.btn-group:first-child:not(:last-child)>.btn:last-child,
 .btn-group>.btn-group:first-child:not(:last-child)>.dropdown-toggle {
-    border-bottom-right-radius: 0;
-    border-top-right-radius: 0
+    border-bottom-right-radius: $border-radius-base;
+    border-top-right-radius: $border-radius-base
 }
 .btn-group>.btn-group:last-child:not(:first-child)>.btn:first-child {
-    border-bottom-left-radius: 0;
-    border-top-left-radius: 0
+    border-bottom-left-radius: $border-radius-base;
+    border-top-left-radius: $border-radius-base
 }
 .btn-group .dropdown-toggle:active,
 .btn-group.open .dropdown-toggle {
@@ -2855,29 +2857,29 @@ tbody.collapse.in {
     margin-left: 0
 }
 .btn-group-vertical>.btn:not(:first-child):not(:last-child) {
-    border-radius: 0
+    border-radius: $border-radius-base
 }
 .btn-group-vertical>.btn:first-child:not(:last-child) {
-    border-top-right-radius: 4px;
-    border-bottom-right-radius: 0;
-    border-bottom-left-radius: 0
+    border-top-right-radius: $border-radius-base;
+    border-bottom-right-radius: $border-radius-base;
+    border-bottom-left-radius: $border-radius-base
 }
 .btn-group-vertical>.btn:last-child:not(:first-child) {
-    border-bottom-left-radius: 4px;
-    border-top-right-radius: 0;
-    border-top-left-radius: 0
+    border-bottom-left-radius: $border-radius-base;
+    border-top-right-radius: $border-radius-base;
+    border-top-left-radius: $border-radius-base
 }
 .btn-group-vertical>.btn-group:not(:first-child):not(:last-child)>.btn {
-    border-radius: 0
+    border-radius: $border-radius-base
 }
 .btn-group-vertical>.btn-group:first-child:not(:last-child)>.btn:last-child,
 .btn-group-vertical>.btn-group:first-child:not(:last-child)>.dropdown-toggle {
-    border-bottom-right-radius: 0;
-    border-bottom-left-radius: 0
+    border-bottom-right-radius: $border-radius-base;
+    border-bottom-left-radius: $border-radius-base
 }
 .btn-group-vertical>.btn-group:last-child:not(:first-child)>.btn:first-child {
-    border-top-right-radius: 0;
-    border-top-left-radius: 0
+    border-top-right-radius: $border-radius-base;
+    border-top-left-radius: $border-radius-base
 }
 .btn-group-justified {
     display: table;
@@ -2976,7 +2978,7 @@ select[multiple].input-group-sm>.input-group-btn>.btn {
 .input-group-addon:not(:first-child):not(:last-child),
 .input-group-btn:not(:first-child):not(:last-child),
 .input-group .form-control:not(:first-child):not(:last-child) {
-    border-radius: 0
+    border-radius: $border-radius-base
 }
 .input-group-addon,
 .input-group-btn {
@@ -2992,7 +2994,7 @@ select[multiple].input-group-sm>.input-group-btn>.btn {
     color: $gray;
     text-align: center;
     background-color: #dddddd;
-    border: 1px solid #dddddd;
+    border: 1px solid #c7c7c7;
     border-radius: $border-radius-base
 }
 .input-group-addon.input-sm {
@@ -3016,8 +3018,8 @@ select[multiple].input-group-sm>.input-group-btn>.btn {
 .input-group-btn:first-child>.dropdown-toggle,
 .input-group-btn:last-child>.btn:not(:last-child):not(.dropdown-toggle),
 .input-group-btn:last-child>.btn-group:not(:last-child)>.btn {
-    border-bottom-right-radius: 0;
-    border-top-right-radius: 0
+    border-bottom-right-radius: $border-radius-base;
+    border-top-right-radius: $border-radius-base
 }
 .input-group-addon:first-child {
     border-right: 0
@@ -3029,8 +3031,8 @@ select[multiple].input-group-sm>.input-group-btn>.btn {
 .input-group-btn:last-child>.dropdown-toggle,
 .input-group-btn:first-child>.btn:not(:first-child),
 .input-group-btn:first-child>.btn-group:not(:first-child)>.btn {
-    border-bottom-left-radius: 0;
-    border-top-left-radius: 0
+    border-bottom-left-radius: $border-radius-base;
+    border-top-left-radius: $border-radius-base
 }
 .input-group-addon:last-child {
     border-left: 0
@@ -3468,10 +3470,13 @@ select[multiple].input-group-sm>.input-group-btn>.btn {
 		border-right-width: 20px;
 		border-right-color: $body-bg;
 	}
-	.navbar-nav>li.active>a{
-		margin-top: -1px; /* To mask border from previous li item */
-		box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.8) inset;
-	}
+    .navbar-nav>li.active>a{
+        margin-top: -1px; /* To mask border from previous li item */
+        box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.8) inset;
+    }
+    .navbar-nav>li:last-child.active>a{
+        margin-top: 0px; /* Overflow hack */
+    }
     .navbar-nav>li>a {
         padding-top: 11px;
         padding-bottom: 11px;
@@ -3901,13 +3906,13 @@ fieldset[disabled] .navbar-inverse .btn-link:focus {
 .pagination>li:first-child>a,
 .pagination>li:first-child>span {
     margin-left: 0;
-    border-bottom-left-radius: 4px;
-    border-top-left-radius: 4px
+    border-bottom-left-radius: $border-radius-base;
+    border-top-left-radius: $border-radius-base
 }
 .pagination>li:last-child>a,
 .pagination>li:last-child>span {
-    border-bottom-right-radius: 4px;
-    border-top-right-radius: 4px
+    border-bottom-right-radius: $border-radius-base;
+    border-top-right-radius: $border-radius-base
 }
 .pagination>li>a:hover,
 .pagination>li>span:hover,
@@ -4012,20 +4017,21 @@ fieldset[disabled] .navbar-inverse .btn-link:focus {
     cursor: not-allowed
 }
 .label {
-    display: inline;
+    display: inline-block;
     padding: .2em .6em .3em;
     font-size: 75%;
-    font-weight: bold;
     line-height: 1;
-    color: #ffffff;
+    color: $label-default-color;
+    background-color: $label-default-bg;
     text-align: center;
     white-space: nowrap;
     vertical-align: baseline;
-    border-radius: .25em
+    border-radius: $label-border-radius;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.15), 0 0 1px 1px #f1f1f1;
 }
 a.label:hover,
 a.label:focus {
-    color: #ffffff;
+    color: $label-default-color;
     text-decoration: none;
     cursor: pointer
 }
@@ -4037,11 +4043,12 @@ a.label:focus {
     top: -1px
 }
 .label-default {
-    background-color: #474949
+    color: $label-default-color;
+    background-color: $label-default-bg;
 }
 .label-default[href]:hover,
 .label-default[href]:focus {
-    background-color: #2e2f2f
+    background-color: darken($label-default-bg, 2.5%);
 }
 .label-primary {
     background-color: $brand-primary
@@ -4109,6 +4116,9 @@ a.badge:focus {
     color: #ffffff;
     text-decoration: none;
     cursor: pointer
+}
+.list-group .list-group-item:hover{
+    background-color: rgba(254, 223, 167, 0.1);
 }
 .list-group-item.active>.badge,
 .nav-pills>.active>a>.badge {
@@ -4421,13 +4431,13 @@ a.thumbnail.active {
     border: 1px solid #dddddd
 }
 .list-group-item:first-child {
-    border-top-right-radius: 4px;
-    border-top-left-radius: 4px
+    border-top-right-radius: $border-radius-base;
+    border-top-left-radius: $border-radius-base
 }
 .list-group-item:last-child {
     margin-bottom: 0;
-    border-bottom-right-radius: 4px;
-    border-bottom-left-radius: 4px
+    border-bottom-right-radius: $border-radius-base;
+    border-bottom-left-radius: $border-radius-base
 }
 a.list-group-item,
 button.list-group-item {
@@ -4633,8 +4643,8 @@ button.list-group-item-danger.active:focus {
 .panel-heading {
     padding: 10px 15px;
     border-bottom: 1px solid transparent;
-    border-top-right-radius: 3px;
-    border-top-left-radius: 3px
+    border-top-right-radius: $border-radius-base;
+    border-top-left-radius: $border-radius-base;
 }
 .panel-heading>.dropdown .dropdown-toggle {
     color: inherit
@@ -4656,8 +4666,8 @@ button.list-group-item-danger.active:focus {
     padding: 10px 15px;
     background-color: #fcfcfc;
     border-top: 1px solid #dddddd;
-    border-bottom-right-radius: 3px;
-    border-bottom-left-radius: 3px
+    border-bottom-right-radius: $border-radius-base;
+    border-bottom-left-radius: $border-radius-base;
 }
 .panel>.list-group,
 .panel>.panel-collapse>.list-group {
@@ -4666,24 +4676,24 @@ button.list-group-item-danger.active:focus {
 .panel>.list-group .list-group-item,
 .panel>.panel-collapse>.list-group .list-group-item {
     border-width: 1px 0;
-    border-radius: 0
+    border-radius: $border-radius-base
 }
 .panel>.list-group:first-child .list-group-item:first-child,
 .panel>.panel-collapse>.list-group:first-child .list-group-item:first-child {
     border-top: 0;
-    border-top-right-radius: 3px;
-    border-top-left-radius: 3px
+    border-top-right-radius: $border-radius-base;
+    border-top-left-radius: $border-radius-base
 }
 .panel>.list-group:last-child .list-group-item:last-child,
 .panel>.panel-collapse>.list-group:last-child .list-group-item:last-child {
 	margin-bottom: 1px;
     border-bottom: 0;
-    border-bottom-right-radius: 3px;
-    border-bottom-left-radius: 3px
+    border-bottom-right-radius: $border-radius-base;
+    border-bottom-left-radius: $border-radius-base
 }
 .panel>.panel-heading+.panel-collapse>.list-group .list-group-item:first-child {
-    border-top-right-radius: 0;
-    border-top-left-radius: 0
+    border-top-right-radius: $border-radius-base;
+    border-top-left-radius: $border-radius-base
 }
 .panel-heading+.list-group .list-group-item:first-child {
     border-top-width: 0
@@ -4704,15 +4714,15 @@ button.list-group-item-danger.active:focus {
 }
 .panel>.table:first-child,
 .panel>.table-responsive:first-child>.table:first-child {
-    border-top-right-radius: 3px;
-    border-top-left-radius: 3px
+    border-top-right-radius: $border-radius-base;
+    border-top-left-radius: $border-radius-base
 }
 .panel>.table:first-child>thead:first-child>tr:first-child,
 .panel>.table-responsive:first-child>.table:first-child>thead:first-child>tr:first-child,
 .panel>.table:first-child>tbody:first-child>tr:first-child,
 .panel>.table-responsive:first-child>.table:first-child>tbody:first-child>tr:first-child {
-    border-top-left-radius: 3px;
-    border-top-right-radius: 3px
+    border-top-left-radius: $border-radius-base;
+    border-top-right-radius: $border-radius-base
 }
 .panel>.table:first-child>thead:first-child>tr:first-child td:first-child,
 .panel>.table-responsive:first-child>.table:first-child>thead:first-child>tr:first-child td:first-child,
@@ -4722,7 +4732,7 @@ button.list-group-item-danger.active:focus {
 .panel>.table-responsive:first-child>.table:first-child>thead:first-child>tr:first-child th:first-child,
 .panel>.table:first-child>tbody:first-child>tr:first-child th:first-child,
 .panel>.table-responsive:first-child>.table:first-child>tbody:first-child>tr:first-child th:first-child {
-    border-top-left-radius: 3px
+    border-top-left-radius: $border-radius-base
 }
 .panel>.table:first-child>thead:first-child>tr:first-child td:last-child,
 .panel>.table-responsive:first-child>.table:first-child>thead:first-child>tr:first-child td:last-child,
@@ -4732,19 +4742,19 @@ button.list-group-item-danger.active:focus {
 .panel>.table-responsive:first-child>.table:first-child>thead:first-child>tr:first-child th:last-child,
 .panel>.table:first-child>tbody:first-child>tr:first-child th:last-child,
 .panel>.table-responsive:first-child>.table:first-child>tbody:first-child>tr:first-child th:last-child {
-    border-top-right-radius: 3px
+    border-top-right-radius: $border-radius-base
 }
 .panel>.table:last-child,
 .panel>.table-responsive:last-child>.table:last-child {
-    border-bottom-right-radius: 3px;
-    border-bottom-left-radius: 3px
+    border-bottom-right-radius: $border-radius-base;
+    border-bottom-left-radius: $border-radius-base
 }
 .panel>.table:last-child>tbody:last-child>tr:last-child,
 .panel>.table-responsive:last-child>.table:last-child>tbody:last-child>tr:last-child,
 .panel>.table:last-child>tfoot:last-child>tr:last-child,
 .panel>.table-responsive:last-child>.table:last-child>tfoot:last-child>tr:last-child {
-    border-bottom-left-radius: 3px;
-    border-bottom-right-radius: 3px
+    border-bottom-left-radius: $border-radius-base;
+    border-bottom-right-radius: $border-radius-base
 }
 .panel>.table:last-child>tbody:last-child>tr:last-child td:first-child,
 .panel>.table-responsive:last-child>.table:last-child>tbody:last-child>tr:last-child td:first-child,
@@ -4754,7 +4764,7 @@ button.list-group-item-danger.active:focus {
 .panel>.table-responsive:last-child>.table:last-child>tbody:last-child>tr:last-child th:first-child,
 .panel>.table:last-child>tfoot:last-child>tr:last-child th:first-child,
 .panel>.table-responsive:last-child>.table:last-child>tfoot:last-child>tr:last-child th:first-child {
-    border-bottom-left-radius: 3px
+    border-bottom-left-radius: $border-radius-base
 }
 .panel>.table:last-child>tbody:last-child>tr:last-child td:last-child,
 .panel>.table-responsive:last-child>.table:last-child>tbody:last-child>tr:last-child td:last-child,
@@ -4764,7 +4774,7 @@ button.list-group-item-danger.active:focus {
 .panel>.table-responsive:last-child>.table:last-child>tbody:last-child>tr:last-child th:last-child,
 .panel>.table:last-child>tfoot:last-child>tr:last-child th:last-child,
 .panel>.table-responsive:last-child>.table:last-child>tfoot:last-child>tr:last-child th:last-child {
-    border-bottom-right-radius: 3px
+    border-bottom-right-radius: $border-radius-base
 }
 .panel>.panel-body+.table,
 .panel>.panel-body+.table-responsive,
@@ -5106,15 +5116,19 @@ button.close {
 }
 .modal-header {
     padding: 15px;
-    border-bottom: 1px solid #e5e5e5;
+    background-color: $modal-header-bg;
+    border-bottom: 1px solid $modal-header-border-color;
     min-height: 16.42857143px
 }
 .modal-header .close {
-    margin-top: -2px
+    margin-top: -2px;
+    color: $modal-close-color;
+    opacity: 0.6;
 }
 .modal-title {
     margin: 0;
-    line-height: $line-height-base
+    line-height: $line-height-base;
+    color: $modal-title-color
 }
 .modal-body {
     position: relative;
@@ -5506,7 +5520,7 @@ button.close {
     background-image: -webkit-gradient(linear, left top, right top, from(rgba(0, 0, 0, 0.5)), to(rgba(0, 0, 0, 0.0001)));
     background-image: linear-gradient(to right, rgba(0, 0, 0, 0.5) 0, rgba(0, 0, 0, 0.0001) 100%);
     background-repeat: repeat-x;
-    filter: progid: DXImageTransform.Microsoft.gradient(startColorstr='#80000000', endColorstr='#00000000', GradientType=1)
+    filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#80000000', endColorstr='#00000000', GradientType=1);
 }
 .carousel-control.right {
     left: auto;
@@ -5516,7 +5530,7 @@ button.close {
     background-image: -webkit-gradient(linear, left top, right top, from(rgba(0, 0, 0, 0.0001)), to(rgba(0, 0, 0, 0.5)));
     background-image: linear-gradient(to right, rgba(0, 0, 0, 0.0001) 0, rgba(0, 0, 0, 0.5) 100%);
     background-repeat: repeat-x;
-    filter: progid: DXImageTransform.Microsoft.gradient(startColorstr='#00000000', endColorstr='#80000000', GradientType=1)
+    filter: progid:DXImageTransform.Microsoft.gradient(startColorstr='#00000000', endColorstr='#80000000', GradientType=1);
 }
 .carousel-control:hover,
 .carousel-control:focus {
@@ -5524,7 +5538,7 @@ button.close {
     color: #ffffff;
     text-decoration: none;
     opacity: 0.9;
-    filter: alpha(opacity=90)
+    filter: alpha(opacity=90);
 }
 .carousel-control .icon-prev,
 .carousel-control .icon-next,
@@ -5534,12 +5548,12 @@ button.close {
     top: 50%;
     margin-top: -10px;
     z-index: 5;
-    display: inline-block
+    display: inline-block;
 }
 .carousel-control .icon-prev,
 .carousel-control .glyphicon-chevron-left {
     left: 50%;
-    margin-left: -10px
+    margin-left: -10px;
 }
 .carousel-control .icon-next,
 .carousel-control .glyphicon-chevron-right {
@@ -5551,13 +5565,13 @@ button.close {
     width: 20px;
     height: 20px;
     line-height: 1;
-    font-family: serif
+    font-family: serif;
 }
 .carousel-control .icon-prev:before {
-    content: '\2039'
+    content: '\2039';
 }
 .carousel-control .icon-next:before {
-    content: '\203a'
+    content: '\203a';
 }
 .carousel-indicators {
     position: absolute;
@@ -5568,7 +5582,7 @@ button.close {
     margin-left: -30%;
     padding-left: 0;
     list-style: none;
-    text-align: center
+    text-align: center;
 }
 .carousel-indicators li {
     display: inline-block;
@@ -5580,13 +5594,13 @@ button.close {
     border-radius: 10px;
     cursor: pointer;
     background-color: #000 \9;
-    background-color: rgba(0, 0, 0, 0)
+    background-color: rgba(0, 0, 0, 0);
 }
 .carousel-indicators .active {
     margin: 0;
     width: 12px;
     height: 12px;
-    background-color: #ffffff
+    background-color: #ffffff;
 }
 .carousel-caption {
     position: absolute;
@@ -5598,7 +5612,7 @@ button.close {
     padding-bottom: 20px;
     color: #ffffff;
     text-align: center;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6)
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 .carousel-caption .btn {
     text-shadow: none
@@ -5611,23 +5625,23 @@ button.close {
         width: 30px;
         height: 30px;
         margin-top: -15px;
-        font-size: 30px
+        font-size: 30px;
     }
     .carousel-control .glyphicon-chevron-left,
     .carousel-control .icon-prev {
-        margin-left: -15px
+        margin-left: -15px;
     }
     .carousel-control .glyphicon-chevron-right,
     .carousel-control .icon-next {
-        margin-right: -15px
+        margin-right: -15px;
     }
     .carousel-caption {
         left: 20%;
         right: 20%;
-        padding-bottom: 30px
+        padding-bottom: 30px;
     }
     .carousel-indicators {
-        bottom: 20px
+        bottom: 20px;
     }
 }
 .clearfix:before,
@@ -5661,7 +5675,7 @@ button.close {
 .modal-footer:before,
 .modal-footer:after {
     content: " ";
-    display: table
+    display: table;
 }
 .clearfix:after,
 .dl-horizontal dd:after,
@@ -5678,49 +5692,49 @@ button.close {
 .pager:after,
 .panel-body:after,
 .modal-footer:after {
-    clear: both
+    clear: both;
 }
 .center-block {
     display: block;
     margin-left: auto;
-    margin-right: auto
+    margin-right: auto;
 }
 .pull-right {
-    float: right !important
+    float: right !important;
 }
 .pull-left {
-    float: left !important
+    float: left !important;
 }
 .hide {
-    display: none !important
+    display: none !important;
 }
 .show {
-    display: block !important
+    display: block !important;
 }
 .invisible {
-    visibility: hidden
+    visibility: hidden;
 }
 .text-hide {
     font: 0/0 a;
     color: transparent;
     text-shadow: none;
     background-color: transparent;
-    border: 0
+    border: 0;
 }
 .hidden {
-    display: none !important
+    display: none !important;
 }
 .affix {
-    position: fixed
+    position: fixed;
 }
 @-ms-viewport {
-    width: device-width
+    width: device-width;
 }
 .visible-xs,
 .visible-sm,
 .visible-md,
 .visible-lg {
-    display: none !important
+    display: none !important;
 }
 .visible-xs-block,
 .visible-xs-inline,
@@ -5734,193 +5748,193 @@ button.close {
 .visible-lg-block,
 .visible-lg-inline,
 .visible-lg-inline-block {
-    display: none !important
+    display: none !important;
 }
 @media (max-width: 767px) {
     .visible-xs {
-        display: block !important
+        display: block !important;
     }
     table.visible-xs {
-        display: table !important
+        display: table !important;
     }
     tr.visible-xs {
-        display: table-row !important
+        display: table-row !important;
     }
     th.visible-xs,
     td.visible-xs {
-        display: table-cell !important
+        display: table-cell !important;
     }
 }
 @media (max-width: 767px) {
     .visible-xs-block {
-        display: block !important
+        display: block !important;
     }
 }
 @media (max-width: 767px) {
     .visible-xs-inline {
-        display: inline !important
+        display: inline !important;
     }
 }
 @media (max-width: 767px) {
     .visible-xs-inline-block {
-        display: inline-block !important
+        display: inline-block !important;
     }
 }
 @media (min-width: 768px) and (max-width: 991px) {
     .visible-sm {
-        display: block !important
+        display: block !important;
     }
     table.visible-sm {
-        display: table !important
+        display: table !important;
     }
     tr.visible-sm {
-        display: table-row !important
+        display: table-row !important;
     }
     th.visible-sm,
     td.visible-sm {
-        display: table-cell !important
+        display: table-cell !important;
     }
 }
 @media (min-width: 768px) and (max-width: 991px) {
     .visible-sm-block {
-        display: block !important
+        display: block !important;
     }
 }
 @media (min-width: 768px) and (max-width: 991px) {
     .visible-sm-inline {
-        display: inline !important
+        display: inline !important;
     }
 }
 @media (min-width: 768px) and (max-width: 991px) {
     .visible-sm-inline-block {
-        display: inline-block !important
+        display: inline-block !important;
     }
 }
 @media (min-width: 992px) and (max-width: 1199px) {
     .visible-md {
-        display: block !important
+        display: block !important;
     }
     table.visible-md {
-        display: table !important
+        display: table !important;
     }
     tr.visible-md {
-        display: table-row !important
+        display: table-row !important;
     }
     th.visible-md,
     td.visible-md {
-        display: table-cell !important
+        display: table-cell !important;
     }
 }
 @media (min-width: 992px) and (max-width: 1199px) {
     .visible-md-block {
-        display: block !important
+        display: block !important;
     }
 }
 @media (min-width: 992px) and (max-width: 1199px) {
     .visible-md-inline {
-        display: inline !important
+        display: inline !important;
     }
 }
 @media (min-width: 992px) and (max-width: 1199px) {
     .visible-md-inline-block {
-        display: inline-block !important
+        display: inline-block !important;
     }
 }
 @media (min-width: 1200px) {
     .visible-lg {
-        display: block !important
+        display: block !important;
     }
     table.visible-lg {
-        display: table !important
+        display: table !important;
     }
     tr.visible-lg {
-        display: table-row !important
+        display: table-row !important;
     }
     th.visible-lg,
     td.visible-lg {
-        display: table-cell !important
+        display: table-cell !important;
     }
 }
 @media (min-width: 1200px) {
     .visible-lg-block {
-        display: block !important
+        display: block !important;
     }
 }
 @media (min-width: 1200px) {
     .visible-lg-inline {
-        display: inline !important
+        display: inline !important;
     }
 }
 @media (min-width: 1200px) {
     .visible-lg-inline-block {
-        display: inline-block !important
+        display: inline-block !important;
     }
 }
 @media (max-width: 767px) {
     .hidden-xs {
-        display: none !important
+        display: none !important;
     }
 }
 @media (min-width: 768px) and (max-width: 991px) {
     .hidden-sm {
-        display: none !important
+        display: none !important;
     }
 }
 @media (min-width: 992px) and (max-width: 1199px) {
     .hidden-md {
-        display: none !important
+        display: none !important;
     }
 }
 @media (min-width: 1200px) {
     .hidden-lg {
-        display: none !important
+        display: none !important;
     }
 }
 .visible-print {
-    display: none !important
+    display: none !important;
 }
 @media print {
     .visible-print {
-        display: block !important
+        display: block !important;
     }
     table.visible-print {
-        display: table !important
+        display: table !important;
     }
     tr.visible-print {
-        display: table-row !important
+        display: table-row !important;
     }
     th.visible-print,
     td.visible-print {
-        display: table-cell !important
+        display: table-cell !important;
     }
 }
 .visible-print-block {
-    display: none !important
+    display: none !important;
 }
 @media print {
     .visible-print-block {
-        display: block !important
+        display: block !important;
     }
 }
 .visible-print-inline {
-    display: none !important
+    display: none !important;
 }
 @media print {
     .visible-print-inline {
-        display: inline !important
+        display: inline !important;
     }
 }
 .visible-print-inline-block {
-    display: none !important
+    display: none !important;
 }
 @media print {
     .visible-print-inline-block {
-        display: inline-block !important
+        display: inline-block !important;
     }
 }
 @media print {
     .hidden-print {
-        display: none !important
+        display: none !important;
     }
 }
 .navbar-inverse .badge {
@@ -5928,75 +5942,264 @@ button.close {
     color: $brand-primary
 }
 .btn {
-    font-family: $font-family-sans-serif
+    font-family: $font-family-sans-serif;
 }
 .btn-default,
 .btn-default:hover {
     color: $btn-default-color;
-    border: $btn-default-border
+    border: $btn-default-border;
 }
 .btn-primary,
 .btn-primary:hover {
-    border: 1px solid $brand-primary-dark
+    border: 1px solid $brand-primary-dark;
 }
 .btn-success,
 .btn-success:hover {
-    border: 1px solid #2f6405
+    border: 1px solid #2f6405;
 }
 .btn-info,
 .btn-info:hover {
-    border: 1px solid #02749c
+    border: 1px solid #02749c;
 }
 .btn-warning,
 .btn-warning:hover {
-    border: 1px solid #79377c
+    border: 1px solid #79377c;
 }
 .btn-danger,
 .btn-danger:hover {
-    border: 1px solid #ac6819
+    border: 1px solid #ac6819;
 }
 body {
-    font-weight: 200
+    font-weight: 200;
 }
 th {
-    color: #444444
+    color: #444444;
 }
 legend {
-    color: #444444
+    color: #444444;
 }
 label {
     font-weight: bold
 }
 .pager a {
-    color: #444444
+    color: #444444;
 }
 .pager a:hover,
 .pager .active>a {
     border-color: $brand-primary;
-    color: #fff
+    color: #fff;
 }
 .pager .disabled>a {
-    border-color: #dddddd
+    border-color: #dddddd;
 }
 
 /*
  * Specific to the combodo theme. Not standard BS classes
 */
+/* Button groups */
 .btn-group.btn_group_explicit{
 	padding: 7px;
 	background-color: $combodo-dark-gray-darker;
 	border: 1px solid #EBEAEA;
 	border-radius: 30px;
-	box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.4) inset;	
+	box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.4) inset;
+
+    .btn{
+        color: $white;
+        background-color: transparent;
+        border: none;
+
+        &.active{
+            color: #6B6965;
+            background-color: $body-bg;
+            border-radius: 37px !important;
+            box-shadow: -1px 1px 2px rgba(0, 0, 0, 0.4);
+        }
+
+        .btn_tab_count:before{
+            content: "(";
+            margin-left: 2px;
+        }
+        .btn_tab_count:after{
+            content: ")";
+         }
+    }
 }
-.btn-group.btn_group_explicit .btn{
-	color: $white;
-	background-color: transparent;
-	border: none;
+/* Help blocks in forms */
+.form_fields .form-group .help-block{
+    margin-top: 0px;
+    margin-bottom: 0px;
 }
-.btn-group.btn_group_explicit .btn.active{
-	color: #6B6965;
-	background-color: $body-bg;
-	border-radius: 37px !important;
-	box-shadow: -1px 1px 2px rgba(0, 0, 0, 0.4);
+/* Overriding Twitter Typeahead */
+.input-group span.twitter-typeahead{
+    height: initial;
+}
+.input-group span.twitter-typeahead:first-child .form-control,
+.input-group span.twitter-typeahead:last-child .form-control,
+.input-group span.twitter-typeahead .form-control{
+    border-radius: $border-radius-base;
+}
+.input-group span.twitter-typeahead .tt-suggestion.tt-cursor,
+.input-group span.twitter-typeahead .tt-suggestion:hover,
+.input-group span.twitter-typeahead .tt-suggestion:focus{
+    color: $btn-primary-color;
+    background-color: $btn-primary-bg;
+}
+/* Overriding DataTable */
+table.dataTable{
+    tbody{
+        >tr.selected,
+        >tr>.selected{
+            background-color: $table-bg-active;
+        }
+
+        tr.selected,
+        th.selected,
+        td.selected {
+            color: $gray;
+
+            a {
+                color: $link-color;
+            }
+        }
+    }
+}
+/* Form display modes */
+@media (min-width: 768px) {
+    .form_field_compact .form-group.form_group_small,
+    .form_field_dense .form-group.form_group_small{
+        margin-bottom: 10px;
+
+        .control-label{
+            margin-right: 0.5em;
+            margin-bottom: 0px;
+            height: 28px;
+            vertical-align: sub;
+        }
+        .form-control-static{
+            display: inline-block;
+            height: 28px;
+            vertical-align: sub;
+        }
+        .form-control{
+            height: 28px;
+            padding: 4px 6px;
+            font-size: 12px;
+        }
+        .input-group-addon {
+            padding: 4px 10px;
+            font-size: 12px;
+        }
+    }
+    /* Compact mode */
+    .form_field_compact{
+        /* Small fields */
+        .form-group.form_group_small{
+            /*
+            TODO : the PHPStorm file watcher throws the below error when compiling this :
+                You may not @extend an outer selector from within @media.
+                You may only @extend selectors within the same directive.
+            Install procedure on PHPStorm : https://www.jetbrains.com/help/phpstorm/compiling-sass-less-and-scss-to-css.html#d364590e140
+            */
+            @extend .row;
+
+            .form_field_label{
+                @extend .col-sm-3;
+            }
+            .form_field_control{
+                @extend .col-sm-9;
+            }
+        }
+        /* CKEditor */
+        div.cke .cke_contents{
+            height: 180px !important;
+        }
+    }
+    /* Dense mode */
+    .form_field_dense{
+        .form-group.form_group_small{
+            display: flex;
+            display: -webkit-flex;
+            display: -ms-flex;
+
+            .form_field_label{
+                margin-right: 0.7em;
+                white-space: nowrap;
+            }
+            .form_field_control{
+                flex-grow: 1;
+                -webkit-flex-grow: 1;
+                -ms-flex-grow: 1;
+            }
+        }
+
+        /* CKEditor */
+        div.cke .cke_contents{
+            height: 120px !important;
+        }
+    }
+}
+/* ManageBrick grouping tabs. Should be placed somewhere else? */
+.grouping_tabs{
+    &.nav-pills > li > a{
+        color: #444;
+        background-color: #F5F5F5;
+
+        &:hover,
+        &:focus{
+            text-decoration: none;
+            background-color: #DDDDDD;
+        }
+
+        > .badge{
+            color: #ea7d1e;;
+            background-color: transparent;
+        }
+    }
+    &.nav-pills > li.active{
+        > a,
+        > a:hover,
+        > a:focus{
+            color: #444;
+            background-color: #FCFCFC;
+        }
+    }
+}
+
+
+
+
+
+
+/* Temp */
+.label{
+    margin-right: 0.4em;
+    margin-bottom: 0.4em;
+    padding: 0.5em 0.7em 0.5em;
+    font-size: 90%;
+    font-weight: normal;
+    //color: $white;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.15), 0 0 1px 1px #f1f1f1;
+
+    &:last-of-type{
+        margin-right: 0;
+    }
+}
+.selectize-control.multi .selectize-input .attribute-set-item[data-value]{
+    border-radius: 0;
+    background-color: $white;
+    background-image: none;
+    border: none;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.15), 0 0 1px 1px #f1f1f1;
+    text-shadow: none;
+    color: black;
+
+    .remove{
+        border-left: none;
+    }
+}
+
+.attribute-set-item {
+    @extend .label;
+    @extend .label-default;
 }

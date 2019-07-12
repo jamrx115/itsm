@@ -619,7 +619,7 @@ EOF
 function DoCreateRequest($oP, $oUserOrg)
 {
 	$aParameters = $oP->ReadAllParams(PORTAL_ALL_PARAMS.',template_id');
-	$sTransactionId = utils::ReadPostedParam('transaction_id', '');
+	$sTransactionId = utils::ReadPostedParam('transaction_id', '', 'transaction_id');
 	if (!utils::IsTransactionValid($sTransactionId))
 	{
 		$oP->add("<h1>".Dict::S('UI:Error:ObjectAlreadyCreated')."</h1>\n");
@@ -1310,7 +1310,9 @@ try
 	require_once(APPROOT.'/application/loginwebpage.class.inc.php');
 	LoginWebPage::DoLogin(false /* bMustBeAdmin */, true /* IsAllowedToPortalUsers */); // Check user rights and prompt if needed
 
-   ApplicationContext::SetUrlMakerClass('MyPortalURLMaker');
+	ApplicationContext::SetUrlMakerClass('MyPortalURLMaker');
+
+	utils::InitArchiveMode();
 
 	$aClasses = explode(',', MetaModel::GetConfig()->Get('portal_tickets'));
 	$sMainClass = trim(reset($aClasses));

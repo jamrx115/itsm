@@ -71,6 +71,24 @@ class DBUnionSearch extends DBSearch
 		return true;
 	}
 
+	public function SetArchiveMode($bEnable)
+	{
+		foreach ($this->aSearches as $oSearch)
+		{
+			$oSearch->SetArchiveMode($bEnable);
+		}
+		parent::SetArchiveMode($bEnable);
+	}
+
+	public function SetShowObsoleteData($bShow)
+	{
+		foreach ($this->aSearches as $oSearch)
+		{
+			$oSearch->SetShowObsoleteData($bShow);
+		}
+		parent::SetShowObsoleteData($bShow);
+	}
+
 	/**
 	 * Find the lowest common ancestor for each of the selected class
 	 */
@@ -125,7 +143,7 @@ class DBUnionSearch extends DBSearch
 
 	/**
 	 * Limited to the selected classes
-	 */	 	
+	 */
 	public function GetClassName($sAlias)
 	{
 		if (array_key_exists($sAlias, $this->aSelectedClasses))
@@ -294,9 +312,9 @@ class DBUnionSearch extends DBSearch
 
 	/**
 	 * Specify a condition on external keys or link sets
-	 * @param sAttSpec Can be either an attribute code or extkey->[sAttSpec] or linkset->[sAttSpec] and so on, recursively
+	 * @param String sAttSpec Can be either an attribute code or extkey->[sAttSpec] or linkset->[sAttSpec] and so on, recursively
 	 *                 Example: infra_list->ci_id->location_id->country	 
-	 * @param value The value to match (can be an array => IN(val1, val2...)
+	 * @param Object value The value to match (can be an array => IN(val1, val2...)
 	 * @return void
 	 */
 	public function AddConditionAdvanced($sAttSpec, $value)
@@ -456,15 +474,17 @@ class DBUnionSearch extends DBSearch
 		throw new Exception('MakeUpdateQuery is not implemented for the unions!');
 	}
 
-	protected function GetSQLQueryStructure($aAttToLoad, $bGetCount, $aGroupByExpr = null, $aSelectedClasses = null)
+	public function GetSQLQueryStructure($aAttToLoad, $bGetCount, $aGroupByExpr = null, $aSelectedClasses = null, $aSelectExpr = null)
 	{
 		if (count($this->aSearches) == 1)
 		{
-			return $this->aSearches[0]->GetSQLQueryStructure($aAttToLoad, $bGetCount, $aGroupByExpr);
+			return $this->aSearches[0]->GetSQLQueryStructure($aAttToLoad, $bGetCount, $aGroupByExpr, $aSelectExpr);
 		}
 
 		$aSQLQueries = array();
 		$aAliases = array_keys($this->aSelectedClasses);
+		$aQueryAttToLoad = null;
+		$aUnionQuerySelectExpr = array();
 		foreach ($this->aSearches as $iSearch => $oSearch)
 		{
 			$aSearchAliases = array_keys($oSearch->GetSelectedClasses());
@@ -478,19 +498,30 @@ class DBUnionSearch extends DBSearch
 				$aSearchSelectedClasses[$sSearchAlias] = $this->aSelectedClasses[$sAlias];
 			}
 
-			if (is_null($aAttToLoad))
+			if ($bGetCount)
 			{
-				$aQueryAttToLoad = null;
+				// Select only ids for the count to allow optimization of joins
+				foreach($aSearchAliases as $sSearchAlias)
+				{
+					$aQueryAttToLoad[$sSearchAlias] = array();
+				}
 			}
 			else
 			{
-					// (Eventually) Transform the aliases
-				$aQueryAttToLoad = array();
-				foreach ($aAttToLoad as $sAlias => $aAttributes)
+				if (is_null($aAttToLoad))
 				{
-					$iColumn = array_search($sAlias, $aAliases);
-					$sQueryAlias = ($iColumn === false) ? $sAlias : $aSearchAliases[$iColumn];
-					$aQueryAttToLoad[$sQueryAlias] = $aAttributes;
+					$aQueryAttToLoad = null;
+				}
+				else
+				{
+					// (Eventually) Transform the aliases
+					$aQueryAttToLoad = array();
+					foreach($aAttToLoad as $sAlias => $aAttributes)
+					{
+						$iColumn = array_search($sAlias, $aAliases);
+						$sQueryAlias = ($iColumn === false) ? $sAlias : $aSearchAliases[$iColumn];
+						$aQueryAttToLoad[$sQueryAlias] = $aAttributes;
+					}
 				}
 			}
 
@@ -515,7 +546,43 @@ class DBUnionSearch extends DBSearch
 					$aQueryGroupByExpr[$sExpressionAlias] = $oExpression->Translate($aTranslationData, false, false);
 				}
 			}
-			$oSubQuery = $oSearch->GetSQLQueryStructure($aQueryAttToLoad, false, $aQueryGroupByExpr, $aSearchSelectedClasses);
+
+			if (is_null($aSelectExpr))
+			{
+				$aQuerySelectExpr = null;
+			}
+			else
+			{
+				$aQuerySelectExpr = array();
+				$aTranslationData = array();
+				$aQueryColumns = array_keys($oSearch->GetSelectedClasses());
+				foreach($aAliases as $iColumn => $sAlias)
+				{
+					$sQueryAlias = $aQueryColumns[$iColumn];
+					$aTranslationData[$sAlias]['*'] = $sQueryAlias;
+				}
+				foreach($aSelectExpr as $sExpressionAlias => $oExpression)
+				{
+					$oExpression->Browse(function ($oNode) use (&$aQuerySelectExpr, &$aTranslationData)
+					{
+						if ($oNode instanceof FieldExpression)
+						{
+							$sAlias = $oNode->GetParent()."__".$oNode->GetName();
+							if (!key_exists($sAlias, $aQuerySelectExpr))
+							{
+								$aQuerySelectExpr[$sAlias] = $oNode->Translate($aTranslationData, false, false);
+							}
+							$aTranslationData[$oNode->GetParent()][$oNode->GetName()] = new FieldExpression($sAlias);
+						}
+					});
+					// Only done for the first select as aliases are named after the first query
+					if (!array_key_exists($sExpressionAlias, $aUnionQuerySelectExpr))
+					{
+						$aUnionQuerySelectExpr[$sExpressionAlias] = $oExpression->Translate($aTranslationData, false, false);
+					}
+				}
+			}
+			$oSubQuery = $oSearch->GetSQLQueryStructure($aQueryAttToLoad, false, $aQueryGroupByExpr, $aSearchSelectedClasses, $aQuerySelectExpr);
 			if (count($aSearchAliases) > 1)
 			{
 				// Necessary to make sure that selected columns will match throughout all the queries
@@ -525,10 +592,60 @@ class DBUnionSearch extends DBSearch
 			$aSQLQueries[] = $oSubQuery;
 		}
 
-		$oSQLQuery = new SQLUnionQuery($aSQLQueries, $aGroupByExpr);
+		$oSQLQuery = new SQLUnionQuery($aSQLQueries, $aGroupByExpr, $aUnionQuerySelectExpr);
 		//MyHelpers::var_dump_html($oSQLQuery, true);
 		//MyHelpers::var_dump_html($oSQLQuery->RenderSelect(), true);
 		if (self::$m_bDebugQuery) $oSQLQuery->DisplayHtml();
 		return $oSQLQuery;
+	}
+
+	/**
+	 * @return \Expression
+	 */
+	public function GetCriteria()
+	{
+		// We're at the limit here
+		$oSearch = reset($this->aSearches);
+		return $oSearch->GetCriteria();
+	}
+
+	protected function IsDataFiltered()
+	{
+		$bIsAllDataFiltered = true;
+		foreach ($this->aSearches as $oSearch)
+		{
+			if (!$oSearch->IsDataFiltered())
+			{
+				$bIsAllDataFiltered = false;
+				break;
+			}
+		}
+		return $bIsAllDataFiltered;
+	}
+
+	protected function SetDataFiltered()
+	{
+		foreach ($this->aSearches as $oSearch)
+		{
+			$oSearch->SetDataFiltered();
+		}
+	}
+
+	public function AddConditionForInOperatorUsingParam($sFilterCode, $aValues, $bPositiveMatch = true)
+	{
+		$sInParamName = $this->GenerateUniqueParamName();
+		foreach ($this->aSearches as $iSearchIndex => $oSearch)
+		{
+			$oFieldExpression = new FieldExpression($sFilterCode, $oSearch->GetClassAlias());
+
+			$sOperator = $bPositiveMatch ? 'IN' : 'NOT IN';
+
+			$oParamExpression = new VariableExpression($sInParamName);
+			$oSearch->GetInternalParamsByRef()[$sInParamName] = $aValues;
+
+			$oListExpression = new ListExpression(array($oParamExpression));
+			$oInCondition = new BinaryExpression($oFieldExpression, $sOperator, $oListExpression);
+			$oSearch->AddConditionExpression($oInCondition);
+		}
 	}
 }

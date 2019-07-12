@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (C) 2010-2016 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,9 +19,8 @@
 
 namespace Combodo\iTop\Renderer\Bootstrap;
 
-use \Silex\Application;
-use \Combodo\iTop\Renderer\FormRenderer;
-use \Combodo\iTop\Form\Form;
+use Combodo\iTop\Renderer\FormRenderer;
+use Combodo\iTop\Form\Form;
 
 /**
  * Description of formrenderer
@@ -43,7 +42,10 @@ class BsFormRenderer extends FormRenderer
 		$this->AddSupportedField('HiddenField', 'BsSimpleFieldRenderer');
 		$this->AddSupportedField('LabelField', 'BsSimpleFieldRenderer');
 		$this->AddSupportedField('PasswordField', 'BsSimpleFieldRenderer');
-		$this->AddSupportedField('StringField', 'BsSimpleFieldRenderer');
+        $this->AddSupportedField('StringField', 'BsSimpleFieldRenderer');
+        $this->AddSupportedField('UrlField', 'BsSimpleFieldRenderer');
+        $this->AddSupportedField('EmailField', 'BsSimpleFieldRenderer');
+        $this->AddSupportedField('PhoneField', 'BsSimpleFieldRenderer');
 		$this->AddSupportedField('TextAreaField', 'BsSimpleFieldRenderer');
 		$this->AddSupportedField('CaseLogField', 'BsSimpleFieldRenderer');
 		$this->AddSupportedField('SelectField', 'BsSimpleFieldRenderer');
@@ -53,10 +55,13 @@ class BsFormRenderer extends FormRenderer
 		$this->AddSupportedField('SubFormField', 'BsSubFormFieldRenderer');
 		$this->AddSupportedField('SelectObjectField', 'BsSelectObjectFieldRenderer');
 		$this->AddSupportedField('LinkedSetField', 'BsLinkedSetFieldRenderer');
+		$this->AddSupportedField('SetField', 'BsSetFieldRenderer');
+		$this->AddSupportedField('TagSetField', 'BsSetFieldRenderer');
 		$this->AddSupportedField('DateTimeField', 'BsSimpleFieldRenderer');
 		$this->AddSupportedField('DurationField', 'BsSimpleFieldRenderer');
 		$this->AddSupportedField('FileUploadField', 'BsFileUploadFieldRenderer');
-		$this->AddSupportedField('BlobField', 'BsSimpleFieldRenderer');
+        $this->AddSupportedField('BlobField', 'BsSimpleFieldRenderer');
+        $this->AddSupportedField('ImageField', 'BsSimpleFieldRenderer');
 	}
 
 }

@@ -27,7 +27,7 @@ array (
   'ES CR' => 
   array (
     'description' => 'Spanish',
-    'localized_description' => 'Español, Castellano',
+    'localized_description' => 'Español, Castellaño',
   ),
   'FR FR' => 
   array (

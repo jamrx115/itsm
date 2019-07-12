@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2010-2016 Combodo SARL
+// Copyright (C) 2010-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -18,7 +18,7 @@
 
 /**
  * All the steps of the iTop installation wizard
- * @copyright   Copyright (C) 2010-2016 Combodo SARL
+ * @copyright   Copyright (C) 2010-2017 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 
@@ -27,6 +27,7 @@ require_once(APPROOT.'setup/parameters.class.inc.php');
 require_once(APPROOT.'setup/applicationinstaller.class.inc.php');
 require_once(APPROOT.'setup/parameters.class.inc.php');
 require_once(APPROOT.'core/mutex.class.inc.php');
+require_once(APPROOT.'setup/extensionsmap.class.inc.php');
 
 /**
  * First step of the iTop Installation Wizard: Welcome screen
@@ -56,6 +57,13 @@ class WizStepWelcome extends WizardStep
 	
 	public function ProcessParams($bMoveForward = true)
 	{
+		if (!file_exists(APPROOT.'data/setup'))
+		{
+			mkdir(APPROOT.'data/setup');
+		}
+		$sUID = hash('sha256', rand());
+		file_put_contents(APPROOT.'data/setup/authent', $sUID);
+		$this->oWizard->SetParameter('authent', $sUID);
 		return array('class' => 'WizStepInstallOrUpgrade', 'state' => '');
 	}
 	
@@ -76,7 +84,7 @@ class WizStepWelcome extends WizardStep
 EOF
 		);
 		$oPage->add('<h1>'.ITOP_APPLICATION.' Installation Wizard</h1>');
-		$aResults = SetupUtils::CheckPHPVersion($oPage);
+		$aResults = SetupUtils::CheckPhpAndExtensions();
 		$this->bCanMoveForward = true;
 		$aInfo = array();
 		$aWarnings = array();
@@ -176,7 +184,9 @@ class WizStepInstallOrUpgrade extends WizardStep
 		$this->oWizard->SaveParameter('db_prefix', '');
 		$this->oWizard->SaveParameter('db_backup', false);
 		$this->oWizard->SaveParameter('db_backup_path', '');
-		
+		$this->oWizard->SaveParameter('db_tls_enabled', false);
+		$this->oWizard->SaveParameter('db_tls_ca', '');
+
 		if ($sInstallMode == 'install')
 		{
 			$this->oWizard->SetParameter('install_mode', 'install');
@@ -204,23 +214,28 @@ class WizStepInstallOrUpgrade extends WizardStep
 		$sDBPrefix = $this->oWizard->GetParameter('db_prefix', '');
 		$bDBBackup = $this->oWizard->GetParameter('db_backup', false);
 		$sDBBackupPath = $this->oWizard->GetParameter('db_backup_path', '');
+		$sTlsEnabled = $this->oWizard->GetParameter('db_tls_enabled', false);
+		$sTlsCA = $this->oWizard->GetParameter('db_tls_ca', '');
+		$sMySQLBinDir = $this->oWizard->GetParameter('mysql_bindir', null);
 		$sPreviousVersionDir = '';
 		if ($sInstallMode == '')
 		{
-			$sDBBackupPath = APPROOT.'data/'.ITOP_APPLICATION.strftime('-backup-%Y-%m-%d.zip');
+			$sDBBackupPath = APPROOT.'data/'.ITOP_APPLICATION.strftime('-backup-%Y-%m-%d');
 			$bDBBackup = true;
 			$aPreviousInstance = SetupUtils::GetPreviousInstance(APPROOT);
 			if ($aPreviousInstance['found'])
 			{
 				$sInstallMode = 'upgrade';
-				$sSourceDir = APPROOT;
 				$sDBServer = $aPreviousInstance['db_server'];
 				$sDBUser = $aPreviousInstance['db_user'];
 				$sDBPwd = $aPreviousInstance['db_pwd'];
 				$sDBName = $aPreviousInstance['db_name'];
 				$sDBPrefix = $aPreviousInstance['db_prefix'];
+				$sTlsEnabled = $aPreviousInstance['db_tls_enabled'];
+				$sTlsCA = $aPreviousInstance['db_tls_ca'];
 				$this->oWizard->SaveParameter('graphviz_path', $aPreviousInstance['graphviz_path']);
-				$sStyle = '';
+				$sMySQLBinDir = $aPreviousInstance['mysql_bindir'];
+				$this->oWizard->SaveParameter('mysql_bindir', $aPreviousInstance['mysql_bindir']);
 				$sPreviousVersionDir = APPROOT;
 			}
 			else
@@ -237,16 +252,18 @@ class WizStepInstallOrUpgrade extends WizardStep
 		}
 		$oPage->add('<h2>What do you want to do?</h2>');
 		$sChecked = ($sInstallMode == 'install') ? ' checked ' : '';
-		$oPage->p('<input id="radio_install" type="radio" name="install_mode" value="install"'.$sChecked.'/><label for="radio_install">&nbsp;Install a new '.ITOP_APPLICATION.'</label>');
+        $oPage->p('<input id="radio_install" type="radio" name="install_mode" value="install" '.$sChecked.'/><label for="radio_install">&nbsp;Install a new '.ITOP_APPLICATION.'</label>');
 		$sChecked = ($sInstallMode == 'upgrade') ? ' checked ' : '';
-		$oPage->p('<input id="radio_update" type="radio" name="install_mode" value="upgrade"'.$sChecked.'/><label for="radio_update">&nbsp;Upgrade an existing '.ITOP_APPLICATION.' instance</label>');
+        $oPage->p('<input id="radio_update" type="radio" name="install_mode" value="upgrade" '.$sChecked.'/><label for="radio_update">&nbsp;Upgrade an existing '.ITOP_APPLICATION.' instance</label>');
 		//$oPage->add('<fieldset  id="upgrade_info"'.$sUpgradeInfoStyle.'>');
 		//$oPage->add('<legend>Information about the previous instance:</legend>');
 		$oPage->add('<table id="upgrade_info"'.$sUpgradeInfoStyle.'>');
-		$oPage->add('<tr><td>Location on the disk:</td><td><input id="previous_version_dir" type="text" name="previous_version_dir" value="'.htmlentities($sPreviousVersionDir, ENT_QUOTES, 'UTF-8').'" size="25"/></td></tr>');
-		SetupUtils::DisplayDBParameters($oPage, false, $sDBServer, $sDBUser, $sDBPwd, $sDBName, $sDBPrefix);
+		$oPage->add('<tr><td>Location on the disk:</td><td><input id="previous_version_dir" type="text" name="previous_version_dir" value="'.htmlentities($sPreviousVersionDir,
+				ENT_QUOTES, 'UTF-8').'" style="width: 98%;"/></td></tr>');
+		SetupUtils::DisplayDBParameters($oPage, false, $sDBServer, $sDBUser, $sDBPwd, $sDBName, $sDBPrefix,
+			$sTlsEnabled, $sTlsCA, null);
 
-		$aBackupChecks = SetupUtils::CheckBackupPrerequisites($sDBBackupPath);
+		$aBackupChecks = SetupUtils::CheckBackupPrerequisites($sDBBackupPath, $sMySQLBinDir);
 		$bCanBackup = true;
 		$sMySQLDumpMessage = '';
 		foreach($aBackupChecks as $oCheck)
@@ -263,7 +280,7 @@ class WizStepInstallOrUpgrade extends WizardStep
 		}
 		$sChecked = ($bCanBackup && $bDBBackup) ? ' checked ' : '';
 		$sDisabled = $bCanBackup ? '' : ' disabled ';
-		$oPage->add('<tr><td colspan="2"><input id="db_backup" type="checkbox" name="db_backup"'.$sChecked.$sDisabled.' value="1"/><label for="db_backup">&nbsp;Backup the '.ITOP_APPLICATION.' database before upgrading</label></td></tr>');
+        $oPage->add('<tr><td colspan="2"><input id="db_backup" type="checkbox" name="db_backup" '.$sChecked.$sDisabled.' value="1"/><label for="db_backup">&nbsp;Backup the '.ITOP_APPLICATION.' database before upgrading</label></td></tr>');
 		$oPage->add('<tr><td colspan="2">Save the backup to: <input id="db_backup_path" type="text" name="db_backup_path" '.$sDisabled.'value="'.htmlentities($sDBBackupPath, ENT_QUOTES, 'UTF-8').'" size="25"/></td></tr>');
 		$fFreeSpace = SetupUtils::CheckDiskSpace($sDBBackupPath);
 		$sMessage = '';
@@ -274,6 +291,8 @@ class WizStepInstallOrUpgrade extends WizardStep
 		$oPage->add('<tr><td colspan="2">');
 		$oPage->add($sMySQLDumpMessage.'<br/><span id="backup_info" style="font-size:small;color:#696969;">'.$sMessage.'</span></td></tr>');
 		$oPage->add('</table>');
+		$sAuthentToken = $this->oWizard->GetParameter('authent', '');
+		$oPage->add('<input type="hidden" id="authent_token" value="'.$sAuthentToken.'"/>');
 		//$oPage->add('</fieldset>');
 		$oPage->add_ready_script(
 <<<EOF
@@ -348,7 +367,7 @@ EOF
 	{
 		return
 <<<EOF
-		if ($("#radio_install").attr("checked") == "checked")
+		if ($("#radio_install").prop("checked"))
 		{
 			ValidateField("db_name", false);
 			ValidateField("db_new_name", false);
@@ -423,8 +442,13 @@ class WizStepDetectedInfo extends WizardStep
 		}
 		return $aRet;
 	}
-	
-	public function Display(WebPage $oPage)
+
+	/**
+	 * @param \WebPage $oPage
+	 *
+	 * @throws \Exception
+	 */
+	public function Display(\WebPage $oPage)
 	{
 		$oPage->add_style(
 <<<EOF
@@ -526,8 +550,8 @@ EOF
 				$aErrors = SetupUtils::CheckWritableDirs($aWritableDirs);
 				$sChecked = ($this->oWizard->GetParameter('upgrade_type') == 'keep-previous') ? ' checked ' : '';
 				$sDisabled = (count($aErrors) > 0) ? ' disabled ' : '';
-				
-				$oPage->p('<input id="radio_upgrade_keep" type="radio" name="upgrade_type" value="keep-previous"'.$sChecked.$sDisabled.'/><label for="radio_upgrade_keep">&nbsp;Preserve the modifications of the installed version (the dasboards inside '.ITOP_APPLICATION.' may not be editable).</label>');
+
+                $oPage->p('<input id="radio_upgrade_keep" type="radio" name="upgrade_type" value="keep-previous" '.$sChecked.$sDisabled.'/><label for="radio_upgrade_keep">&nbsp;Preserve the modifications of the installed version (the dasboards inside '.ITOP_APPLICATION.' may not be editable).</label>');
 				$oPage->add('<input type="hidden" name="datamodel_previous_version" value="'.htmlentities($sInstalledDataModelVersion, ENT_QUOTES, 'UTF-8').'">');
 				
 				$oPage->add('<input type="hidden" name="relative_source_dir" value="'.htmlentities($sPreviousSourceDir, ENT_QUOTES, 'UTF-8').'">');
@@ -542,8 +566,8 @@ EOF
 				}
 						
 				$sChecked = ($this->oWizard->GetParameter('upgrade_type') == 'use-compatible') ? ' checked ' : '';
-				
-				$oPage->p('<input id="radio_upgrade_convert" type="radio" name="upgrade_type" value="use-compatible"'.$sChecked.'/><label for="radio_upgrade_convert">&nbsp;Discard the modifications, use a standard '.$sUpgradeDMVersion.' data model.</label>');
+
+                $oPage->p('<input id="radio_upgrade_convert" type="radio" name="upgrade_type" value="use-compatible" '.$sChecked.'/><label for="radio_upgrade_convert">&nbsp;Discard the modifications, use a standard '.$sUpgradeDMVersion.' data model.</label>');
 				
 				$oPage->add('<input type="hidden" name="datamodel_path" value="'.htmlentities($sCompatibleDMDir, ENT_QUOTES, 'UTF-8').'">');
 				$oPage->add('<input type="hidden" name="datamodel_version" value="'.htmlentities($sUpgradeDMVersion, ENT_QUOTES, 'UTF-8').'">');
@@ -622,7 +646,9 @@ EOF
 				'cron'.$this->oWizard->GetParameter('db_name', '').$this->oWizard->GetParameter('db_prefix', ''),
 				$this->oWizard->GetParameter('db_server', ''),
 				$this->oWizard->GetParameter('db_user', ''),
-				$this->oWizard->GetParameter('db_pwd', '')
+				$this->oWizard->GetParameter('db_pwd', ''),
+				$this->oWizard->GetParameter('db_tls_enabled', ''),
+				$this->oWizard->GetParameter('db_tls_ca', '')
 			);
 			if ($oMutex->IsLocked())
 			{
@@ -674,9 +700,20 @@ class WizStepLicense extends WizardStep
 		return array('class' => 'WizStepDBParams', 'state' => '');
 	}
 
-	public function Display(WebPage $oPage)
-	{
-		$aLicenses = SetupUtils::GetLicenses();
+    /**
+     * @param WebPage $oPage
+     */
+    public function Display(WebPage $oPage)
+    {
+        $aLicenses = SetupUtils::GetLicenses();
+		$oPage->add_style(
+<<<EOF
+fieldset {
+	max-height: 18em;
+	overflow: auto;
+}
+EOF
+		);
 
 		$oPage->add('<h2>Licenses agreements for the components of '.ITOP_APPLICATION.'</h2>');
 		$oPage->add_style('div a.no-arrow { background:transparent; padding-left:0;}');
@@ -684,17 +721,19 @@ class WizStepLicense extends WizardStep
 		$oPage->add('<fieldset>');
 		$oPage->add('<legend>Components of '.ITOP_APPLICATION.'</legend>');
 		$oPage->add('<ul>');
-		foreach($aLicenses as $index => $oLicense)
+        $index = 0;
+        foreach ($aLicenses as $oLicense)
 		{
 			$oPage->add('<li><b>'.$oLicense->product.'</b>, &copy; '.$oLicense->author.' is licensed under the <b>'.$oLicense->license_type.' license</b>. (<span class="toggle" id="toggle_'.$index.'">Details</span>)');
 			$oPage->add('<div id="license_'.$index.'" class="license_text" style="display:none;overflow:auto;max-height:10em;font-size:small;border:1px #696969 solid;margin-bottom:1em; margin-top:0.5em;padding:0.5em;">'.$oLicense->text.'</div>');
 			$oPage->add_ready_script('$(".license_text a").attr("target", "_blank").addClass("no-arrow");');
 			$oPage->add_ready_script('$("#toggle_'.$index.'").click( function() { $("#license_'.$index.'").toggle(); } );');
+            $index++;
 		}
 		$oPage->add('</ul>');
 		$oPage->add('</fieldset>');
-		$sChecked = ($this->oWizard->GetParameter('accept_license', 'no') == 'yes') ? ' checked ' : ''; 
-		$oPage->p('<input type="checkbox" name="accept_license" id="accept" value="yes"'.$sChecked.'><label for="accept">&nbsp;I accept the terms of the licenses of the '.count($aLicenses).' components mentioned above.</label>');
+        $sChecked = ($this->oWizard->GetParameter('accept_license', 'no') == 'yes') ? ' checked ' : '';
+        $oPage->p('<input type="checkbox" name="accept_license" id="accept" value="yes" '.$sChecked.'><label for="accept">&nbsp;I accept the terms of the licenses of the '.count($aLicenses).' components mentioned above.</label>');
 		$oPage->add_ready_script('$("#accept").bind("click change", function() { WizardUpdateButtons(); });');
 	}
 	
@@ -704,9 +743,10 @@ class WizStepLicense extends WizardStep
 	 */
 	public function JSCanMoveForward()
 	{
-		return 'return ($("#accept").attr("checked") === "checked");';
+		return 'return ($("#accept").prop("checked"));';
 	}
-	
+
+
 }
 
 /**
@@ -750,7 +790,9 @@ class WizStepDBParams extends WizardStep
 		$this->oWizard->SaveParameter('new_db_name', '');
 		$this->oWizard->SaveParameter('create_db', '');
 		$this->oWizard->SaveParameter('db_new_name', '');
-				
+		$this->oWizard->SaveParameter('db_tls_enabled', false);
+		$this->oWizard->SaveParameter('db_tls_ca', '');
+
 		return array('class' => 'WizStepAdminAccount', 'state' => '');
 	}
 	
@@ -762,19 +804,24 @@ class WizStepDBParams extends WizardStep
 		$sDBPwd = $this->oWizard->GetParameter('db_pwd', '');
 		$sDBName = $this->oWizard->GetParameter('db_name', '');
 		$sDBPrefix = $this->oWizard->GetParameter('db_prefix', '');
+		$sTlsEnabled = $this->oWizard->GetParameter('db_tls_enabled', '');
+		$sTlsCA = $this->oWizard->GetParameter('db_tls_ca', '');
 		$sNewDBName = $this->oWizard->GetParameter('db_new_name', false);
-		
+
 		$oPage->add('<table>');
-		SetupUtils::DisplayDBParameters($oPage, true, $sDBServer, $sDBUser, $sDBPwd, $sDBName, $sDBPrefix, $sNewDBName);
+		SetupUtils::DisplayDBParameters($oPage, true, $sDBServer, $sDBUser, $sDBPwd, $sDBName, $sDBPrefix, $sTlsEnabled,
+			$sTlsCA, $sNewDBName);
+		$sAuthentToken = $this->oWizard->GetParameter('authent', '');
+		$oPage->add('<input type="hidden" id="authent_token" value="'.$sAuthentToken.'"/>');
 		$oPage->add('</table>');
 		$sCreateDB = $this->oWizard->GetParameter('create_db', 'yes');
 		if ($sCreateDB == 'no')
 		{
-			$oPage->add_ready_script('$("#existing_db").attr("checked", "checked");');
+			$oPage->add_ready_script('$("#existing_db").prop("checked", true);');
 		}
 		else
 		{
-			$oPage->add_ready_script('$("#create_db").attr("checked", "checked");');
+			$oPage->add_ready_script('$("#create_db").prop("checked", true);');
 		}		
 	}
 	
@@ -802,7 +849,7 @@ class WizStepDBParams extends WizardStep
 	bRet = ValidateField("db_name", true) && bRet;
 	bRet = ValidateField("db_new_name", true) && bRet;
 	bRet = ValidateField("db_prefix", true) && bRet;
-	
+
 	return bRet;
 EOF
 		;
@@ -955,15 +1002,17 @@ class WizStepMiscParams extends WizardStep
 		$oPage->add('</fieldset>');
 		$oPage->add('<fieldset>');
 		$oPage->add('<legend>Sample Data</legend>');
-		$sChecked = ($sSampleData == 'yes') ? ' checked ' : '';
-		$oPage->p('<input id="sample_data_yes" name="sample_data" type="radio" value="yes"'.$sChecked.'><label for="sample_data_yes">&nbsp;I am installing a <b>demo or test</b> instance, populate the database with some demo data.');
-		$sChecked = ($sSampleData == 'no') ? ' checked ' : '';
-		$oPage->p('<input id="sample_data_no" name="sample_data" type="radio" value="no"'.$sChecked.'><label for="sample_data_no">&nbsp;I am installing a <b>production</b> instance, create an empty database to start from.');
+        $sChecked = ($sSampleData == 'yes') ? 'checked ' : '';
+        $oPage->p('<input id="sample_data_yes" name="sample_data" type="radio" value="yes" '.$sChecked.'><label for="sample_data_yes">&nbsp;I am installing a <b>demo or test</b> instance, populate the database with some demo data.');
+        $sChecked = ($sSampleData == 'no') ? 'checked ' : '';
+        $oPage->p('<input id="sample_data_no" name="sample_data" type="radio" value="no" '.$sChecked.'><label for="sample_data_no">&nbsp;I am installing a <b>production</b> instance, create an empty database to start from.');
 		$oPage->add('</fieldset>');
+		$sAuthentToken = $this->oWizard->GetParameter('authent', '');
+		$oPage->add('<input type="hidden" id="authent_token" value="'.$sAuthentToken.'"/>');
 		$oPage->add_ready_script(
 <<<EOF
 		$('#application_url').bind('change keyup', function() { WizardUpdateButtons(); } );
-		$('#graphviz_path').bind('change keyup init', function() { WizardUpdateButtons();  WizardAsyncAction('check_graphviz', { graphviz_path: $('#graphviz_path').val() }); } ).trigger('init');
+		$('#graphviz_path').bind('change keyup init', function() { WizardUpdateButtons();  WizardAsyncAction('check_graphviz', { graphviz_path: $('#graphviz_path').val(), authent: $('#authent_token').val()}); } ).trigger('init');
 		$('#btn_next').click(function() {
 			bRet = true;
 			if ($(this).attr('data-graphviz') != 'ok')
@@ -1085,10 +1134,12 @@ class WizStepUpgradeMiscParams extends WizardStep
 		$oPage->add('<tr><td colspan="2"><span id="graphviz_status"></span></td><tr>');
 		$oPage->add('</table>');
 		$oPage->add('</fieldset>');
+		$sAuthentToken = $this->oWizard->GetParameter('authent', '');
+		$oPage->add('<input type="hidden" id="authent_token" value="'.$sAuthentToken.'"/>');
 		$oPage->add_ready_script(
 <<<EOF
 		$('#application_url').bind('change keyup', function() { WizardUpdateButtons(); } );
-		$('#graphviz_path').bind('change keyup init', function() { WizardUpdateButtons();  WizardAsyncAction('check_graphviz', { graphviz_path: $('#graphviz_path').val() }); } ).trigger('init');
+		$('#graphviz_path').bind('change keyup init', function() { WizardUpdateButtons();  WizardAsyncAction('check_graphviz', { graphviz_path: $('#graphviz_path').val(), authent: $('#authent_token').val() }); } ).trigger('init');
 		$('#btn_next').click(function() {
 			bRet = true;
 			if ($(this).attr('data-graphviz') != 'ok')
@@ -1173,6 +1224,42 @@ class WizStepModulesChoice extends WizardStep
 {
 	static protected $SEP = '_';
 	protected $bUpgrade = false;
+	
+	/**
+	 *
+	 * @var iTopExtensionsMap
+	 */
+	protected $oExtensionsMap;
+	
+	/**
+	 * Whether we were able to load the choices from the database or not
+	 * @var bool
+	 */
+	protected $bChoicesFromDatabase;
+	
+	public function __construct(WizardController $oWizard, $sCurrentState)
+	{
+		parent::__construct($oWizard, $sCurrentState);
+		$this->bChoicesFromDatabase = false;
+		$this->oExtensionsMap = new iTopExtensionsMap();
+		$sPreviousSourceDir = $this->oWizard->GetParameter('previous_version_dir', '');
+		$sConfigPath = null;
+		if (($sPreviousSourceDir !== '') && is_readable($sPreviousSourceDir.'/conf/production/config-itop.php'))
+		{
+			$sConfigPath = $sPreviousSourceDir.'/conf/production/config-itop.php';
+		}
+		else if (is_readable(utils::GetConfigFilePath('production')))
+		{
+			$sConfigPath = utils::GetConfigFilePath('production');
+		}
+
+		if ($sConfigPath !== null) // only called if the config file exists : we are updating a previous installation !
+		{
+			$oConfig = new Config($sConfigPath);
+			$this->bChoicesFromDatabase = $this->oExtensionsMap->LoadChoicesFromDatabase($oConfig);
+		}
+	}
+
 	public function GetTitle()
 	{
 		$aStepInfo = $this->GetStepInfo();
@@ -1210,11 +1297,12 @@ class WizStepModulesChoice extends WizardStep
 			{
 				// Exiting this step of the wizard, let's convert the selection into a list of modules
 				$aModules = array();
+				$aExtensions = array();
 				$sDisplayChoices = '<ul>';
 				for($i = 0; $i <= $index; $i++)
 				{
 					$aStepInfo = $this->GetStepInfo($i);
-					$sDisplayChoices .= $this->GetSelectedModules($aStepInfo, $aSelectedChoices[$i], $aModules);
+					$sDisplayChoices .= $this->GetSelectedModules($aStepInfo, $aSelectedChoices[$i], $aModules, '', '', $aExtensions);
 				}
 				$sDisplayChoices .= '</ul>';
 				if (class_exists('CreateITILProfilesInstaller'))
@@ -1222,6 +1310,7 @@ class WizStepModulesChoice extends WizardStep
 					$this->oWizard->SetParameter('old_addon', true);
 				}
 				$this->oWizard->SetParameter('selected_modules', json_encode(array_keys($aModules)));
+				$this->oWizard->SetParameter('selected_extensions', json_encode($aExtensions));
 				$this->oWizard->SetParameter('display_choices', $sDisplayChoices);
 				return array('class' => 'WizStepSummary', 'state' => '');
 			}
@@ -1277,7 +1366,7 @@ class WizStepModulesChoice extends WizardStep
 		// Build the default choices
 		$aDefaults = array();
 		$aModules = SetupUtils::AnalyzeInstallation($this->oWizard);
-		$this->GetDefaults($aStepInfo, $aDefaults, $aModules);
+		$aDefaults = $this->GetDefaults($aStepInfo, $aModules);
 		//echo "<pre>aStepInfo:\n ".print_r($aStepInfo, true)."</pre>";
 		//echo "<pre>aDefaults:\n ".print_r($aDefaults, true)."</pre>";
 
@@ -1301,7 +1390,7 @@ class WizStepModulesChoice extends WizardStep
 function CheckChoice(sChoiceId)
 {
 	var oElement = $('#'+sChoiceId);
-	var bChecked = (oElement.attr('checked') == 'checked');
+	var bChecked = oElement.prop('checked');
 	var sId = sChoiceId.replace('choice', '');
 	if ((oElement.attr('type') == 'radio') && bChecked)
 	{
@@ -1332,12 +1421,13 @@ function CheckChoice(sChoiceId)
 				if ($(this).attr('data-disabled') != 'disabled')
 				{
 					// Only non-mandatory fields can be enabled
-					$(this).removeAttr('disabled');
+					$(this).prop('disabled', false);
 				}
 			}
 			else
 			{
-				$(this).attr('disabled', 'disabled');
+				$(this).prop('disabled', true);
+				$(this).prop('checked', false);
 			}
 		});
 	});
@@ -1351,8 +1441,82 @@ EOF
 EOF
 		);
 	}
+		
+	protected function GetDefaults($aInfo, $aModules, $sParentId = '')
+	{
+		$aDefaults = array();
+		if (!$this->bChoicesFromDatabase)
+		{
+			$this->GuessDefaultsFromModules($aInfo, $aDefaults, $aModules, $sParentId);
+		}
+		else
+		{
+			$this->GetDefaultsFromDatabase($aInfo, $aDefaults, $sParentId);
+		}
+		return $aDefaults;
+	}
+
+	protected function GetDefaultsFromDatabase($aInfo, &$aDefaults, $sParentId)
+	{
+		$aOptions = isset($aInfo['options']) ? $aInfo['options'] : array();
+		foreach($aOptions as $index => $aChoice)
+		{
+			$sChoiceId = $sParentId.self::$SEP.$index;
+			if ($this->bUpgrade)
+			{
+				if ($this->oExtensionsMap->IsMarkedAsChosen($aChoice['extension_code']))
+				{
+					$aDefaults[$sChoiceId] = $sChoiceId;
+				}
+			}
+			else if (isset($aChoice['default']) && $aChoice['default'])
+			{
+				$aDefaults[$sChoiceId] = $sChoiceId;
+			}
+			// Recurse for sub_options (if any)
+			if (isset($aChoice['sub_options']))
+			{
+				$this->GetDefaultsFromDatabase($aChoice['sub_options'], $aDefaults, $sChoiceId);
+			}
+		}
 	
-	protected function GetDefaults($aInfo, &$aDefaults, $aModules, $sParentId = '')
+		$aAlternatives = isset($aInfo['alternatives']) ? $aInfo['alternatives'] : array();
+		$sChoiceName = null;
+		foreach($aAlternatives as $index => $aChoice)
+		{
+			$sChoiceId = $sParentId.self::$SEP.$index;
+			if ($sChoiceName == null)
+			{
+				$sChoiceName = $sChoiceId; // All radios share the same name
+			}
+			if ($this->bUpgrade)
+			{
+				if ($this->oExtensionsMap->IsMarkedAsChosen($aChoice['extension_code']))
+				{
+					$aDefaults[$sChoiceName] = $sChoiceId;
+				}
+			}
+			else if (isset($aChoice['default']) && $aChoice['default'])
+			{
+				$aDefaults[$sChoiceName] = $sChoiceId;
+			}
+			// Recurse for sub_options (if any)
+			if (isset($aChoice['sub_options']))
+			{
+				$this->GetDefaultsFromDatabase($aChoice['sub_options'], $aDefaults, $sChoiceId);
+			}
+		}
+	}
+		
+	/**
+	 * Try to guess the user choices based on the current list of installed modules...
+	 * @param array $aInfo
+	 * @param array $aDefaults
+	 * @param array $aModules
+	 * @param string $sParentId
+	 * @return array
+	 */
+	protected function GuessDefaultsFromModules($aInfo, &$aDefaults, $aModules, $sParentId = '')
 	{
 		$aRetScore = array();
 		$aScores = array();
@@ -1377,7 +1541,12 @@ EOF
 						$aScores[$sChoiceId][$sModuleId] = true;
 					}
 				}
-				if (count($aScores[$sChoiceId]) == count($aChoice['modules']))
+				// Used for migration from 1.3.x or before
+				// Accept that the new version can have one new module than the previous version
+				// The option is still selected
+				$iSelected = count($aScores[$sChoiceId]);
+				$iNeeded = count($aChoice['modules']);
+				if (($iSelected > 0) && (($iNeeded - $iSelected) < 2))
 				{
 					// All the modules are installed, this choice is selected
 					$aDefaults[$sChoiceId] = $sChoiceId;
@@ -1387,7 +1556,7 @@ EOF
 			
 			if (isset($aChoice['sub_options']))
 			{
-				$aScores[$sChoiceId] = array_merge($aScores[$sChoiceId], $this->GetDefaults($aChoice['sub_options'], $aDefaults, $sChoiceId));
+				$aScores[$sChoiceId] = array_merge($aScores[$sChoiceId], $this->GuessDefaultsFromModules($aChoice['sub_options'], $aDefaults, $sChoiceId));
 			}
 			$index++;
 		}
@@ -1409,7 +1578,11 @@ EOF
 			}
 			if (isset($aChoice['sub_options']))
 			{
-				$aScores[$sChoiceId] = $this->GetDefaults($aChoice['sub_options'], $aDefaults, $aModules, $sChoiceId);
+				// By default (i.e. install-mode), sub options can only be checked if the parent option is checked by default
+				if ($this->bUpgrade || (isset($aChoice['default']) && $aChoice['default']))
+				{
+					$aScores[$sChoiceId] = $this->GuessDefaultsFromModules($aChoice['sub_options'], $aDefaults, $aModules, $sChoiceId);
+				}
 			}
 			$index++;
 		}
@@ -1474,9 +1647,9 @@ EOF
 	 * @param hash $aSelectedChoices List of selected choices array('name' => 'selected_value_id')
 	 * @param hash $aModules Return parameter: List of selected modules array('module_id' => true)
 	 * @param string $sParentId Used for recursion
-	 * @return void
+	 * @return string A text representation of what will be installed
 	 */
-	protected function GetSelectedModules($aInfo, $aSelectedChoices, &$aModules, $sParentId = '', $sDisplayChoices = '')
+	protected function GetSelectedModules($aInfo, $aSelectedChoices, &$aModules, $sParentId = '', $sDisplayChoices = '', &$aSelectedExtensions = null)
 	{
 		if ($sParentId == '')
 		{
@@ -1508,11 +1681,16 @@ EOF
 						$aModules[$sModuleId] = true; // store the Id of the selected module
 					}
 				}
+				$sChoiceType = isset($aChoice['type']) ? $aChoice['type'] : 'wizard_option';
+				if ($aSelectedExtensions !== null)
+				{
+					$aSelectedExtensions[] = $aChoice['extension_code'];
+				}
 				// Recurse only for selected choices
 				if (isset($aChoice['sub_options']))
 				{
 					$sDisplayChoices .= '<ul>';
-					$sDisplayChoices = $this->GetSelectedModules($aChoice['sub_options'], $aSelectedChoices, $aModules, $sChoiceId, $sDisplayChoices);
+					$sDisplayChoices = $this->GetSelectedModules($aChoice['sub_options'], $aSelectedChoices, $aModules, $sChoiceId, $sDisplayChoices, $aSelectedExtensions);
 					$sDisplayChoices .= '</ul>';
 				}
 				$sDisplayChoices .= '</li>';
@@ -1533,6 +1711,10 @@ EOF
 				 (isset($aSelectedChoices[$sChoiceName]) && ($aSelectedChoices[$sChoiceName] == $sChoiceId)) )
 			{
 				$sDisplayChoices .= '<li>'.$aChoice['title'].'</li>';
+				if ($aSelectedExtensions !== null)
+				{
+					$aSelectedExtensions[] = $aChoice['extension_code'];
+				}
 				if (isset($aChoice['modules']))
 				{
 					foreach($aChoice['modules'] as $sModuleId)
@@ -1544,7 +1726,7 @@ EOF
 				if (isset($aChoice['sub_options']))
 				{
 					$sDisplayChoices .= '<ul>';
-					$sDisplayChoices = $this->GetSelectedModules($aChoice['sub_options'], $aSelectedChoices, $aModules, $sChoiceId, $sDisplayChoices);
+					$sDisplayChoices = $this->GetSelectedModules($aChoice['sub_options'], $aSelectedChoices, $aModules, $sChoiceId, $sDisplayChoices, $aSelectedExtensions);
 					$sDisplayChoices .= '</ul>';
 				}
 				$sDisplayChoices .= '</li>';
@@ -1578,7 +1760,7 @@ EOF
 						if ($bSelected)
 						{
 							$aModules[$sModuleId] = true; // store the Id of the selected module
-							$sDisplayChoices .= '<li><b>'.$aModule['label'].' (auto_select)</b></li>';
+							$sDisplayChoices .= '<li>'.$aModule['label'].' (auto_select)</li>';
 							$bModuleAdded  = true;
 						}
 					}
@@ -1617,81 +1799,71 @@ EOF
 		}
 		
 		$aSteps = array();
+		$this->oWizard->SetParameter('additional_extensions_modules', json_encode(array())); // Default value, no additional extensions 
+		
 		if (@file_exists($this->GetSourceFilePath()))
 		{
+			// Found an "installation.xml" file, let's us tis definition for the wizard
 			$aParams = new XMLParameters($this->GetSourceFilePath());
 			$aSteps = $aParams->Get('steps', array());
-			$bAddExtensionsOnly = true;
-		}
-		else
-		{
-			// No wizard configuration provided, build a standard one:
-			$bAddExtensionsOnly = false;
-			$aSteps[] = array(
-				'title' => 'Modules Selection',
-				'description' => '<h2>Select the modules to install. You can launch the installation again to install new modules, but you cannot remove already installed modules.</h2>',
-				'banner' => '/images/modules.png',
-				'options' => array()
-				);
-		}
-		
-		// Additional step for the extensions
-		$aSteps[] = array(
-			'title' => 'Extensions',
-			'description' => '<h2>Select additional extensions to install. You can launch the installation again to install new extensions, but you cannot remove already installed extensions.</h2>',
-			'banner' => '/images/extension.png',
-			'options' => array()
+			
+			// Additional step for the "extensions"
+			$aStepDefinition = array(
+					'title' => 'Extensions',
+					'description' => '<h2>Select additional extensions to install. You can launch the installation again to install new extensions, but you cannot remove already installed extensions.</h2>',
+					'banner' => '/images/extension.png',
+					'options' => array()
 			);
-		
-		try
-		{
-			$sDefaultAppPath = 	utils::GetDefaultUrlAppRoot();		
-		}
-		catch(Exception $e)
-		{
-			$sDefaultAppPath = '..';
-		}
-	
-		$aAvailableModules = SetupUtils::AnalyzeInstallation($this->oWizard);
-		foreach($aAvailableModules as $sModuleId => $aModule)
-		{
-			if ($sModuleId == ROOT_MODULE) continue; // Convention: the version number of the application (and datamodel) are stored as a module named ROOT_MODULE
-	
-			$sModuleLabel = $aModule['label'];
-			$sModuleHelp = $aModule['doc.more_information'];
-			$sMoreInfo = (!empty($aModule['doc.more_information'])) ? "<a href=\"$sDefaultAppPath{$aModule['doc.more_information']}\" target=\"_blank\">more info</a>": '';
-			if (($aModule['category'] != 'authentication') && ($aModule['visible'] && !isset($aModule['auto_select'])))
+			
+			foreach($this->oExtensionsMap->GetAllExtensions() as $oExtension)
 			{
-				if (($bAddExtensionsOnly) && (!$this->IsExtension($aModule))) continue;
-				
-				if ($this->IsExtension($aModule))
+				if (($oExtension->sSource !== iTopExtension::SOURCE_WIZARD) && ($oExtension->bVisible) && (count($oExtension->aMissingDependencies) == 0))
 				{
-					$iStepIndex = count($aSteps) - 1;
+					$aStepDefinition['options'][] = array(
+							'extension_code' => $oExtension->sCode,
+							'title' => $oExtension->sLabel,
+							'description' => $oExtension->sDescription,
+							'more_info' => $oExtension->sMoreInfoUrl,
+							'default' => true, // by default offer to install all modules
+							'modules' => $oExtension->aModules,
+							'mandatory' => $oExtension->bMandatory || ($oExtension->sSource === iTopExtension::SOURCE_REMOTE),
+							'source_label' => $this->GetExtensionSourceLabel($oExtension->sSource),
+					);
 				}
-				else
-				{
-					$iStepIndex = 0;
-				}
-				$aSteps[$iStepIndex]['options'][] = array(
-					'title' => $sModuleLabel,
-					'description' => '',
-					'more_info' => $sMoreInfo,
-					'default' => true, // by default offer to install all modules
-					'modules' => array($sModuleId),
-					'mandatory' => ($aModule['install']['flag'] & MODULE_ACTION_MANDATORY) ? true : false,
-				);
+			}
+			// Display this step of the wizard only if there is something to display
+			if (count($aStepDefinition['options']) !== 0)
+			{
+				$aSteps[] = $aStepDefinition;
+				$this->oWizard->SetParameter('additional_extensions_modules', json_encode($aStepDefinition['options']));
 			}
 		}
-		
-		if (count($aSteps[count($aSteps) - 1]['options']) == 0)
-		{
-			// No extensions at all, remove the last step
-			$this->oWizard->SetParameter('additional_extensions_modules', '[]');
-			array_pop($aSteps);
-		}
 		else
 		{
-			$this->oWizard->SetParameter('additional_extensions_modules', json_encode($aSteps[count($aSteps) - 1]['options']));
+			// No wizard configuration provided, build a standard one with just one big list
+			$aStepDefinition = array(
+					'title' => 'Modules Selection',
+					'description' => '<h2>Select the modules to install. You can launch the installation again to install new modules, but you cannot remove already installed modules.</h2>',
+					'banner' => '/images/modules.png',
+					'options' => array()
+			);
+			foreach($this->oExtensionsMap->GetAllExtensions() as $oExtension)
+			{
+				if (($oExtension->bVisible) && (count($oExtension->aMissingDependencies) == 0))
+				{
+					$aStepDefinition['options'][] = array(
+							'extension_code' => $oExtension->sCode,
+							'title' => $oExtension->sLabel,
+							'description' => $oExtension->sDescription,
+							'more_info' => $oExtension->sMoreInfoUrl,
+							'default' => true, // by default offer to install all modules
+							'modules' => $oExtension->aModules,
+							'mandatory' => $oExtension->bMandatory ||  ($oExtension->sSource !== iTopExtension::SOURCE_REMOTE),
+							'source_label' => $this->GetExtensionSourceLabel($oExtension->sSource),
+					);
+				}
+			}
+			$aSteps[] = $aStepDefinition;
 		}
 		
 		if (array_key_exists($index, $aSteps))
@@ -1702,52 +1874,70 @@ EOF
 		return $aStepInfo;
 	}
 	
-	protected function GetExtensionsStepInfo()
+	protected function GetExtensionSourceLabel($sSource)
 	{
-		// let the user select from the list of modules located in the "extensions" folder
+		switch($sSource)
+		{
+			case iTopExtension::SOURCE_MANUAL:
+			$sResult = 'Extension';
+			break;
+
+			case iTopExtension::SOURCE_REMOTE:
+			$sResult = (ITOP_APPLICATION == 'iTop') ? 'iTop-Hub' : 'ITSM-Designer';
+			break;
+				
+			default:
+			$sResult = '';
+		}
+		if ($sResult == '')
+		{
+			return '';
+		}
+		return '<span style="display:inline-block;font-size:8pt;padding:3px;border-radius:4px;color:#fff;background-color:#1c94c4;margin-left:0.5em;margin-right:0.5em">'.$sResult.'</span>';
 	}
 	
-	protected function IsExtension($aModule)
-	{
-		// root_dir is the directory containing the module, check if its parent is "extensions"
-		if (basename(dirname($aModule['root_dir'])) == 'extensions')
-		{
-			return true;
-		}
-		return false;
-	}
-		
-	protected function DisplayOptions($oPage, $aStepInfo, $aSelectedComponents, $aDefaults, $sParentId = '')
+	protected function DisplayOptions($oPage, $aStepInfo, $aSelectedComponents, $aDefaults, $sParentId = '', $bAllDisabled = false)
 	{
 		$aOptions = isset($aStepInfo['options']) ? $aStepInfo['options'] : array();
 		$aAlternatives = isset($aStepInfo['alternatives']) ? $aStepInfo['alternatives'] : array();
 		$index = 0;
+
+		$sAllDisabled = '';
+		if ($bAllDisabled)
+		{
+			$sAllDisabled = 'disabled data-disabled="disabled" ';
+		}
 		
 		foreach($aOptions as $index => $aChoice)
 		{
 			$sAttributes = '';
 			$sChoiceId = $sParentId.self::$SEP.$index;
+			$sDataId = 'data-id="'.htmlentities($aChoice['extension_code'], ENT_QUOTES, 'UTF-8').'"';
+			$sId = htmlentities($aChoice['extension_code'], ENT_QUOTES, 'UTF-8');
 			$bIsDefault = array_key_exists($sChoiceId, $aDefaults);
 			$bSelected = isset($aSelectedComponents[$sChoiceId]) && ($aSelectedComponents[$sChoiceId] == $sChoiceId);
 			$bMandatory = (isset($aChoice['mandatory']) && $aChoice['mandatory']) || ($this->bUpgrade && $bIsDefault);
+			$bDisabled = false;
 			if ($bMandatory)
 			{
-				$oPage->add('<div class="choice"><input id="choice'.$sChoiceId.'" checked disabled data-disabled="disabled" type="checkbox"'.$sAttributes.'/><input type="hidden" name="choice['.$sChoiceId.']" value="'.$sChoiceId.'">&nbsp;');
+				$oPage->add('<div class="choice" '.$sDataId.'><input id="'.$sId.'" checked disabled data-disabled="disabled" type="checkbox"'.$sAttributes.'/><input type="hidden" name="choice['.$sChoiceId.']" value="'.$sChoiceId.'">&nbsp;');
+				$bDisabled = true;
 			}
 			else if ($bSelected)
 			{
-				$oPage->add('<div class="choice"><input class="wiz-choice" id="choice'.$sChoiceId.'" name="choice['.$sChoiceId.']" type="checkbox" checked value="'.$sChoiceId.'"/>&nbsp;');
+				$oPage->add('<div class="choice" '.$sDataId.'><input class="wiz-choice" '.$sAllDisabled.'id="'.$sId.'" name="choice['.$sChoiceId.']" type="checkbox" checked value="'.$sChoiceId.'"/>&nbsp;');
 			}
 			else
 			{
-				$oPage->add('<div class="choice"><input class="wiz-choice" id="choice'.$sChoiceId.'" name="choice['.$sChoiceId.']" type="checkbox" value="'.$sChoiceId.'"/>&nbsp;');
+				$oPage->add('<div class="choice" '.$sDataId.'><input class="wiz-choice" '.$sAllDisabled.'id="'.$sId.'" name="choice['.$sChoiceId.']" type="checkbox" value="'.$sChoiceId.'"/>&nbsp;');
 			}
-			$this->DisplayChoice($oPage, $aChoice, $aSelectedComponents, $aDefaults, $sChoiceId);
+			$this->DisplayChoice($oPage, $aChoice, $aSelectedComponents, $aDefaults, $sChoiceId, $bDisabled);
 			$oPage->add('</div>');
 			$index++;
 		}
 		$sChoiceName = null;
 		$sDisabled = '';
+		$bDisabled = false;
 		$sChoiceIdNone = null;
 		foreach($aAlternatives as $index => $aChoice)
 		{
@@ -1758,21 +1948,32 @@ EOF
 			}
 			$bIsDefault = array_key_exists($sChoiceName, $aDefaults) && ($aDefaults[$sChoiceName] == $sChoiceId);
 			$bMandatory = (isset($aChoice['mandatory']) && $aChoice['mandatory']) || ($this->bUpgrade && $bIsDefault);
-			if ($bMandatory)
+			if ($bMandatory || $bAllDisabled)
 			{
 				// One choice is mandatory, all alternatives are disabled
 				$sDisabled = ' disabled data-disabled="disabled"';
+				$bDisabled = true;
 			}
 			if ( (!isset($aChoice['sub_options']) || (count($aChoice['sub_options']) == 0)) && (!isset($aChoice['modules']) || (count($aChoice['modules']) == 0)) )
 			{
 				$sChoiceIdNone = $sChoiceId; // the "None" / empty choice
 			}
 		}
-
+		
+		if (!array_key_exists($sChoiceName, $aDefaults) || ($aDefaults[$sChoiceName] == $sChoiceIdNone))
+		{
+			// The "none" choice does not disable the selection !!
+			$sDisabled = '';
+			$bDisabled = false;
+		}
+		
 		foreach($aAlternatives as $index => $aChoice)
 		{
 			$sAttributes = '';
 			$sChoiceId = $sParentId.self::$SEP.$index;
+			$sDataId = 'data-id="'.htmlentities($aChoice['extension_code'], ENT_QUOTES, 'UTF-8').'"';
+			$sId = htmlentities($aChoice['extension_code'], ENT_QUOTES, 'UTF-8');
+			
 			if ($sChoiceName == null)
 			{
 				$sChoiceName = $sChoiceId; // All radios share the same name
@@ -1791,27 +1992,29 @@ EOF
 				$sAttributes = ' checked ';
 			}
 			$sHidden = '';
-			if ($bMandatory)
+			if ($bMandatory && $bDisabled)
 			{
 				$sAttributes = ' checked ';
 				$sHidden = '<input type="hidden" name="choice['.$sChoiceName.']" value="'.$sChoiceId.'"/>';
 			}
-			$oPage->add('<div class="choice"><input class="wiz-choice" id="choice'.$sChoiceId.'" name="choice['.$sChoiceName.']" type="radio"'.$sAttributes.' value="'.$sChoiceId.'"'.$sDisabled.'/>'.$sHidden.'&nbsp;');
-			$this->DisplayChoice($oPage, $aChoice, $aSelectedComponents, $aDefaults, $sChoiceId);
+			$oPage->add('<div class="choice" '.$sDataId.'><input class="wiz-choice" id="'.$sId.'" name="choice['.$sChoiceName.']" type="radio"'.$sAttributes.' value="'.$sChoiceId.'"'.$sDisabled.'/>'.$sHidden.'&nbsp;');
+			$this->DisplayChoice($oPage, $aChoice, $aSelectedComponents, $aDefaults, $sChoiceId, $bDisabled && !$bSelected);
 			$oPage->add('</div>');
 			$index++;
 		}
 	}
 	
-	protected function DisplayChoice($oPage, $aChoice, $aSelectedComponents, $aDefaults, $sChoiceId)
+	protected function DisplayChoice($oPage, $aChoice, $aSelectedComponents, $aDefaults, $sChoiceId, $bDisabled = false)
 	{
-		$sMoreInfo = isset($aChoice['more_info']) ? $aChoice['more_info'] : '';
-		$oPage->add('<label for="choice'.$sChoiceId.'"><b>'.htmlentities($aChoice['title'], ENT_QUOTES, 'UTF-8').'</b></label> '.$sMoreInfo);
+		$sMoreInfo = (isset($aChoice['more_info']) && ($aChoice['more_info'] != '')) ? '<a target="_blank" href="'.$aChoice['more_info'].'">More information</a>' : '';
+		$sSourceLabel = isset($aChoice['source_label']) ? $aChoice['source_label'] : '';
+		$sId = htmlentities($aChoice['extension_code'], ENT_QUOTES, 'UTF-8');
+		$oPage->add('<label for="'.$sId.'"><b>'.htmlentities($aChoice['title'], ENT_QUOTES, 'UTF-8').'</b>'.$sSourceLabel.'</label> '.$sMoreInfo);
 		$sDescription = isset($aChoice['description']) ? htmlentities($aChoice['description'], ENT_QUOTES, 'UTF-8') : '';
-		$oPage->add('<div class="description">'.$sDescription.'<span id="sub_choices'.$sChoiceId.'">');
+		$oPage->add('<div class="description">'.$sDescription.'<span id="sub_choices'.$sId.'">');
 		if (isset($aChoice['sub_options']))
 		{
-			$this->DisplayOptions($oPage, $aChoice['sub_options'], $aSelectedComponents, $aDefaults, $sChoiceId);
+			$this->DisplayOptions($oPage, $aChoice['sub_options'], $aSelectedComponents, $aDefaults, $sChoiceId, $bDisabled);
 		}
 		$oPage->add('</span></div>');
 	}
@@ -1946,8 +2149,6 @@ EOF
 		$aInstallParams = $this->BuildConfig();
 		
 		$sMode = $aInstallParams['mode'];
-
-		$sPreinstallationPhase = '';
 		
 		$sDestination = ITOP_APPLICATION.(($sMode == 'install') ? ' version '.ITOP_VERSION.' is about to be installed ' : ' is about to be upgraded ');
 		$sDBDescription = ' <b>existing</b> database <b>'.$aInstallParams['database']['name'].'</b>';
@@ -2053,7 +2254,10 @@ EOF
 		
 		$sJSONData = json_encode($aInstallParams);
 		$oPage->add('<input type="hidden" id="installer_parameters" value="'.htmlentities($sJSONData, ENT_QUOTES, 'UTF-8').'"/>');
-
+		
+		$sAuthentToken = $this->oWizard->GetParameter('authent', '');
+		$oPage->add('<input type="hidden" id="authent_token" value="'.$sAuthentToken.'"/>');
+		
 		if (!$this->CheckDependencies())
 		{
 			$oPage->error($this->sDependencyIssue);
@@ -2066,7 +2270,7 @@ EOF
 	$("#btn_next").bind("click.install", function(event) {
 			$('#summary').hide();
 			$('#installation_progress').show();
-			$(this).attr("disabled", "disabled"); event.preventDefault(); ExecuteStep("");
+			$(this).prop('disabled', true);	 event.preventDefault(); ExecuteStep("");
 	});
 	$("#wiz_form").data("installation_status", "not started")
 EOF
@@ -2081,6 +2285,7 @@ EOF
 	{
 		$sMode = $this->oWizard->GetParameter('install_mode', 'install');
 		$aSelectedModules = json_decode($this->oWizard->GetParameter('selected_modules'), true);
+		$aSelectedExtensions = json_decode($this->oWizard->GetParameter('selected_extensions'), true);
 		$sBackupDestination = '';
 		$sPreviousConfigurationFile = '';
 		$sDBName = $this->oWizard->GetParameter('db_name');
@@ -2154,6 +2359,8 @@ EOF
 				'user' => $this->oWizard->GetParameter('db_user'),
 				'pwd' => $this->oWizard->GetParameter('db_pwd'),
 				'name' => $sDBName,
+				'db_tls_enabled' => $this->oWizard->GetParameter('db_tls_enabled'),
+				'db_tls_ca' => $this->oWizard->GetParameter('db_tls_ca'),
 				'prefix' => $this->oWizard->GetParameter('db_prefix'),
 			),
 			'url' => $this->oWizard->GetParameter('application_url'),
@@ -2165,9 +2372,11 @@ EOF
 			),
 			'language' => $this->oWizard->GetParameter('default_language'),
 			'selected_modules' =>  $aSelectedModules,
+			'selected_extensions' =>  $aSelectedExtensions,
 			'sample_data' => ($this->oWizard->GetParameter('sample_data', '') == 'yes') ? true : false ,
 			'old_addon' => $this->oWizard->GetParameter('old_addon', false), // whether or not to use the "old" userrights profile addon
 			'options' => json_decode($this->oWizard->GetParameter('misc_options', '[]'), true),
+			'mysql_bindir' => $this->oWizard->GetParameter('mysql_bindir'),
 		);
 
 		if ($sBackupDestination != '')
@@ -2203,7 +2412,7 @@ EOF
 	//$("#percentage").html('{$aRes['percentage-completed']} % completed<br/>{$aRes['next-step-label']}');
 	ExecuteStep('{$aRes['next-step']}');
 EOF
-		);
+			);
 		}
 		else if ($aRes['status'] != ApplicationInstaller::ERROR)
 		{
@@ -2221,6 +2430,7 @@ EOF
 		else
 		{
 			$sMessage = addslashes(htmlentities($aRes['message'], ENT_QUOTES, 'UTF-8'));
+			$sMessage = str_replace("\n", '<br>', $sMessage);
 			$oPage->add_ready_script(
 <<<EOF
 	$("#wiz_form").data("installation_status", "error");
@@ -2302,15 +2512,14 @@ class WizStepDone extends WizardStep
 			$oPage->ok("The installation completed successfully.");
 		}
 
-		if (($this->oWizard->GetParameter('mode', '') == 'upgrade') && $this->oWizard->GetParameter('db_backup', false))
+		if (($this->oWizard->GetParameter('mode', '') == 'upgrade') && $this->oWizard->GetParameter('db_backup', false) && $this->oWizard->GetParameter('authent', false))
 		{
 			$sBackupDestination = $this->oWizard->GetParameter('db_backup_path', '');
-			if (file_exists($sBackupDestination))
+			if (file_exists($sBackupDestination.'.tar.gz'))
 			{
 				// To mitigate security risks: pass only the filename without the extension, the download will add the extension itself
-				$sTruncatedFilePath = preg_replace('/\.zip$/', '', $sBackupDestination);
 				$oPage->p('Your backup is ready');
-				$oPage->p('<a style="background:transparent;" href="'.utils::GetAbsoluteUrlAppRoot().'setup/ajax.dataloader.php?operation=async_action&step_class=WizStepDone&params[backup]='.urlencode($sTruncatedFilePath).'" target="_blank"><img src="../images/tar.png" style="border:0;vertical-align:middle;">&nbsp;Download '.basename($sBackupDestination).'</a>');
+				$oPage->p('<a style="background:transparent;" href="'.utils::GetAbsoluteUrlAppRoot().'setup/ajax.dataloader.php?operation=async_action&step_class=WizStepDone&params[backup]='.urlencode($sBackupDestination).'&authent='.$this->oWizard->GetParameter('authent','').'" target="_blank"><img src="../images/tar.png" style="border:0;vertical-align:middle;">&nbsp;Download '.basename($sBackupDestination).'</a>');
 			}
 			else
 			{
@@ -2319,18 +2528,48 @@ class WizStepDone extends WizardStep
 		}
 
 		// Form goes here.. No back button since the job is done !
-		$oPage->add('<table style="width:600px;border:0;padding:0;"><tr>');
+		$oPage->add('<table id="placeholder" style="width:600px;border:0;padding:0;"><tr>');
 		$oPage->add("<td><a style=\"background:transparent;padding:0;\" title=\"Free: Register your iTop version.\" href=\"http://www.combodo.com/register?product=iTop&version=".urlencode(ITOP_VERSION." revision ".ITOP_REVISION)."\" target=\"_blank\"><img style=\"border:0\" src=\"../images/setup-register.gif\"/></td></a>");
 		$oPage->add("<td><a style=\"background:transparent;padding:0;\" title=\"Get Professional Support from Combodo\" href=\"http://www.combodo.com/itopsupport\" target=\"_blank\"><img style=\"border:0\" src=\"../images/setup-support.gif\"/></td></a>");
 		$oPage->add("<td><a style=\"background:transparent;padding:0;\" title=\"Get Professional Training from Combodo\" href=\"http://www.combodo.com/itoptraining\" target=\"_blank\"><img style=\"border:0\" src=\"../images/setup-training.gif\"/></td></a>");
 		$oPage->add('</tr></table>');
+		
+		$oConfig = new Config(utils::GetConfigFilePath());
+		// Load the data model only, in order to load env-production/core/main.php to get the XML parameters (needed by GetModuleSettings below)
+		// But main.php may also contain classes (defined without any module), and thus requiring the full data model
+		// to be loaded to prevent "class not found" errors...
+		$oProductionEnv = new RunTimeEnvironment('production');
+		$oProductionEnv->InitDataModel($oConfig, true);
+		$sIframeUrl = $oConfig->GetModuleSetting('itop-hub-connector', 'setup_url', '');
+		
+		if ($sIframeUrl != '')
+		{
+			$oPage->add('<iframe id="fresh_content" style="border:0; width:100%; display:none;" src="'.$sIframeUrl.'"></iframe>');
+			
+			$oPage->add_script("window.addEventListener('message', function(event) {
+				if (event.data === 'itophub_load_completed')
+				{
+					$('#fresh_content').height($('#placeholder').height());
+					$('#placeholder').hide();
+					$('#fresh_content').show();
+				}
+				}, false);
+			");
+		}
+		
 		$sForm = '<form method="post" action="'.$this->oWizard->GetParameter('application_url').'pages/UI.php">';
 		$sForm .= '<input type="hidden" name="auth_user" value="'.htmlentities($this->oWizard->GetParameter('admin_user'), ENT_QUOTES, 'UTF-8').'">';
 		$sForm .= '<input type="hidden" name="auth_pwd" value="'.htmlentities($this->oWizard->GetParameter('admin_pwd'), ENT_QUOTES, 'UTF-8').'">';
 		$sForm .= "<p style=\"text-align:center;width:100%\"><button id=\"enter_itop\" type=\"submit\">Enter ".ITOP_APPLICATION."</button></p>";
 		$sForm .= '</form>';
 		$sPHPVersion = phpversion();
-		$sMySQLVersion = SetupUtils::GetMySQLVersion($this->oWizard->GetParameter('db_server'), $this->oWizard->GetParameter('db_user'), $this->oWizard->GetParameter('db_pwd'));
+		$sMySQLVersion = SetupUtils::GetMySQLVersion(
+			$this->oWizard->GetParameter('db_server'),
+			$this->oWizard->GetParameter('db_user'),
+			$this->oWizard->GetParameter('db_pwd'),
+			$this->oWizard->GetParameter('db_tls_enabled'),
+			$this->oWizard->GetParameter('db_tls_ca')
+		);
 		$aParameters = json_decode($this->oWizard->GetParameter('selected_components', '{}'), true);
 		$sCompactWizChoices = array();
 		foreach($aParameters as $iStep => $aChoices)
@@ -2381,7 +2620,11 @@ class WizStepDone extends WizardStep
 		{
 			if (in_array('_'.$idx, $aParameters[count($aParameters)-1]))
 			{
-				$aAdditionalModules[] = $aModuleInfo['modules'][0]; // Extensions "choices" are always made of one module
+				// Extensions "choices" can now have more than one module
+				foreach($aModuleInfo['modules'] as $sModuleName)
+				{
+					$aAdditionalModules[] = $sModuleName;
+				}
 			}
 		}
 		$idx = 0;
@@ -2418,14 +2661,13 @@ class WizStepDone extends WizardStep
 	
 	public function AsyncAction(WebPage $oPage, $sCode, $aParameters)
 	{
-		$oParameters = new PHPParameters();
-		// For security reasons: add the extension now so that this action can be used to read *only* .zip files from the disk...
-		$sBackupFile = $aParameters['backup'].'.zip';
+		// For security reasons: add the extension now so that this action can be used to read *only* .tar.gz files from the disk...
+		$sBackupFile = $aParameters['backup'].'.tar.gz';
 		if (file_exists($sBackupFile))
 		{
 			// Make sure there is NO output at all before our content, otherwise the document will be corrupted
 			$sPreviousContent = ob_get_clean();
-			$oPage->SetContentType('application/zip');
+			$oPage->SetContentType('application/gzip');
 			$oPage->SetContentDisposition('attachment', basename($sBackupFile));
 			$oPage->add(file_get_contents($sBackupFile));			
 		}

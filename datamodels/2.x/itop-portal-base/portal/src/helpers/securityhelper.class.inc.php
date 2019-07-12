@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (C) 2010-2015 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,18 +19,16 @@
 
 namespace Combodo\iTop\Portal\Helper;
 
-use \Exception;
-use \Silex\Application;
-use \utils;
-use \UserRights;
-use \Dict;
-use \IssueLog;
-use \MetaModel;
-use \DBObjectSet;
-use \FieldExpression;
-use \VariableExpression;
-use \BinaryExpression;
-use \Combodo\iTop\Portal\Helper\ScopeValidatorHelper;
+use Silex\Application;
+use UserRights;
+use IssueLog;
+use MetaModel;
+use DBSearch;
+use DBObjectSearch;
+use DBObjectSet;
+use FieldExpression;
+use VariableExpression;
+use BinaryExpression;
 
 /**
  * SecurityHelper class
@@ -41,16 +39,27 @@ use \Combodo\iTop\Portal\Helper\ScopeValidatorHelper;
  */
 class SecurityHelper
 {
+    public static $aAllowedScopeObjectsCache = array(
+        UR_ACTION_READ => array(),
+        UR_ACTION_MODIFY => array(),
+    );
 
-	/**
-	 * Returns true if the current user is allowed to do the $sAction on an $sObjectClass object (with optionnal $sObjectId id)
-	 *
-	 * @param Silex\Application $oApp
-	 * @param string $sAction Must be in UR_ACTION_READ|UR_ACTION_MODIFY|UR_ACTION_CREATE
-	 * @param string $sObjectClass
-	 * @param string $sObjectId
-	 * @return boolean
-	 */
+    /**
+     * Returns true if the current user is allowed to do the $sAction on an $sObjectClass object (with optionnal $sObjectId id)
+     * Checks are:
+     * - Has a scope query for the $sObjectClass / $sAction
+     * - Optionally, if $sObjectId provided: Is object within scope for $sObjectClass / $sObjectId / $sAction
+     * - Is allowed by datamodel for $sObjectClass / $sAction
+     *
+     * @param \Silex\Application $oApp
+     * @param string $sAction Must be in UR_ACTION_READ|UR_ACTION_MODIFY|UR_ACTION_CREATE
+     * @param string $sObjectClass
+     * @param string $sObjectId
+     *
+     * @return boolean
+     *
+     * @throws \CoreException
+     */
 	public static function IsActionAllowed(Application $oApp, $sAction, $sObjectClass, $sObjectId = null)
 	{
 		$sDebugTracePrefix = __CLASS__ . ' / ' . __METHOD__ . ' : Returned false for action ' . $sAction . ' on ' . $sObjectClass . '::' . $sObjectId;
@@ -68,7 +77,7 @@ class SecurityHelper
 		// Checking the scopes layer
 		// - Transforming scope action as there is only 2 values
 		$sScopeAction = ($sAction === UR_ACTION_READ) ? UR_ACTION_READ : UR_ACTION_MODIFY;
-		// - Retrieving the query
+		// - Retrieving the query. If user has no scope, it can't access that kind of objects
 		$oScopeQuery = $oApp['scope_validator']->GetScopeFilterForProfiles(UserRights::ListProfiles(), $sObjectClass, $sScopeAction);
 		if ($oScopeQuery === null)
 		{
@@ -81,47 +90,52 @@ class SecurityHelper
 		// - If action != create we do some additionnal checks
 		if ($sAction !== UR_ACTION_CREATE)
 		{
-			// - Adding object id to the query if specified
+			// - Checking specific object if id is specified
 			if ($sObjectId !== null)
 			{
-				// - Adding expression
-				$sObjectKeyAtt = MetaModel::DBGetKey($sObjectClass);
-				$oFieldExp = new FieldExpression($sObjectKeyAtt, $oScopeQuery->GetClassAlias());
-				$oBinExp = new BinaryExpression($oFieldExp, '=', new VariableExpression('object_id'));
-				$oScopeQuery->AddConditionExpression($oBinExp);
-				// - Setting value
-				$aQueryParams = $oScopeQuery->GetInternalParams();
-				$aQueryParams['object_id'] = $sObjectId;
-				$oScopeQuery->SetInternalParams($aQueryParams);
-				unset($aQueryParams);
-			}
+			    // Checking if object status is in cache (to avoid unnecessary query)
+                if(isset(static::$aAllowedScopeObjectsCache[$sScopeAction][$sObjectClass][$sObjectId]) )
+                {
+                    if(static::$aAllowedScopeObjectsCache[$sScopeAction][$sObjectClass][$sObjectId] === false)
+                    {
+                        if ($oApp['debug'])
+                        {
+                            IssueLog::Info($sDebugTracePrefix . ' as it was denied in the scope objects cache');
+                        }
+                        return false;
+                    }
+                }
+                else
+                {
+                    // Modifying query to filter on the ID
+                    // - Adding expression
+                    $sObjectKeyAtt = MetaModel::DBGetKey($sObjectClass);
+                    $oFieldExp = new FieldExpression($sObjectKeyAtt, $oScopeQuery->GetClassAlias());
+                    $oBinExp = new BinaryExpression($oFieldExp, '=', new VariableExpression('object_id'));
+                    $oScopeQuery->AddConditionExpression($oBinExp);
+                    // - Setting value
+                    $aQueryParams = $oScopeQuery->GetInternalParams();
+                    $aQueryParams['object_id'] = $sObjectId;
+                    $oScopeQuery->SetInternalParams($aQueryParams);
+                    unset($aQueryParams);
 
-			// - Checking if query result is null
-			$oSet = new DBObjectSet($oScopeQuery);
-			// Note : This is to address a bug (#R-011452). We creating an object that is the first of its class, this would failed as the scope query always return an empty set
-			//if ($oSet->Count() === 0)
-			if (($oSet->Count() === 0) && ($sObjectId !== null))
-			{
-				if ($oApp['debug'])
-				{
-					IssueLog::Info($sDebugTracePrefix . ' as there was no result for the following scope query : ' . $oScopeQuery->ToOQL(true));
-				}
-				return false;
-			}
+                    // - Checking if query result is null (which means that the user has no right to view this specific object)
+                    $oSet = new DBObjectSet($oScopeQuery);
+                    if ($oSet->Count() === 0)
+                    {
+                        // Updating cache
+                        static::$aAllowedScopeObjectsCache[$sScopeAction][$sObjectClass][$sObjectId] = false;
 
-			// Checking if the cmdbAbstractObject exists if id is specified
-			if ($sObjectId !== null)
-			{
-				$oObject = MetaModel::GetObject($sObjectClass, $sObjectId, false /* MustBeFound */, $oApp['scope_validator']->IsAllDataAllowedForScope(UserRights::ListProfiles(), $sObjectClass));
-				if ($oObject === null)
-				{
-					if ($oApp['debug'])
-					{
-						IssueLog::Info($sDebugTracePrefix . ' as object doesn\'t exists');
-					}
-					return false;
-				}
-				unset($oObject);
+                        if ($oApp['debug'])
+                        {
+                            IssueLog::Info($sDebugTracePrefix . ' as there was no result for the following scope query : ' . $oScopeQuery->ToOQL(true));
+                        }
+                        return false;
+                    }
+
+                    // Updating cache
+                    static::$aAllowedScopeObjectsCache[$sScopeAction][$sObjectClass][$sObjectId] = true;
+                }
 			}
 		}
 
@@ -142,10 +156,126 @@ class SecurityHelper
 
 	public static function IsStimulusAllowed(Application $oApp, $sStimulusCode, $sObjectClass, $oInstanceSet = null)
 	{
-		$aStimuli = Metamodel::EnumStimuli($sObjectClass);
-		$iActionAllowed = (get_class($aStimuli[$sStimulusCode]) == 'StimulusUserAction') ? UserRights::IsStimulusAllowed($sObjectClass, $sStimulusCode, $oInstanceSet) : UR_ALLOWED_NO;
+	    // Checking DataModel layer
+        $aStimuliFromDatamodel = Metamodel::EnumStimuli($sObjectClass);
+		$iActionAllowed = (get_class($aStimuliFromDatamodel[$sStimulusCode]) == 'StimulusUserAction') ? UserRights::IsStimulusAllowed($sObjectClass, $sStimulusCode, $oInstanceSet) : UR_ALLOWED_NO;
+        if( ($iActionAllowed === false) || ($iActionAllowed === UR_ALLOWED_NO) )
+        {
+            return false;
+        }
+
+        // Checking portal security layer
+        $aStimuliFromPortal = $oApp['lifecycle_validator']->GetStimuliForProfiles(UserRights::ListProfiles(), $sObjectClass);
+		if(!in_array($sStimulusCode, $aStimuliFromPortal))
+        {
+            return false;
+        }
+
+        return true;
 	}
 
-}
+    /**
+     * Preloads scope objects cache with objects from $oQuery
+     *
+     * @param \Silex\Application $oApp
+     * @param \DBSearch $oSearch
+     * @param array $aExtKeysToPreload
+     *
+     * @throws \Exception
+     * @throws \CoreException
+     */
+	public static function PreloadForCache(Application $oApp, DBSearch $oSearch, $aExtKeysToPreload = null)
+    {
+        $sObjectClass = $oSearch->GetClass();
+        $aObjectIds = array();
+        $aExtKeysIds = array();
+        $aColumnsToLoad = array();
 
-?>
+        if($aExtKeysToPreload !== null)
+        {
+            foreach($aExtKeysToPreload as $sAttCode)
+            {
+                /** @var \AttributeDefinition $oAttDef */
+                $oAttDef = MetaModel::GetAttributeDef($sObjectClass, $sAttCode);
+                if($oAttDef->IsExternalKey())
+                {
+                    $aExtKeysIds[$oAttDef->GetTargetClass()] = array();
+                    $aColumnsToLoad[] = $sAttCode;
+                }
+            }
+        }
+
+        // Retrieving IDs of all objects
+        // Note: We have to clone $oSet otherwise the source object will be modified
+        $oSet = new DBObjectSet($oSearch);
+        $oSet->OptimizeColumnLoad(array($oSearch->GetClassAlias() => $aColumnsToLoad));
+        while($oCurrentRow = $oSet->Fetch())
+        {
+            // Note: By presetting value to false, it is quicker to find which objects where not returned by the scope query later
+            $aObjectIds[$oCurrentRow->GetKey()] = false;
+
+            // Preparing ExtKeys to preload
+            foreach($aColumnsToLoad as $sAttCode)
+            {
+                $iExtKey = $oCurrentRow->Get($sAttCode);
+                if($iExtKey > 0)
+                {
+                    /** @var \AttributeExternalKey $oAttDef */
+                    $oAttDef = MetaModel::GetAttributeDef($sObjectClass, $sAttCode);
+                    if(!in_array($iExtKey, $aExtKeysIds[$oAttDef->GetTargetClass()]))
+                    {
+                        $aExtKeysIds[$oAttDef->GetTargetClass()][] = $iExtKey;
+                    }
+                }
+            }
+        }
+
+        foreach(array(UR_ACTION_READ, UR_ACTION_MODIFY) as $sScopeAction)
+        {
+            // Retrieving scope query
+            /** @var DBSearch $oScopeQuery */
+            $oScopeQuery = $oApp['scope_validator']->GetScopeFilterForProfiles(UserRights::ListProfiles(), $sObjectClass, $sScopeAction);
+            if($oScopeQuery !== null)
+            {
+                // Restricting scope if specified
+                if(!empty($aObjectIds))
+                {
+                    $oScopeQuery->AddCondition('id', array_keys($aObjectIds), 'IN');
+                }
+
+                // Preparing object set
+                $oScopeSet = new DBObjectSet($oScopeQuery);
+                $oScopeSet->OptimizeColumnLoad(array());
+
+                // Checking objects status
+                $aScopeObjectIds = $aObjectIds;
+                while($oCurrentRow = $oScopeSet->Fetch())
+                {
+                    $aScopeObjectIds[$oCurrentRow->GetKey()] = true;
+                }
+
+                // Updating cache
+                if(!isset(static::$aAllowedScopeObjectsCache[$sScopeAction][$sObjectClass]))
+                {
+                    static::$aAllowedScopeObjectsCache[$sScopeAction][$sObjectClass] = $aScopeObjectIds;
+                }
+                else
+                {
+                    static::$aAllowedScopeObjectsCache[$sScopeAction][$sObjectClass] = array_merge_recursive(static::$aAllowedScopeObjectsCache[$sScopeAction][$sObjectClass], $aScopeObjectIds);
+                }
+            }
+        }
+
+        // Preloading ExtKeys
+        foreach($aExtKeysIds as $sTargetClass => $aTargetIds)
+        {
+            if(!empty($aTargetIds))
+            {
+                $oTargetSearch = new DBObjectSearch($sTargetClass);
+                $oTargetSearch->AddCondition('id', $aTargetIds, 'IN');
+
+                static::PreloadForCache($oApp, $oTargetSearch);
+            }
+        }
+    }
+}

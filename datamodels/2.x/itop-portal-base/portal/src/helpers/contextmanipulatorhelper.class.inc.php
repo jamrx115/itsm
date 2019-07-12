@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (C) 2010-2015 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,20 +19,17 @@
 
 namespace Combodo\iTop\Portal\Helper;
 
-use \Exception;
-use \Silex\Application;
-use \DOMNodeList;
-use \DOMFormatException;
-use \UserRights;
-use \DBObject;
-use \DBSearch;
-use \DBObjectSet;
-use \BinaryExpression;
-use \FieldExpression;
-use \ScalarExpression;
-use \iTopObjectCopier;
-use \Combodo\iTop\DesignElement;
-use \Combodo\iTop\Portal\Brick\Portalbrick;
+use Exception;
+use Silex\Application;
+use DOMNodeList;
+use DOMFormatException;
+use UserRights;
+use DBObject;
+use DBSearch;
+use DBObjectSet;
+use BinaryExpression;
+use FieldExpression;
+use ScalarExpression;
 
 class ContextManipulatorHelper
 {
@@ -54,16 +51,17 @@ class ContextManipulatorHelper
 	/**
 	 * Initializes the ScopeValidator by generating and caching the scopes compilation in the $this->sCachePath.$this->sFilename file.
 	 *
-	 * @param DOMNodeList $oNodes
-	 * @throws DOMFormatException
-	 * @throws Exception
+	 * @param \DOMNodeList $oNodes
+     *
+     * @throws \Exception
+	 * @throws \DOMFormatException
 	 */
 	public function Init(DOMNodeList $oNodes)
 	{
 		$this->aRules = array();
 
 		// Iterating over the scope nodes
-		foreach ($oNodes as $oRuleNode)
+        foreach ($oNodes as $oRuleNode)
 		{
 			// Retrieving mandatory id attribute
 			$sRuleId = $oRuleNode->getAttribute('id');
@@ -198,12 +196,14 @@ class ContextManipulatorHelper
 		return $this->aRules;
 	}
 
-	/**
-	 * Return the rule identified by its ID, as a hash array
-	 *
-	 * @param string $sId
-	 * @return array
-	 */
+    /**
+     * Return the rule identified by its ID, as a hash array
+     *
+     * @param string $sId
+     *
+     * @return array
+     * @throws \Exception
+     */
 	public function GetRule($sId)
 	{
 		if (!array_key_exists($sId, $this->aRules))
@@ -213,26 +213,30 @@ class ContextManipulatorHelper
 		return $this->aRules[$sId];
 	}
 
-	/**
-	 * Prepare the $oObject passed as a reference with the $aData
-	 *
-	 * $aData must be of the form :
-	 * array(
-	 *   'rules' => array(
-	 *     'rule-id-1',
-	 *     'rule-id-2',
-	 *     ...
-	 *   ),
-	 *   'sources' => array(
-	 *     <DBObject1 class> => <DBObject1 id>,
-	 *     <DBObject2 class> => <DBObject2 id>,
-	 *     ...
-	 *   )
-	 * )
-	 *
-	 * @param array $aData
-	 * @param DBObject $oObject
-	 */
+    /**
+     * Prepare the $oObject passed as a reference with the $aData
+     *
+     * $aData must be of the form :
+     * array(
+     *   'rules' => array(
+     *     'rule-id-1',
+     *     'rule-id-2',
+     *     ...
+     *   ),
+     *   'sources' => array(
+     *     <DBObject1 class> => <DBObject1 id>,
+     *     <DBObject2 class> => <DBObject2 id>,
+     *     ...
+     *   )
+     * )
+     *
+     * @param array $aData
+     * @param \DBObject $oObject
+     *
+     * @throws \Exception
+     * @throws \CoreException
+     * @throws \OQLException
+     */
 	public function PrepareObject(array $aData, DBObject &$oObject)
 	{
 		if (isset($aData['rules']) && isset($aData['sources']))
@@ -240,7 +244,7 @@ class ContextManipulatorHelper
 			$aRules = $aData['rules'];
 			$aSources = $aData['sources'];
 
-			foreach ($aData['rules'] as $sId)
+			foreach ($aRules as $sId)
 			{
 				// Retrieveing current rule
 				$aRule = $this->GetRule($sId);
@@ -336,21 +340,24 @@ class ContextManipulatorHelper
 		}
 	}
 
-	/**
-	 * Returns a hash array of urls for each type of callback
-	 *
-	 * eg :
-	 * array(
-	 * 	 'submit' => 'http://localhost/',
-	 * 	 'cancel' => null
-	 * );
-	 *
-	 * @param \Silex\Application $oApp
-	 * @param array $aData
-	 * @param \DBObject $oObject
-	 * @param boolean $bModal
-	 * @return array
-	 */
+    /**
+     * Returns a hash array of urls for each type of callback
+     *
+     * eg :
+     * array(
+     *     'submit' => 'http://localhost/',
+     *     'cancel' => null
+     * );
+     *
+     * @param \Silex\Application $oApp
+     * @param array $aData
+     * @param \DBObject $oObject
+     * @param boolean $bModal
+     *
+     * @return array
+     *
+     * @throws \Exception
+     */
 	public function GetCallbackUrls(Application $oApp, array $aData, DBObject $oObject, $bModal = false)
 	{
 		$aResults = array(
@@ -400,6 +407,31 @@ class ContextManipulatorHelper
 		return $aResults;
 	}
 
+    /**
+     * Prepares the rules as an array of rules and source objects so it can be tokenised
+     *
+     * @param array $aRules
+     * @param array $aObjects
+     * @return array
+     */
+	public static function PrepareRulesForToken($aRules, $aObjects = array())
+    {
+        // Getting necessary information from objects
+        $aSources = array();
+        foreach ($aObjects as $oObject)
+        {
+            $aSources[get_class($oObject)] = $oObject->GetKey();
+        }
+
+        // Preparing data
+        $aTokenRules = array(
+            'rules' => $aRules,
+            'sources' => $aSources
+        );
+
+        return $aTokenRules;
+    }
+
 	/**
 	 * Encodes a token made out of the rules.
 	 *
@@ -407,28 +439,29 @@ class ContextManipulatorHelper
 	 *
 	 * To retrieve it has
 	 *
-	 * @param array $aRules
-	 * @param array $aObjects
+	 * @param array $aTokenRules
+     *
 	 * @return string
 	 */
-	static public function EncodeRulesToken($aRules, $aObjects = array())
+	public static function EncodeRulesToken($aTokenRules)
 	{
-		// Getting necessary information from objects
-		$aSources = array();
-		foreach ($aObjects as $oObject)
-		{
-			$aSources[get_class($oObject)] = $oObject->GetKey();
-		}
-
-		// Preparing data
-		$aTokenRules = array(
-			'rules' => $aRules,
-			'sources' => $aSources
-		);
-
-		// Returning tokenised data
+	    // Returning tokenised data
 		return base64_encode(json_encode($aTokenRules));
 	}
+
+    /**
+     * @param array $aRules
+     * @param array $aObjects
+     * @return string
+     */
+	public static function PrepareAndEncodeRulesToken($aRules, $aObjects = array())
+    {
+        // Preparing rules before making a token
+        $aTokenRules = static::PrepareRulesForToken($aRules, $aObjects);
+
+        // Returning tokenised data
+        return static::EncodeRulesToken($aTokenRules);
+    }
 
 	/**
 	 * Decodes a token made out of the rules
@@ -436,11 +469,9 @@ class ContextManipulatorHelper
 	 * @param string $sToken
 	 * @return array
 	 */
-	static public function DecodeRulesToken($sToken)
+	public static function DecodeRulesToken($sToken)
 	{
 		return json_decode(base64_decode($sToken), true);
 	}
 
 }
-
-?>

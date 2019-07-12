@@ -25,14 +25,16 @@ $combodo-orange-darker:		darken($combodo-orange, 18%) !default;
 $combodo-dark-gray-dark:	darken($combodo-dark-gray, 13.5%) !default;
 $combodo-dark-gray-darker:	darken($combodo-dark-gray, 18%) !default;
 
-$brand-primary:         #EA7D1E !default;
+$brand-primary:         $combodo-orange !default;
 $brand-default:         #FFFFFF !default;
-$brand-secondary:       #FFFFFF !default;
+$brand-secondary:       $combodo-dark-gray !default;
 $brand-success:         #469408 !default;
 $brand-info:            #029ACF !default;
 $brand-warning:         #9B479F !default;
 $brand-danger:          #D85A1E !default;
 
+$brand-primary-lighter: lighten($brand-primary, 10%) !default;
+$brand-primary-light:   lighten($brand-primary, 6%) !default;
 $brand-primary-dark:	darken($brand-primary, 6%) !default;
 $brand-primary-darker:  darken($brand-primary, 10%) !default;
 $brand-default-dark:	darken($brand-default, 6%) !default;
@@ -58,7 +60,7 @@ $body-bg:               #EDECEC !default;
 $text-color:            $gray !default;
 
 //** Global textual link color.
-$link-color:            #D46201 !default;
+$link-color:            darken($combodo-orange, 5%) !default;
 //** Link hover color set via `darken()` function.
 $link-hover-color:      darken($link-color, 5%) !default;
 //** Link hover decoration.
@@ -130,8 +132,8 @@ $line-height-large:         1.3333333 !default; // extra decimals for Win 8.1 Ch
 $line-height-small:         1.5 !default;
 
 $border-radius-base:        0px !default;
-$border-radius-large:       6px !default;
-$border-radius-small:       3px !default;
+$border-radius-large:       $border-radius-base; // Default: 6px !default;
+$border-radius-small:       $border-radius-base; // Default: 3px !default;
 
 //** Global color for active items (e.g., navs or dropdowns).
 $component-active-color:    #fff !default;
@@ -158,8 +160,8 @@ $table-bg:                      transparent !default;
 //** Background color used for `.table-striped`.
 $table-bg-accent:               #f9f9f9 !default;
 //** Background color used for `.table-hover`.
-$table-bg-hover:                #f5f5f5 !default;
-$table-bg-active:               $table-bg-hover !default;
+$table-bg-hover:                #fdf5d0 !default;
+$table-bg-active:               darken($table-bg-hover, 10%) !default;
 
 //** Border color for table and cell borders.
 $table-border-color:            #ddd !default;
@@ -356,7 +358,7 @@ $screen-md-max:              ($screen-lg-min - 1) !default;
 
 //== Grid system
 //
-//## Define your custom responsive grid.
+//## Define your custom responsive mosaic.
 
 //** Number of columns in the grid.
 $grid-columns:              12 !default;
@@ -507,7 +509,7 @@ $pagination-disabled-border:           #ddd !default;
 
 $pager-bg:                             $pagination-bg !default;
 $pager-border:                         $pagination-border !default;
-$pager-border-radius:                  15px !default;
+$pager-border-radius:                  $border-radius-base !default;
 
 $pager-hover-bg:                       $brand-primary !default;
 
@@ -600,19 +602,26 @@ $popover-arrow-outer-fallback-color:  darken($popover-fallback-border-color, 20%
 //== Labels
 //
 //##
+$label-border-radius:         $border-radius-base !default;
 
 //** Default label background color
+$label-default-color:         $btn-default-color !default;
 $label-default-bg:            $btn-default-bg !default;
 //** Primary label background color
-$label-primary-bg:            $brand-primary !default;
+$label-primary-color:         $btn-primary-color !default;
+$label-primary-bg:            $btn-primary-bg !default;
 //** Success label background color
-$label-success-bg:            $brand-success !default;
+$label-success-color:         $btn-success-color !default;
+$label-success-bg:            $btn-success-bg !default;
 //** Info label background color
-$label-info-bg:               $brand-info !default;
+$label-info-color:            $btn-info-color !default;
+$label-info-bg:               $btn-info-bg !default;
 //** Warning label background color
-$label-warning-bg:            $brand-warning !default;
+$label-warning-color:         $btn-warning-color !default;
+$label-warning-bg:            $btn-warning-bg !default;
 //** Danger label background color
-$label-danger-bg:             $brand-danger !default;
+$label-danger-color:          $btn-danger-color !default;
+$label-danger-bg:             $btn-danger-bg !default;
 
 //** Default label text color
 $label-color:                 #fff !default;
@@ -645,6 +654,12 @@ $modal-backdrop-bg:           #000 !default;
 $modal-backdrop-opacity:      .5 !default;
 //** Modal header border color
 $modal-header-border-color:   #e5e5e5 !default;
+//** Modal header background color
+$modal-header-bg:             $combodo-dark-gray;
+//** Modal title color
+$modal-title-color:           $white;
+//** Modal close button color
+$modal-close-color:           $white;
 //** Modal footer border color
 $modal-footer-border-color:   $modal-header-border-color !default;
 
@@ -817,7 +832,7 @@ $badge-active-bg:             #fff !default;
 
 $badge-font-weight:           bold !default;
 $badge-line-height:           1 !default;
-$badge-border-radius:         10px !default;
+$badge-border-radius:         $border-radius-base !default;
 
 
 //== Breadcrumbs

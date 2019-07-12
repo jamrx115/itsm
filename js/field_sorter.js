@@ -121,8 +121,8 @@ $(function()
 					$(this).removeClass('selected');
 				}
 			});
-			this.moveup_btn.removeAttr('disabled');
-			this.movedown_btn.removeAttr('disabled');
+			this.moveup_btn.prop('disabled', false);
+			this.movedown_btn.prop('disabled', false);
 		},
 		_moveUp: function()
 		{
@@ -249,12 +249,12 @@ $(function()
 				
 				var oCheckbox = oItem.find('input[type=checkbox]');
 				var bChecked = false;
-				if (oCheckbox.attr('checked'))
+				if (oCheckbox.prop('checked'))
 				{
 					bChecked = true;
 				}
 				var bDisabled = false;
-				if (oCheckbox.attr('disabled'))
+				if (oCheckbox.prop('disabled'))
 				{
 					bDisabled = true;
 				}

@@ -21,12 +21,12 @@
 		// Used for ajax throttling
 		var iSearchThrottle = 600;
 		var oKeyTimeout;
-		var aKeyTimeoutFilteredKeys = [16, 17, 18, 19, 27, 33, 34, 35, 36, 37, 38, 39, 40]; // Shift, Ctrl, Alt, Pause, Esc, Page Up/Down, Home, End, Left/Up/Right/Down arrows
+		var aKeyTimeoutFilteredKeys = [9, 16, 17, 18, 19, 27, 33, 34, 35, 36, 37, 38, 39, 40]; // Tab, Shift, Ctrl, Alt, Pause, Esc, Page Up/Down, Home, End, Left/Up/Right/Down arrows
 		
 		// Show a loader inside the table
-		var showTableLoader = function()
+		var showTableLoader = function(oElem)
 		{
-			$('#brick-content-table > tbody').html('<tr><td class="datatables_overlay" colspan="100">' + $('#page_overlay').html() + '</td></tr>');
+			oElem.children('tbody').html('<tr><td class="datatables_overlay" colspan="100">' + $('#page_overlay').html() + '</td></tr>');
 		};
 		// Columns definition for the table from the oLevelsProperties
 		var getColumnsDefinition = function()
@@ -89,28 +89,28 @@
 							{
 								case '{{ constant('Combodo\\iTop\\Portal\\Brick\\BrowseBrick::ENUM_ACTION_VIEW') }}':
 									url = '{{ app.url_generator.generate('p_object_view', {'sObjectClass': '-objectClass-', 'sObjectId': '-objectId-'})|raw }}'.replace(/-objectClass-/, data.class).replace(/-objectId-/, data.id);
-									cellElem.attr('data-toggle', 'modal').attr('data-target', '#modal-for-all').attr('href', url);
-									break;
+                                    break;
 								case '{{ constant('Combodo\\iTop\\Portal\\Brick\\BrowseBrick::ENUM_ACTION_EDIT') }}':
 									url = '{{ app.url_generator.generate('p_object_edit', {'sObjectClass': '-objectClass-', 'sObjectId': '-objectId-'})|raw }}'.replace(/-objectClass-/, data.class).replace(/-objectId-/, data.id);
-									cellElem.attr('data-toggle', 'modal').attr('data-target', '#modal-for-all').attr('href', url);
 									break;
 								case '{{ constant('Combodo\\iTop\\Portal\\Brick\\BrowseBrick::ENUM_ACTION_CREATE_FROM_THIS') }}':
 									url = levelPrimaryAction.url.replace(/-objectClass-/, data.class).replace(/-objectId-/, data.id);
 									url = AddParameterToUrl(url, 'ar_token', data.action_rules_token[levelPrimaryAction.type]);
-									cellElem.attr('data-toggle', 'modal').attr('data-target', '#modal-for-all').attr('href', url);
 									break;
 								default:
+								    url = '#';
 									//console.log('Action "'+levelPrimaryAction.type+'" not implemented');
 									break;
 							}
+                            SetActionUrl(cellElem, url);
+                            SetActionOpeningTarget(cellElem, levelPrimaryAction.opening_target);
 
 							// - Secondary actions
 							if(levelActionsKeys.length > 1)
 							{
-								// Retrieving secondary action
+								// Retrieving secondary action (Now we also display primary action)
 								var actionsButtons = {};
-								for(j = 1; j < levelActionsKeys.length; j++)
+								for(j = 0; j < levelActionsKeys.length; j++)
 								{
 									actionsButtons[levelActionsKeys[j]] = levelActions[levelActionsKeys[j]];
 								}
@@ -118,18 +118,13 @@
 								// Preparing secondary actions container
 								var actionsElem = $('<div></div>').addClass('pull-right group-actions');
 								cellElem.append(actionsElem);
-								// Checking if a menu is necessary
-								var bHasSeveralSecondaryActions = (Object.keys(actionsButtons).length > 1);
-								// Preparing secondary actions for small screens
-								if(bHasSeveralSecondaryActions)
-								{
-									var actionsSSTogglerElem = $('<a class="glyphicon glyphicon-menu-hamburger" data-toggle="collapse" data-target="#item-actions-menu-'+levelAltId+'"></a>');
-									var actionsSSMenuElem = $('<div id="item-actions-menu-'+levelAltId+'" class="item-action-wrapper panel panel-default"></div>');
-									var actionsSSMenuContainerElem = $('<div class="panel-body"></div>');
-									actionsSSMenuElem.append(actionsSSMenuContainerElem);
-									actionsElem.append(actionsSSTogglerElem);
-									actionsElem.append(actionsSSMenuElem);
-								}
+								// Preparing secondary actions
+								var actionsSSTogglerElem = $('<a class="glyphicon glyphicon-menu-hamburger" data-toggle="collapse" data-target="#item-actions-menu-'+levelAltId+'"></a>');
+								var actionsSSMenuElem = $('<div id="item-actions-menu-'+levelAltId+'" class="item-action-wrapper panel panel-default"></div>');
+								var actionsSSMenuContainerElem = $('<div class="panel-body"></div>');
+								actionsSSMenuElem.append(actionsSSMenuContainerElem);
+								actionsElem.append(actionsSSTogglerElem);
+								actionsElem.append(actionsSSMenuElem);
 
 								// Adding secondary actions
 								for(j in actionsButtons)
@@ -142,21 +137,21 @@
 									{
 										case '{{ constant('Combodo\\iTop\\Portal\\Brick\\BrowseBrick::ENUM_ACTION_VIEW') }}':
 											url = '{{ app.url_generator.generate('p_object_view', {'sObjectClass': '-objectClass-', 'sObjectId': '-objectId-'})|raw }}'.replace(/-objectClass-/, data.class).replace(/-objectId-/, data.id);
-											actionElem.attr('data-toggle', 'modal').attr('data-target', '#modal-for-all').attr('href', url);
 											break;
 										case '{{ constant('Combodo\\iTop\\Portal\\Brick\\BrowseBrick::ENUM_ACTION_EDIT') }}':
 											url = '{{ app.url_generator.generate('p_object_edit', {'sObjectClass': '-objectClass-', 'sObjectId': '-objectId-'})|raw }}'.replace(/-objectClass-/, data.class).replace(/-objectId-/, data.id);
-											actionElem.attr('data-toggle', 'modal').attr('data-target', '#modal-for-all').attr('href', url);
 											break;
 										case '{{ constant('Combodo\\iTop\\Portal\\Brick\\BrowseBrick::ENUM_ACTION_CREATE_FROM_THIS') }}':
 											url = action.url.replace(/-objectClass-/, data.class).replace(/-objectId-/, data.id);
 											url = AddParameterToUrl(url, 'ar_token', data.action_rules_token[action.type]);
-											actionElem.attr('data-toggle', 'modal').attr('data-target', '#modal-for-all').attr('href', url);
 											break;
 										default:
+										    url = '#';
 											//console.log('Action "'+action.type+'" not implemented for secondary action');
 											break;
 									}
+                                    SetActionUrl(actionElem, url);
+                                    SetActionOpeningTarget(actionElem, action.opening_target);
 									
 									// Adding title if present
 									if(action.title !== undefined)
@@ -169,15 +164,8 @@
 										actionIconElem.addClass(action.icon_class);
 									}
 						
-									if(bHasSeveralSecondaryActions)
-									{
-										actionElem.append(action.title);
-										actionsSSMenuContainerElem.append( $('<p></p>').append(actionElem) );
-									}
-									else
-									{
-										actionsElem.append(actionElem);
-									}
+									actionElem.append(action.title);
+									actionsSSMenuContainerElem.append( $('<p></p>').append(actionElem) );
 								}
 							}
 						}
@@ -210,7 +198,7 @@
 		
 		$(document).ready(function()
 		{
-			showTableLoader();
+			showTableLoader($('#brick-content-table'));
 			
 			// Note : Those options should be externalized in an library so we can use them on any DataTables for the portal.
 			// We would just have to override / complete the necessary elements
@@ -236,7 +224,7 @@
 					}
 				},
 				"lengthMenu": [[10, 20, 50, -1], [10, 20, 50, "{{ 'Portal:Datatables:Language:DisplayLength:All'|dict_s }}"]],
-				"displayLength": {{ constant('Combodo\\iTop\\Portal\\Brick\\BrowseBrick::DEFAULT_COUNT_PER_PAGE_LIST') }},
+				"displayLength": {{ constant('Combodo\\iTop\\Portal\\Brick\\BrowseBrick::DEFAULT_LIST_LENGTH') }},
 				"dom": '<"row"<"col-sm-6"l><"col-sm-6"<f><"visible-xs"p>>>t<"row"<"col-sm-6"i><"col-sm-6"p>>',
 				"columns": getColumnsDefinition(),
 				"order": [],
@@ -254,32 +242,32 @@
 					}
 				},
 				{% if sDataLoading == constant('Combodo\\iTop\\Portal\\Brick\\AbstractBrick::ENUM_DATA_LOADING_FULL') %}
-					"data": oRawDatas,
+				"data": oRawDatas,
 				{% else %}
-					"processing": true,
-					"serverSide": true,
-					"ajax": {
-						"url": "{{ app.url_generator.generate('p_browse_brick_mode', {'sBrickId': sBrickId, 'sBrowseMode': constant('Combodo\\iTop\\Portal\\Brick\\BrowseBrick::ENUM_BROWSE_MODE_LIST')})|raw }}",
-						"data": function(d){
-							d.iPageNumber = Math.floor(d.start/d.length) + 1;
-							d.iCountPerPage = d.length;
-							d.columns = null;
-							d.orders = null;
-							{% if sSearchValue is not null %}
-								// Sets default filter value
-								if(d.draw === 1)
-								{
-									$('#brick-content-table_filter input').val('{{ sSearchValue }}');
-									d.search.value = $('#brick-content-table_filter input').val();
-								}
-							{% endif %}
-							if(d.search.value)
-							{
-								d.sSearchValue = d.search.value;
-							}
+				"processing": true,
+				"serverSide": true,
+				"ajax": {
+					"url": "{{ app.url_generator.generate('p_browse_brick_mode', {'sBrickId': sBrickId, 'sBrowseMode': constant('Combodo\\iTop\\Portal\\Brick\\BrowseBrick::ENUM_BROWSE_MODE_LIST')})|raw }}",
+					"data": function (d) {
+						d.iPageNumber = Math.floor(d.start / d.length)+1;
+						d.iListLength = d.length;
+						d.sDataLoading = "{{ constant('Combodo\\iTop\\Portal\\Brick\\AbstractBrick::ENUM_DATA_LOADING_LAZY') }}";
+						d.columns = null;
+						d.orders = null;
+
+						if (d.search.value)
+						{
+							d.sSearchValue = d.search.value;
 						}
 					}
+				},
 				{% endif %}
+				"search": {
+					"caseInsensitive": true,
+					{% if sSearchValue is not null %}
+					"search": "{{ sSearchValue|escape('js') }}",
+					{% endif %}
+				},
 			});
 			// Overrides filter input to apply throttle. Otherwise, an ajax request is send each time a key is pressed
 			// Also removes accents from search string
@@ -300,7 +288,7 @@
 			$('#brick-content-table').on('processing.dt', function(event, settings, processing){
 				if(processing === true)
 				{
-					showTableLoader();
+					showTableLoader($(this));
 				}
 			});
 			

@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (C) 2010-2016 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,21 +19,27 @@
 
 namespace Combodo\iTop\Form\Field;
 
-use \Closure;
-use \Combodo\iTop\Form\Validator\Validator;
-use \Combodo\iTop\Form\Validator\MandatoryValidator;
+use Closure;
+use Combodo\iTop\Form\Validator\Validator;
+use Combodo\iTop\Form\Validator\MandatoryValidator;
 
 /**
  * Description of Field
  *
  * @author Guillaume Lajarige <guillaume.lajarige@combodo.com>
+ * @since iTop 2.3.0
  */
 abstract class Field
 {
+    const ENUM_DISPLAY_MODE_COSY = 'cosy';          // Label above value
+    const ENUM_DISPLAY_MODE_COMPACT = 'compact';    // Label and value side by side
+    const ENUM_DISPLAY_MODE_DENSE = 'dense';        // Label and value side by side, closely
+
 	const DEFAULT_LABEL = '';
 	const DEFAULT_HIDDEN = false;
 	const DEFAULT_READ_ONLY = false;
 	const DEFAULT_MANDATORY = false;
+    const DEFAULT_DISPLAY_MODE = self::ENUM_DISPLAY_MODE_COSY;
 	const DEFAULT_VALID = true;
 
 	protected $sId;
@@ -43,6 +49,7 @@ abstract class Field
 	protected $bHidden;
 	protected $bReadOnly;
 	protected $bMandatory;
+	protected $sDisplayMode;
 	protected $aValidators;
 	protected $bValid;
 	protected $aErrorMessages;
@@ -64,6 +71,7 @@ abstract class Field
 		$this->bHidden = static::DEFAULT_HIDDEN;
 		$this->bReadOnly = static::DEFAULT_READ_ONLY;
 		$this->bMandatory = static::DEFAULT_MANDATORY;
+		$this->sDisplayMode = static::DEFAULT_DISPLAY_MODE;
 		$this->aValidators = array();
 		$this->bValid = static::DEFAULT_VALID;
 		$this->aErrorMessages = array();
@@ -128,6 +136,18 @@ abstract class Field
 	}
 
 	/**
+	 * Note: This not implemented yet! Just a pre-conception for CaseLogField
+	 *
+	 * @todo Implement
+	 * @return boolean
+	 */
+	public function GetMustChange()
+	{
+		// TODO
+		return false;
+	}
+
+	/**
 	 *
 	 * @return boolean
 	 */
@@ -135,6 +155,15 @@ abstract class Field
 	{
 		return $this->bMandatory;
 	}
+
+    /**
+     *
+     * @return string
+     */
+	public function GetDisplayMode()
+    {
+        return $this->sDisplayMode;
+    }
 
 	/**
 	 *
@@ -167,7 +196,7 @@ abstract class Field
 
 	/**
 	 *
-	 * @return array
+	 * @return mixed
 	 */
 	public function GetCurrentValue()
 	{
@@ -195,7 +224,7 @@ abstract class Field
 
 	/**
 	 *
-	 * @param type $sLabel
+	 * @param string $sLabel
 	 * @return \Combodo\iTop\Form\Field\Field
 	 */
 	public function SetLabel($sLabel)
@@ -257,6 +286,31 @@ abstract class Field
 	}
 
 	/**
+	 * Sets if the field is must change or not.
+	 * Note: This not implemented yet! Just a pre-conception for CaseLogField
+	 *
+	 * @todo Implement
+	 * @param boolean $bMustChange
+	 * @return \Combodo\iTop\Form\Field\Field
+	 */
+	public function SetMustChange($bMustChange)
+	{
+		// TODO.
+		return $this;
+	}
+
+    /**
+     *
+     * @param string $sDisplayMode
+     * @return $this
+     */
+	public function SetDisplayMode($sDisplayMode)
+    {
+        $this->sDisplayMode = $sDisplayMode;
+        return $this;
+    }
+
+	/**
 	 *
 	 * @param array $aValidators
 	 * @return \Combodo\iTop\Form\Field\Field
@@ -315,7 +369,7 @@ abstract class Field
 
 	/**
 	 *
-	 * @param Validator $oValidator
+	 * @param \Combodo\iTop\Form\Validator\Validator $oValidator
 	 * @return \Combodo\iTop\Form\Field\Field
 	 */
 	public function AddValidator(Validator $oValidator)
@@ -326,7 +380,7 @@ abstract class Field
 
 	/**
 	 *
-	 * @param Validator $oValidator
+	 * @param \Combodo\iTop\Form\Validator\Validator $oValidator
 	 * @return \Combodo\iTop\Form\Field\Field
 	 */
 	public function RemoveValidator(Validator $oValidator)

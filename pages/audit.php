@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2010-2016 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,11 +19,18 @@
 /**
  * Execute and shows the data quality audit
  *
- * @copyright   Copyright (C) 2010-2016 Combodo SARL
+ * @copyright   Copyright (C) 2010-2017 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 /**
- * Adds the context parameters to the audit query
+ * Adds the context parameters to the audit rule query
+ *
+ * @param DBSearch $oFilter
+ * @param ApplicationContext $oAppContext
+ *
+ * @throws \CoreException
+ * @throws \CoreWarning
+ * @throws \Exception
  */
 function FilterByContext(DBSearch &$oFilter, ApplicationContext $oAppContext)
 {
@@ -41,6 +48,7 @@ function FilterByContext(DBSearch &$oFilter, ApplicationContext $oAppContext)
 				if ( ($sAttCode != null) && MetaModel::IsValidAttCode($sObjClass, $sAttCode))
 				{
 					// Check if the condition points to a hierarchical key
+                    $bConditionAdded = false;
 					if ($sAttCode == 'id')
 					{
 						// Filtering on the objects themselves
@@ -83,11 +91,22 @@ function FilterByContext(DBSearch &$oFilter, ApplicationContext $oAppContext)
 	}
 }
 
+/**
+ * @param int $iRuleId Audit rule ID
+ * @param DBObjectSearch $oDefinitionFilter Created from the audit category's OQL
+ * @param ApplicationContext $oAppContext
+ *
+ * @return mixed
+ * @throws \ArchivedObjectException
+ * @throws \CoreException
+ * @throws \OQLException
+ */
 function GetRuleResultFilter($iRuleId, $oDefinitionFilter, $oAppContext)
 {
 	$oRule = MetaModel::GetObject('AuditRule', $iRuleId);
 	$sOql = $oRule->Get('query');
 	$oRuleFilter = DBObjectSearch::FromOQL($sOql);
+	$oRuleFilter->UpdateContextFromUser();
 	FilterByContext($oRuleFilter, $oAppContext); // Not needed since this filter is a subset of the definition filter, but may speedup things
 
 	if ($oRule->Get('valid_flag') == 'false')
@@ -98,12 +117,14 @@ function GetRuleResultFilter($iRuleId, $oDefinitionFilter, $oAppContext)
 	else
 	{
 		// The query returns only the valid elements, all the others are invalid
+		// Warning : we're generating a `WHERE ID IN`... query, and this could be very slow if there are lots of id !
 		$aValidRows = $oRuleFilter->ToDataArray(array('id'));
 		$aValidIds = array();
 		foreach($aValidRows as $aRow)
 		{
 			$aValidIds[] = $aRow['id'];
 		}
+		/** @var \DBObjectSearch $oFilter */
 		$oFilter = $oDefinitionFilter->DeepClone();
 		if (count($aValidIds) > 0)
 		{
@@ -115,7 +136,7 @@ function GetRuleResultFilter($iRuleId, $oDefinitionFilter, $oAppContext)
 			$aInvalids = array_diff($aInDefSet, $aValidIds);
 			if (count($aInvalids) > 0)
 			{
-				$oFilter->AddCondition('id', $aInvalids, 'IN');
+				$oFilter->AddConditionForInOperatorUsingParam('id', $aInvalids, true);
 			}
 			else
 			{
@@ -168,6 +189,7 @@ try
 	
 		$oAuditCategory = MetaModel::GetObject('AuditCategory', $iCategory);
 		$oDefinitionFilter = DBObjectSearch::FromOQL($oAuditCategory->Get('definition_set'));
+		$oDefinitionFilter->UpdateContextFromUser();
 		FilterByContext($oDefinitionFilter, $oAppContext);
 		$oDefinitionSet = new CMDBObjectSet($oDefinitionFilter);
 		$oFilter = GetRuleResultFilter($iRuleIndex, $oDefinitionFilter, $oAppContext);
@@ -213,7 +235,7 @@ try
 			$oP->p('<a href="./audit.php?'.$oAppContext->GetForLink().'">[Back to audit results]</a>');
 		    $sBlockId = 'audit_errors';
 			$oP->p("<div id=\"$sBlockId\" style=\"clear:both\">\n");
-			$oBlock = DisplayBlock::FromObjectSet($oErrorObjectSet, 'csv');    
+			$oBlock = DisplayBlock::FromObjectSet($oErrorObjectSet, 'csv', array('show_obsolete_data' => true));
 			$oBlock->Display($oP, 1);
 			$oP->p("</div>\n");    
 			// Adjust the size of the Textarea containing the CSV to fit almost all the remaining space
@@ -232,6 +254,7 @@ try
 	
 		$oAuditCategory = MetaModel::GetObject('AuditCategory', $iCategory);
 		$oDefinitionFilter = DBObjectSearch::FromOQL($oAuditCategory->Get('definition_set'));
+		$oDefinitionFilter->UpdateContextFromUser();
 		FilterByContext($oDefinitionFilter, $oAppContext);
 		$oDefinitionSet = new CMDBObjectSet($oDefinitionFilter);
 		$oFilter = GetRuleResultFilter($iRuleIndex, $oDefinitionFilter, $oAppContext);
@@ -241,7 +264,7 @@ try
 		$oP->p('<a href="./audit.php?'.$oAppContext->GetForLink().'">[Back to audit results]</a>');
 	    $sBlockId = 'audit_errors';
 		$oP->p("<div id=\"$sBlockId\" style=\"clear:both\">\n");
-		$oBlock = DisplayBlock::FromObjectSet($oErrorObjectSet, 'list');    
+		$oBlock = DisplayBlock::FromObjectSet($oErrorObjectSet, 'list', array('show_obsolete_data' => true));
 		$oBlock->Display($oP, 1);
 		$oP->p("</div>\n");
 		$sExportUrl = utils::GetAbsoluteUrlAppRoot()."pages/audit.php?operation=csv&category=".$oAuditCategory->GetKey()."&rule=".$oAuditRule->GetKey();
@@ -265,6 +288,7 @@ try
 			try
 			{
 				$oDefinitionFilter = DBObjectSearch::FromOQL($oAuditCategory->Get('definition_set'));
+				$oDefinitionFilter->UpdateContextFromUser();
 				FilterByContext($oDefinitionFilter, $oAppContext);
 				
 				$aObjectsWithErrors = array();
@@ -408,4 +432,3 @@ catch(Exception $e)
 		IssueLog::Error($e->getMessage());
 	}
 }
-?>

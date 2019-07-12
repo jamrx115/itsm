@@ -1,6 +1,5 @@
 <?php
-
-// Copyright (C) 2010-2016 Combodo SARL
+// Copyright (C) 2010-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -21,7 +20,7 @@
 /**
  * Class LoginWebPage
  *
- * @copyright   Copyright (C) 2010-2016 Combodo SARL
+ * @copyright   Copyright (C) 2010-2017 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 
@@ -43,6 +42,7 @@ class LoginWebPage extends NiceWebPage
 	const EXIT_CODE_WRONGCREDENTIALS = 3;
 	const EXIT_CODE_MUSTBEADMIN = 4;
 	const EXIT_CODE_PORTALUSERNOTAUTHORIZED = 5;
+	const EXIT_CODE_NOTAUTHORIZED = 6;
 	
 	protected static $sHandlerClass = __class__;
 	public static function RegisterHandler($sClass)
@@ -50,6 +50,9 @@ class LoginWebPage extends NiceWebPage
 		self::$sHandlerClass = $sClass;
 	}
 
+	/**
+	 * @return \LoginWebPage
+	 */
 	public static function NewLoginWebPage()
 	{
 		return new self::$sHandlerClass;
@@ -57,8 +60,13 @@ class LoginWebPage extends NiceWebPage
 
 	protected static $m_sLoginFailedMessage = '';
 	
-	public function __construct($sTitle = 'iTop Login')
+	public function __construct($sTitle = null)
 	{
+	    if($sTitle === null)
+        {
+            $sTitle = Dict::S('UI:Login:Title');
+        }
+
 		parent::__construct($sTitle);
 		$this->SetStyleSheet();
 		$this->add_header("Cache-control: no-cache");
@@ -91,12 +99,12 @@ class LoginWebPage extends NiceWebPage
 			$sLogo = 'itop-logo-external.png';
 			$sBrandingLogo = 'login-logo.png';
 		}
-		$sVersionShort = Dict::Format('UI:iTopVersion:Short', ITOP_VERSION);
+		$sVersionShort = Dict::Format('UI:iTopVersion:Short', ITOP_APPLICATION, ITOP_VERSION);
 		$sIconUrl = Utils::GetConfig()->Get('app_icon_url');
-		$sDisplayIcon = utils::GetAbsoluteUrlAppRoot().'images/'.$sLogo.'?itopversion='.ITOP_VERSION;
+		$sDisplayIcon = utils::GetAbsoluteUrlAppRoot().'images/'.$sLogo.'?t='.utils::GetCacheBusterTimestamp();
 		if (file_exists(MODULESROOT.'branding/'.$sBrandingLogo))
 		{
-			$sDisplayIcon = utils::GetAbsoluteUrlModulesRoot().'branding/'.$sBrandingLogo.'?itopversion='.ITOP_VERSION;
+			$sDisplayIcon = utils::GetAbsoluteUrlModulesRoot().'branding/'.$sBrandingLogo.'?t='.utils::GetCacheBusterTimestamp();
 		}
 		$this->add("<div id=\"login-logo\"><a href=\"".htmlentities($sIconUrl, ENT_QUOTES, 'UTF-8')."\"><img title=\"$sVersionShort\" src=\"$sDisplayIcon\"></a></div>\n");
 	}
@@ -113,7 +121,7 @@ class LoginWebPage extends NiceWebPage
 			
 			case 'basic':
 			case 'url':
-			$this->add_header('WWW-Authenticate: Basic realm="'.Dict::Format('UI:iTopVersion:Short', ITOP_VERSION));
+			$this->add_header('WWW-Authenticate: Basic realm="'.Dict::Format('UI:iTopVersion:Short', ITOP_APPLICATION, ITOP_VERSION));
 			$this->add_header('HTTP/1.0 401 Unauthorized');
 			$this->add_header('Content-type: text/html; charset=iso-8859-1');
 			// Note: displayed when the user will click on Cancel
@@ -152,9 +160,9 @@ class LoginWebPage extends NiceWebPage
 			$this->add("<tr><td colspan=\"2\" class=\"center v-spacer\"><span class=\"btn_border\"><input type=\"submit\" value=\"".Dict::S('UI:Button:Login')."\" /></span></td></tr>\n");
 			if (strlen($sForgotPwd) > 0)
 			{
-				$this->add("<tr><td colspan=\"2\" class=\"center v-spacer\">$sForgotPwd</td> </tr>\n");
+				$this->add("<tr><td colspan=\"2\" class=\"center v-spacer\">$sForgotPwd</td></tr>\n");
 			}
-			$this->add("</table>\n </br> <div align='center'>");
+			$this->add("</table>\n");
 			$this->add("<input type=\"hidden\" name=\"loginop\" value=\"login\" />\n");
 
 			$this->add_ready_script('$("#user").focus();');
@@ -180,7 +188,7 @@ class LoginWebPage extends NiceWebPage
 			
 			$this->add("</form>\n");
 			$this->add(Dict::S('UI:Login:About'));
-				$this->add("</div>\n ");
+			$this->add("</div>\n");
 			break;
 		}
 	}
@@ -190,7 +198,7 @@ class LoginWebPage extends NiceWebPage
 	 */	
 	public function ForgotPwdLink()
 	{
-		$sUrl = '?loginop=forgot_pwd';
+		$sUrl = utils::GetAbsoluteUrlAppRoot() . 'pages/UI.php?loginop=forgot_pwd';
 		$sHtml = "<a href=\"$sUrl\" target=\"_blank\">".Dict::S('UI:Login:ForgotPwd')."</a>";
 		return $sHtml;
 	}
@@ -225,7 +233,8 @@ class LoginWebPage extends NiceWebPage
 		try
 		{
 			UserRights::Login($sAuthUser); // Set the user's language (if possible!)
-			$oUser = UserRights::GetUserObject();
+            /** @var UserInternal $oUser */
+            $oUser = UserRights::GetUserObject();
 			if ($oUser == null)
 			{
 				throw new Exception(Dict::Format('UI:ResetPwd-Error-WrongLogin', $sAuthUser));
@@ -249,15 +258,12 @@ class LoginWebPage extends NiceWebPage
 			$sToken = substr(md5(APPROOT.uniqid()), 0, 16);
 			$oUser->Set('reset_pwd_token', $sToken);
 			CMDBObject::SetTrackInfo('Reset password');
+			$oUser->AllowWrite(true);
 			$oUser->DBUpdate();
 
 			$oEmail = new Email();
 			$oEmail->SetRecipientTO($sTo);
 			$sFrom = MetaModel::GetConfig()->Get('forgot_password_from');
-			if ($sFrom == '')
-			{
-				$sFrom = $sTo;
-			}
 			$oEmail->SetRecipientFrom($sFrom);
 			$oEmail->SetSubject(Dict::S('UI:ResetPwd-EmailSubject'));
 			$sResetUrl = utils::GetAbsoluteUrlAppRoot().'pages/UI.php?loginop=reset_pwd&auth_user='.urlencode($oUser->Get('login')).'&token='.urlencode($sToken);
@@ -297,6 +303,9 @@ class LoginWebPage extends NiceWebPage
 		$sAuthUser = utils::ReadParam('auth_user', '', false, 'raw_data');
 		$sToken = utils::ReadParam('token', '', false, 'raw_data');
 
+		$sAuthUserForDisplay = utils::HtmlEntities($sAuthUser);
+		$sTokenForDisplay = utils::HtmlEntities($sToken);
+
 		UserRights::Login($sAuthUser); // Set the user's language
 		$oUser = UserRights::GetUserObject();
 
@@ -305,7 +314,7 @@ class LoginWebPage extends NiceWebPage
 		$this->add("<h1>".Dict::S('UI:ResetPwd-Title')."</h1>\n");
 		if ($oUser == null)
 		{
-			$this->add("<p>".Dict::Format('UI:ResetPwd-Error-WrongLogin', $sAuthUser)."</p>\n");
+			$this->add("<p>".Dict::Format('UI:ResetPwd-Error-WrongLogin', $sAuthUserForDisplay)."</p>\n");
 		}
 		else
 		{
@@ -317,7 +326,8 @@ class LoginWebPage extends NiceWebPage
 			}
 			else
 			{
-				$this->add("<p>".Dict::Format('UI:ResetPwd-Error-EnterPassword', $oUser->GetFriendlyName())."</p>\n");
+				$sUserNameForDisplay = utils::HtmlEntities($oUser->GetFriendlyName());
+				$this->add("<p>".Dict::Format('UI:ResetPwd-Error-EnterPassword', $sUserNameForDisplay)."</p>\n");
 	
 				$sInconsistenPwdMsg = Dict::S('UI:Login:RetypePwdDoesNotMatch');
 				$this->add_script(
@@ -340,8 +350,8 @@ EOF
 				$this->add("<tr><td colspan=\"2\" class=\"center v-spacer\"><span class=\"btn_border\"><input type=\"submit\" onClick=\"return DoCheckPwd();\" value=\"".Dict::S('UI:Button:ChangePassword')."\" /></span></td></tr>\n");
 				$this->add("</table>\n");
 				$this->add("<input type=\"hidden\" name=\"loginop\" value=\"do_reset_pwd\" />\n");
-				$this->add("<input type=\"hidden\" name=\"auth_user\" value=\"".htmlentities($sAuthUser, ENT_QUOTES, 'UTF-8')."\" />\n");
-				$this->add("<input type=\"hidden\" name=\"token\" value=\"".htmlentities($sToken, ENT_QUOTES, 'UTF-8')."\" />\n");
+				$this->add("<input type=\"hidden\" name=\"auth_user\" value=\"".$sAuthUserForDisplay."\" />\n");
+				$this->add("<input type=\"hidden\" name=\"token\" value=\"".$sTokenForDisplay."\" />\n");
 				$this->add("</form>\n");
 				$this->add("</div\n");
 			}
@@ -375,6 +385,7 @@ EOF
 			{
 				// Trash the token and change the password
 				$oUser->Set('reset_pwd_token', '');
+				$oUser->AllowWrite(true);
 				$oUser->SetPassword($sNewPwd); // Does record the change into the DB
 	
 				$this->add("<p>".Dict::S('UI:ResetPwd-Ready')."</p>");
@@ -431,6 +442,8 @@ EOF
 		// Unset all of the session variables.
 		unset($_SESSION['auth_user']);
 		unset($_SESSION['login_mode']);
+		unset($_SESSION['archive_mode']);
+		unset($_SESSION['impersonate_user']);
 		UserRights::_ResetSessionCache();
 		// If it's desired to kill the session, also delete the session cookie.
 		// Note: This will destroy the session, and not just the session data!
@@ -596,7 +609,7 @@ EOF
 			}
 			if (($iOnExit == self::EXIT_HTTP_401) || ($sLoginMode == 'basic'))
 			{
-				header('WWW-Authenticate: Basic realm="'.Dict::Format('UI:iTopVersion:Short', ITOP_VERSION));
+				header('WWW-Authenticate: Basic realm="'.Dict::Format('UI:iTopVersion:Short', ITOP_APPLICATION, ITOP_VERSION));
 				header('HTTP/1.0 401 Unauthorized');
 				header('Content-type: text/html; charset=iso-8859-1');
 				exit;
@@ -628,7 +641,7 @@ EOF
 				self::ResetSession();
 				if (($iOnExit == self::EXIT_HTTP_401) || ($sLoginMode == 'basic'))
 				{
-					header('WWW-Authenticate: Basic realm="'.Dict::Format('UI:iTopVersion:Short', ITOP_VERSION));
+					header('WWW-Authenticate: Basic realm="'.Dict::Format('UI:iTopVersion:Short', ITOP_APPLICATION, ITOP_VERSION));
 					header('HTTP/1.0 401 Unauthorized');
 					header('Content-type: text/html; charset=iso-8859-1');
 					exit;
@@ -697,26 +710,36 @@ EOF
 			}
 		}
 	}
-	
+
 	/**
 	 * Check if the user is already authentified, if yes, then performs some additional validations:
 	 * - if $bMustBeAdmin is true, then the user must be an administrator, otherwise an error is displayed
-	 * - if $bIsAllowedToPortalUsers is false and the user has only access to the portal, then the user is redirected to the portal
+	 * - if $bIsAllowedToPortalUsers is false and the user has only access to the portal, then the user is redirected
+	 * to the portal
+	 *
 	 * @param bool $bMustBeAdmin Whether or not the user must be an admin to access the current page
 	 * @param bool $bIsAllowedToPortalUsers Whether or not the current page is considered as part of the portal
 	 * @param int iOnExit What action to take if the user is not logged on (one of the class constants EXIT_...)
+	 *
+	 * @return int|mixed|string
+	 * @throws \Exception
 	 */
 	static function DoLogin($bMustBeAdmin = false, $bIsAllowedToPortalUsers = false, $iOnExit = self::EXIT_PROMPT)
 	{
 		$sRequestedPortalId = $bIsAllowedToPortalUsers ? 'legacy_portal' : 'backoffice';
 		return self::DoLoginEx($sRequestedPortalId, $bMustBeAdmin, $iOnExit);
 	}
-	
+
 	/**
-	 * Check if the user is already authentified, if yes, then performs some additional validations to redirect towards the desired "portal"
+	 * Check if the user is already authentified, if yes, then performs some additional validations to redirect towards
+	 * the desired "portal"
+	 *
 	 * @param string|null $sRequestedPortalId The requested "portal" interface, null for any
 	 * @param bool $bMustBeAdmin Whether or not the user must be an admin to access the current page
 	 * @param int iOnExit What action to take if the user is not logged on (one of the class constants EXIT_...)
+	 *
+	 * @return int|mixed|string
+	 * @throws \Exception
 	 */
 	static function DoLoginEx($sRequestedPortalId = null, $bMustBeAdmin = false, $iOnExit = self::EXIT_PROMPT)
 	{
@@ -823,8 +846,8 @@ EOF
 		{
 			$sAuthUser = $_SESSION['auth_user'];
 			UserRights::Login($sAuthUser); // Set the user's language
-			$sOldPwd = utils::ReadPostedParam('old_pwd', '', false, 'raw_data');
-			$sNewPwd = utils::ReadPostedParam('new_pwd', '', false, 'raw_data');
+			$sOldPwd = utils::ReadPostedParam('old_pwd', '', 'raw_data');
+			$sNewPwd = utils::ReadPostedParam('new_pwd', '', 'raw_data');
 			if (UserRights::CanChangePassword() && ((!UserRights::CheckCredentials($sAuthUser, $sOldPwd)) || (!UserRights::ChangePassword($sOldPwd, $sNewPwd))))
 			{
 				$oPage = self::NewLoginWebPage();

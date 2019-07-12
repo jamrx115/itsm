@@ -2,6 +2,14 @@
 {# Browse brick base layout #}
 {% extends 'itop-portal-base/portal/src/views/bricks/layout.html.twig' %}
 
+{% block pPageBodyClass %}{{ parent() }} page_browse_brick page_browse_brick_as_{{ sBrowseMode }}{% endblock %}
+
+{% block pPageReadyScripts %}
+    {{ parent() }}
+    {% include 'itop-portal-base/portal/src/views/helpers/tagset_clic_handler.js.twig' %}
+{% endblock %}
+
+
 {% block pMainHeaderTitle %}
 	{{ oBrick.GetTitle()|dict_s }}
 {% endblock %}
@@ -17,7 +25,7 @@
 {% endblock %}
 
 {% block pMainContentHolder%}
-	{% if iItemsCount > 0 %}
+	{% if iItemsCount > 0 or sSearchValue is not null %}
 		<div class="panel panel-default">
 			{% block bBrowseMainContent %}
 			{% endblock %}

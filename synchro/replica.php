@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2011-2012 Combodo SARL
+// Copyright (C) 2010-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,7 +19,7 @@
 /**
  * Display and search synchro replicas
  *  
- * @copyright   Copyright (C) 2010-2012 Combodo SARL
+ * @copyright   Copyright (C) 2010-2017 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 require_once('../approot.inc.php');
@@ -59,7 +59,7 @@ try
 			throw new ApplicationException(Dict::Format('UI:Error:1ParametersMissing', 'oql'));
 		}
 		$oFilter = DBObjectSearch::FromOQL($sOQL);
-		$oBlock1 = new DisplayBlock($oFilter, 'search', false, array('menu'=>false));
+			$oBlock1 = new DisplayBlock($oFilter, 'search', false, array('menu' => false, 'table_id' => '1'));
 		$oBlock1->Display($oP, 0);
 		$oP->add('<p class="page-header">'.MetaModel::GetClassIcon('SynchroReplica').Dict::S('Core:SynchroReplica:ListOfReplicas').'</p>');
 		$iSourceId = utils::ReadParam('datasource', null);
@@ -70,6 +70,12 @@ try
 		}
 		$oBlock = new DisplayBlock($oFilter, 'list', false, array('menu'=>false));
 		$oBlock->Display($oP, 1);
+		break;
+
+		case 'select_for_deletion':
+		// Redirect to the page that implements bulk delete
+		$sDelete = utils::GetAbsoluteUrlAppRoot().'pages/UI.php?'.$_SERVER['QUERY_STRING'];
+		header("Location: $sDelete");
 		break;
 	}
 }
@@ -85,4 +91,3 @@ catch(Exception $e)
 }
 
 $oP->output();
-?>

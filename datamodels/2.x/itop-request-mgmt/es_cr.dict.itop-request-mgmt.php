@@ -3,7 +3,7 @@
 //
 //   This file is part of iTop.
 //
-//   iTop is free software; you can redistribute it and/or modify	
+//   iTop is free software; you can redistribute it and/or modify
 //   it under the terms of the GNU Affero General Public License as published by
 //   the Free Software Foundation, either version 3 of the License, or
 //   (at your option) any later version.
@@ -15,8 +15,6 @@
 //
 //   You should have received a copy of the GNU Affero General Public License
 //   along with iTop. If not, see <http://www.gnu.org/licenses/>
-
-
 /**
  * Localized data
  *
@@ -24,43 +22,41 @@
  * @license     http://opensource.org/licenses/AGPL-3.0
  * @traductor   Miguel Turrubiates <miguel_tf@yahoo.com> 
  */
-
-Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
-	'Menu:RequestManagement' => 'Administración de Solicitudes',
-	'Menu:RequestManagement+' => 'Administración de Solicitudes',
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
+	'Menu:RequestManagement' => 'Administración de Requerimientos',
+	'Menu:RequestManagement+' => 'Administración de Requerimientos',
 	'Menu:RequestManagementProvider' => 'Proveedor de Mesa de Ayuda',
 	'Menu:RequestManagementProvider+' => 'Proveedor de Mesa de Ayuda',
-	'Menu:UserRequest:Provider' => 'Incidentes Abiertos transferidos a Proveedor',
-	'Menu:UserRequest:Provider+' => 'Incidentes Abiertos transferidos a Proveedor',
-	'Menu:UserRequest:Overview' => 'Incidentes Registrados',
-	'Menu:UserRequest:Overview+' => 'Incidentes Registrados',
-	'Menu:NewUserRequest' => 'Registro Incidente',
-	'Menu:NewUserRequest+' => 'Registro Incidente',
-	'Menu:SearchUserRequests' => 'Búsqueda de Solicitudes',
-	'Menu:SearchUserRequests+' => 'Búsqueda de Solicitudes',
+	'Menu:UserRequest:Provider' => 'Requerimientos Abiertos transferidos a Proveedor',
+	'Menu:UserRequest:Provider+' => 'Requerimientos Abiertos transferidos a Proveedor',
+	'Menu:UserRequest:Overview' => 'Resumen de Requerimientos',
+	'Menu:UserRequest:Overview+' => 'Resumen de Requerimientos',
+	'Menu:NewUserRequest' => 'Nuevo Requerimiento',
+	'Menu:NewUserRequest+' => 'Nuevo Requerimiento',
+	'Menu:SearchUserRequests' => 'Búsqueda de Requerimientos de Usuario',
+	'Menu:SearchUserRequests+' => 'Búsqueda de Requerimientos de Usuario',
 	'Menu:UserRequest:Shortcuts' => 'Acceso Rápido',
 	'Menu:UserRequest:Shortcuts+' => 'Acceso Rápido',
-	'Menu:UserRequest:MyRequests' => 'Incidentes Asignados a Mí',
-	'Menu:UserRequest:MyRequests+' => 'Incidentes Asignados a Mí (como Analista)',
-	'Menu:UserRequest:MySupportRequests' => "Llamadas de Solicitudes Asignadas a Mí",
-	'Menu:UserRequest:MySupportRequests+' => "Llamadas de Solicitudes Asignadas a Mí (como Analista)",
-  'Menu:UserRequest:EscalatedRequests' => 'Solicitudes Escaladas',
-	'Menu:UserRequest:EscalatedRequests+' => 'Solicitudes Escaladas',
-	'Menu:UserRequest:OpenRequests' => 'Incidentes Abiertos',
-	'Menu:UserRequest:OpenRequests+' => 'Incidentes Abiertos',
-	'Menu:UserRequest:OpenProblems' => 'Problemas Abiertos',
-	'Menu:UserRequest:OpenProblems+' => 'Problemas Abiertos',
-	'UI:WelcomeMenu:MyAssignedCalls' => 'Incidentes asignados a Mí',
-	'UI-RequestManagementOverview-RequestByType-last-14-days' => 'Incidentes por Tipo de los Últimos 14 días',
-	'UI-RequestManagementOverview-Last-14-days' => 'Número de Incidentes de los Últimos 14 días',
-	'UI-RequestManagementOverview-OpenRequestByStatus' => 'Incidentes Abiertos por Estatus',
-	'UI-RequestManagementOverview-OpenRequestByAgent' => 'Incidentes Abiertos por Analista',
-	'UI-RequestManagementOverview-OpenRequestByType' => 'Incidentes Abiertos por Tipo',
-	'UI-RequestManagementOverview-OpenRequestByCustomer' => 'Incidentes Abiertos por Cliente',
+	'Menu:UserRequest:MyRequests' => 'Requerimientos Asignados a Mí',
+	'Menu:UserRequest:MyRequests+' => 'Requerimientos Asignados a Mí (como Analista)',
+	'Menu:UserRequest:MySupportRequests' => 'Llamadas de Soporte Asignadas a Mí',
+	'Menu:UserRequest:MySupportRequests+' => 'Llamadas de Soporte Asignadas a Mí (como Analista)',
+	'Menu:UserRequest:EscalatedRequests' => 'Requerimientos Escalados',
+	'Menu:UserRequest:EscalatedRequests+' => 'Requerimientos Escalados',
+	'Menu:UserRequest:OpenRequests' => 'Requerimientos Abiertos',
+	'Menu:UserRequest:OpenRequests+' => 'Requerimientos Abiertos',
+	'UI:WelcomeMenu:MyAssignedCalls' => 'Requerimientos asignados a Mí',
+	'UI-RequestManagementOverview-RequestByType-last-14-days' => 'Requerimientos por Tipo de los Últimos 14 días',
+	'UI-RequestManagementOverview-Last-14-days' => 'Número de Requerimientos de los Últimos 14 días',
+	'UI-RequestManagementOverview-OpenRequestByStatus' => 'Requerimientos Abiertos por Estatus',
+	'UI-RequestManagementOverview-OpenRequestByAgent' => 'Requerimientos Abiertos por Analista',
+	'UI-RequestManagementOverview-OpenRequestByType' => 'Requerimientos Abiertos por Tipo',
+	'UI-RequestManagementOverview-OpenRequestByCustomer' => 'Requerimientos Abiertos por Cliente',
 	'Class:UserRequest:KnownErrorList' => 'Errores Conocidos',
 	'Menu:UserRequest:MyWorkOrders' => 'Ordenes de Trabajo asignadas a Mí',
 	'Menu:UserRequest:MyWorkOrders+' => 'Ordenes de Trabajo asignadas a Mí',
 	'Class:Problem:KnownProblemList' => 'Problemas Conocidos',
+	'Tickets:Related:OpenIncidents' => 'Incidentes Abiertos',
 ));
 
 // Dictionnay conventions
@@ -77,9 +73,9 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 // Class: UserRequest
 //
 
-Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
-	'Class:UserRequest' => 'Solicitudes',
-	'Class:UserRequest+' => 'Solicitudes',
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
+	'Class:UserRequest' => 'Requerimiento',
+	'Class:UserRequest+' => 'Requerimiento',
 	'Class:UserRequest/Attribute:status' => 'Estatus',
 	'Class:UserRequest/Attribute:status+' => 'Estatus',
 	'Class:UserRequest/Attribute:status/Value:new' => 'Nuevo',
@@ -102,12 +98,12 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:UserRequest/Attribute:status/Value:resolved+' => 'Solucionado',
 	'Class:UserRequest/Attribute:status/Value:closed' => 'Cerrado',
 	'Class:UserRequest/Attribute:status/Value:closed+' => 'Cerrado',
-  'Class:UserRequest/Attribute:request_type' => 'Tipo de Reporte',
+	'Class:UserRequest/Attribute:request_type' => 'Tipo de Reporte',
 	'Class:UserRequest/Attribute:request_type+' => 'Tipo de Reporte',
 	'Class:UserRequest/Attribute:request_type/Value:incident' => 'Incidente',
 	'Class:UserRequest/Attribute:request_type/Value:incident+' => 'Incidente',
-	'Class:UserRequest/Attribute:request_type/Value:service_request' => 'Solicitudes de Servicio',
-	'Class:UserRequest/Attribute:request_type/Value:service_request+' => 'Solicitudes de Servicio',
+	'Class:UserRequest/Attribute:request_type/Value:service_request' => 'Requerimiento de Servicio',
+	'Class:UserRequest/Attribute:request_type/Value:service_request+' => 'Requerimiento de Servicio',
 	'Class:UserRequest/Attribute:impact' => 'Impacto',
 	'Class:UserRequest/Attribute:impact+' => 'Impacto',
 	'Class:UserRequest/Attribute:impact/Value:1' => 'Un Departmento',
@@ -180,14 +176,14 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:UserRequest/Attribute:ttr+' => 'Tiempo de Solución',
 	'Class:UserRequest/Attribute:tto_escalation_deadline' => 'Límite de Tiempo de Asignación',
 	'Class:UserRequest/Attribute:tto_escalation_deadline+' => 'Límite de Tiempo de Asignación',
-	'Class:UserRequest/Attribute:sla_tto_passed' => 'SLA de Tiempo de Asignanción Incumplido',
-	'Class:UserRequest/Attribute:sla_tto_passed+' => 'SLA de Tiempo de Asignanción Incumplido',
+	'Class:UserRequest/Attribute:sla_tto_passed' => 'SLA de Tiempo de Asignanción Cumplido',
+	'Class:UserRequest/Attribute:sla_tto_passed+' => 'SLA de Tiempo de Asignanción Cumplido',
 	'Class:UserRequest/Attribute:sla_tto_over' => 'SLA de Tiempo de Asignación Excedído',
 	'Class:UserRequest/Attribute:sla_tto_over+' => 'SLA de Tiempo de Asignación Excedído',
 	'Class:UserRequest/Attribute:ttr_escalation_deadline' => 'Límite de Tiempo de Solución',
 	'Class:UserRequest/Attribute:ttr_escalation_deadline+' => 'Límite de Tiempo de Solución',
-	'Class:UserRequest/Attribute:sla_ttr_passed' => 'SLA de Tiempo de Solución Incumplido',
-	'Class:UserRequest/Attribute:sla_ttr_passed+' => 'SLA de Tiempo de Solución Incumplido',
+	'Class:UserRequest/Attribute:sla_ttr_passed' => 'SLA de Tiempo de Solución Cumplido',
+	'Class:UserRequest/Attribute:sla_ttr_passed+' => 'SLA de Tiempo de Solución Cumplido',
 	'Class:UserRequest/Attribute:sla_ttr_over' => 'SLA de Tiempo de Solución Excedído',
 	'Class:UserRequest/Attribute:sla_ttr_over+' => 'SLA de Tiempo de Solución Excedído',
 	'Class:UserRequest/Attribute:time_spent' => 'Tiempo Utilizado',
@@ -212,22 +208,20 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:UserRequest/Attribute:solution+' => 'Solución',
 	'Class:UserRequest/Attribute:pending_reason' => 'Motivo Pendiente',
 	'Class:UserRequest/Attribute:pending_reason+' => 'Motivo Pendiente',
-	'Class:UserRequest/Attribute:parent_request_id' => 'Solicitudes Padre',
-	'Class:UserRequest/Attribute:parent_request_id+' => 'Solicitudes Padre',
-	'Class:UserRequest/Attribute:parent_request_ref' => 'Ref. Solicitudes',
-	'Class:UserRequest/Attribute:parent_request_ref+' => 'Ref. Solicitudes',
+	'Class:UserRequest/Attribute:parent_request_id' => 'Requerimiento Padre',
+	'Class:UserRequest/Attribute:parent_request_id+' => 'Requerimiento Padre',
+	'Class:UserRequest/Attribute:parent_request_ref' => 'Ref. Requerimiento',
+	'Class:UserRequest/Attribute:parent_request_ref+' => 'Ref. Requerimiento',
 	'Class:UserRequest/Attribute:parent_problem_id' => 'Problema Padre',
 	'Class:UserRequest/Attribute:parent_problem_id+' => 'Problema Padre',
-	'Class:UserRequest/Attribute:parent_incident_id' => 'Incidente Padre',
-	'Class:UserRequest/Attribute:parent_incident_id+' => 'Incidente Padre',
 	'Class:UserRequest/Attribute:parent_problem_ref' => 'Ref. Problema',
 	'Class:UserRequest/Attribute:parent_problem_ref+' => 'Ref. Problema',
 	'Class:UserRequest/Attribute:parent_change_id' => 'Cambio Padre',
 	'Class:UserRequest/Attribute:parent_change_id+' => 'Cambio Padre',
 	'Class:UserRequest/Attribute:parent_change_ref' => 'Ref. Cambio',
 	'Class:UserRequest/Attribute:parent_change_ref+' => 'Ref. Cambio',
-	'Class:UserRequest/Attribute:related_request_list' => 'Incidentes Hijo',
-	'Class:UserRequest/Attribute:related_request_list+' => 'Incidentes Hijo',
+	'Class:UserRequest/Attribute:related_request_list' => 'Requerimientos Hijo',
+	'Class:UserRequest/Attribute:related_request_list+' => 'Requerimientos Hijo',
 	'Class:UserRequest/Attribute:public_log' => 'Bitácora Pública',
 	'Class:UserRequest/Attribute:public_log+' => 'Bitácora Pública',
 	'Class:UserRequest/Attribute:user_satisfaction' => 'Satisfacción del Usuario',
@@ -268,36 +262,41 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:UserRequest/Stimulus:ev_reopen+' => 'Reabrir',
 	'Class:UserRequest/Stimulus:ev_wait_for_approval' => 'Esperando Aprobación',
 	'Class:UserRequest/Stimulus:ev_wait_for_approval+' => 'Esperando Aprobación',
+	'Class:UserRequest/Error:CannotAssignParentRequestIdToSelf' => 'No puede asignarse el requerimiento Padre a si mismo',
 ));
 
 
-Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
-	'Portal:TitleDetailsFor_Request' => 'Detalles de la Solicitud',
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
+	'Portal:TitleDetailsFor_Request' => 'Detalles del Requerimiento',
 	'Portal:ButtonUpdate' => 'Actualizar',
 	'Portal:ButtonClose' => 'Cerrar',
 	'Portal:ButtonReopen' => 'Re-abrir',
 	'Portal:ShowServices' => 'Catálogo de Servicios',
-	'Portal:SelectRequestType' => 'Seleccione un Tipo de Solicitud',
+	'Portal:SelectRequestType' => 'Seleccione un Tipo de Requerimiento',
 	'Portal:SelectServiceElementFrom_Service' => 'Seleccione un Elemento de Servicio para %1$s',
 	'Portal:ListServices' => 'Lista de Servicios',
 	'Portal:TitleDetailsFor_Service' => 'Detalles para el Servicio',
-	'Portal:Button:CreateRequestFromService' => 'Crear una Solicitud para este Servicio',
-	'Portal:ListOpenRequests' => 'Solicitudes Abiertas',
-'Portal:UserRequest:MoreInfo' => 'Más Información',
+	'Portal:Button:CreateRequestFromService' => 'Crear un Requerimiento para este Servicio',
+	'Portal:ListOpenRequests' => 'Requerimientos Abiertos',
+	'Portal:UserRequest:MoreInfo' => 'Más Información',
 	'Portal:Details-Service-Element' => 'Elementos del Servicio',
-	'Portal:NoClosedTicket' => 'Solicitud No Cerrada',
+	'Portal:NoClosedTicket' => 'Requerimiento No Cerrado',
 	'Portal:NoService' => '',
 	'Portal:ListOpenProblems' => 'Problemas Abiertos',
 	'Portal:ShowProblem' => 'Problemas',
 	'Portal:ShowFaqs' => 'Preguntas Frecuentes',
 	'Portal:NoOpenProblem' => 'Problema No Abierto',
-	'Portal:SelectLanguage' => "Seleccione un Idioma",
+	'Portal:SelectLanguage' => 'Seleccione un Idioma',
 	'Portal:LanguageChangedTo_Lang' => 'Idioma Cambiado a ',
 	'Portal:ChooseYourFavoriteLanguage' => 'Seleccione su Idioma Favorito',
-	'Tickets:Related:OpenIncidents' => 'Open incidents~~',
-	'Class:UserRequest/Error:CannotAssignParentRequestIdToSelf' => 'Cannot assign the Parent request to the request itself~~',
-	'Class:UserRequest/Method:ResolveChildTickets' => 'ResolveChildTickets~~',
-	'Class:UserRequest/Method:ResolveChildTickets+' => 'Cascade the resolution to child requests (ev_autoresolve), and align the following characteristics of the request: service, team, agent, resolution info~~',
+
+	'Class:UserRequest/Method:ResolveChildTickets' => 'Resolver tickets hijos',
+	'Class:UserRequest/Method:ResolveChildTickets+' => 'Cascadear la solución a los tickets hijos (ev_autoresolve), y alinear las siguientes características: servicio, equipo, agente, información de solución',
 ));
 
-?>
+
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
+	'Organization:Overview:UserRequests' => 'User Requests from this organization~~',
+	'Organization:Overview:MyUserRequests' => 'My User Requests for this organization~~',
+	'Organization:Overview:Tickets' => 'Tickets for this organization~~',
+));

@@ -27,6 +27,11 @@ define('INLINEIMAGE_DOWNLOAD_URL', 'pages/ajax.document.php?operation=download_i
 
 class InlineImage extends DBObject
 {
+	/** @var string attribute to be added to IMG tags to contain ID */
+	const DOM_ATTR_ID = 'data-img-id';
+	/** @var string attribute to be added to IMG tags to contain secret */
+	const DOM_ATTR_SECRET = 'data-img-secret';
+
 	public static function Init()
 	{
 		$aParams = array
@@ -161,7 +166,7 @@ class InlineImage extends DBObject
 	 */
 	public static function FinalizeInlineImages(DBObject $oObject)
 	{
-		$iTransactionId = utils::ReadParam('transaction_id', null);
+		$iTransactionId = utils::ReadParam('transaction_id', null, false, 'transaction_id');
 		if (!is_null($iTransactionId))
 		{
 			// Attach new (temporary) inline images
@@ -178,6 +183,19 @@ class InlineImage extends DBObject
 				$oInlineImage->DBUpdate();
 			}
 		}
+// For tracing issues with Inline Images... but beware not all updates are interactive, so this trace happens when creating objects non-interactively (REST, Synchro...)
+// 		else
+//		{
+//			IssueLog::Error('InlineImage: Error during FinalizeInlineImages(), no transaction ID for object '.get_class($oObject).'#'.$oObject->GetKey().'.');
+//
+//			IssueLog::Error('|- Call stack:');
+//			$oException = new Exception();
+//			$sStackTrace = $oException->getTraceAsString();
+//			IssueLog::Error($sStackTrace);
+//
+//			IssueLog::Error('|- POST vars:');
+//			IssueLog::Error(print_r($_POST, true));
+//		}
 	}
 	
 	/**
@@ -208,7 +226,8 @@ class InlineImage extends DBObject
 		$aNeedles = array();
 		$aReplacements = array();
 		// Find img tags with an attribute data-img-id
-		if (preg_match_all('/<img ([^>]*)data-img-id="([0-9]+)"([^>]*)>/i', $sHtml, $aMatches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE))
+		if (preg_match_all('/<img ([^>]*)'.self::DOM_ATTR_ID.'="([0-9]+)"([^>]*)>/i',
+			$sHtml, $aMatches, PREG_SET_ORDER | PREG_OFFSET_CAPTURE))
 		{
 			$sUrl = utils::GetAbsoluteUrlAppRoot().INLINEIMAGE_DOWNLOAD_URL;
 			foreach($aMatches as $aImgInfo)
@@ -228,6 +247,42 @@ class InlineImage extends DBObject
 			$sHtml = str_replace($aNeedles, $aReplacements, $sHtml);
 		}
 		return $sHtml;
+	}
+
+	/**
+	 * Add an extra attribute data-img-id for images which are based on an actual InlineImage
+	 * so that we can later reconstruct the full "src" URL when needed
+	 *
+	 * @param \DOMElement $oElement
+	 */
+	public static function ProcessImageTag(DOMElement $oElement)
+	{
+		$sSrc = $oElement->getAttribute('src');
+		$sDownloadUrl = str_replace(array('.', '?'), array('\.', '\?'), INLINEIMAGE_DOWNLOAD_URL); // Escape . and ?
+		$sUrlPattern = '|'.$sDownloadUrl.'([0-9]+)&s=([0-9a-f]+)|';
+		$bIsInlineImage = preg_match($sUrlPattern, $sSrc, $aMatches);
+		if (!$bIsInlineImage)
+		{
+			return;
+		}
+		$iInlineImageId = $aMatches[1];
+		$sInlineIMageSecret = $aMatches[2];
+
+		$sAppRoot = utils::GetAbsoluteUrlAppRoot();
+		$sAppRootPattern = '/^'.preg_quote($sAppRoot, '/').'/';
+		$bIsSameItop = preg_match($sAppRootPattern, $sSrc);
+		if (!$bIsSameItop)
+		{
+			// @see N°1921
+			// image from another iTop should be treated as external images
+			$oElement->removeAttribute(self::DOM_ATTR_ID);
+			$oElement->removeAttribute(self::DOM_ATTR_SECRET);
+
+			return;
+		}
+
+		$oElement->setAttribute(self::DOM_ATTR_ID, $iInlineImageId);
+		$oElement->setAttribute(self::DOM_ATTR_SECRET, $sInlineIMageSecret);
 	}
 
 	/**
@@ -257,8 +312,12 @@ EOF
 	
 	/**
 	 * Check if an the given mimeType is an image that can be processed by the system
+	 *
 	 * @param string $sMimeType
-	 * @return boolean
+	 *
+	 * @return boolean always false if php-gd not installed
+	 *                 otherwise true if file is one of those type : image/gif, image/jpeg, image/png
+	 * @uses php-gd extension
 	 */
 	public static function IsImage($sMimeType)
 	{
@@ -404,9 +463,11 @@ EOF
 	 * Get the fragment of javascript needed to complete the initialization of
 	 * CKEditor when creating/modifying an object
 	 *
-	 * @param DBObject $oObject The object being edited
-	 * @param string $sTempId The concatenation of session_id().'_'.$iTransactionId.
+	 * @param \DBObject $oObject The object being edited
+	 * @param string $sTempId Generated through utils::GetUploadTempId($iTransactionId)
+	 *
 	 * @return string The JS fragment to insert in "on document ready"
+	 * @throws \Exception
 	 */
 	public static function EnableCKEditorImageUpload(DBObject $oObject, $sTempId)
 	{
@@ -497,51 +558,69 @@ EOF
  */
 class InlineImageGC implements iBackgroundProcess
 {
-	public function GetPeriodicity()
-	{
-		return 3600; // Runs every 3600 seconds
-	}
+    public function GetPeriodicity()
+    {
+        return 1; // Runs every 8 hours
+    }
 
+	/**
+	 * @param int $iTimeLimit
+	 *
+	 * @return string
+	 * @throws \CoreException
+	 * @throws \CoreUnexpectedValue
+	 * @throws \DeleteException
+	 * @throws \MySQLException
+	 * @throws \OQLException
+	 */
 	public function Process($iTimeLimit)
 	{
 		$sDateLimit = date(AttributeDateTime::GetSQLFormat(), time()); // Every temporary InlineImage/Attachment expired will be deleted
 
-		$iProcessed = 0;
-		$sOQL = "SELECT InlineImage WHERE (item_id = 0) AND (expire < '$sDateLimit')";
-		while (time() < $iTimeLimit)
+		$aResults = array();
+		$aClasses = array('InlineImage', 'Attachment');
+		foreach($aClasses as $sClass)
 		{
-			// Next one ?
-			$oSet = new CMDBObjectSet(DBObjectSearch::FromOQL($sOQL), array('expire' => true) /* order by*/, array(), null, 1 /* limit count */);
-			$oSet->OptimizeColumnLoad(array());
-			$oResult = $oSet->Fetch();
-			if (is_null($oResult))
+			$iProcessed = 0;
+			if(class_exists($sClass))
 			{
-				// Nothing to be done
-				break;
+				$iProcessed = $this->DeleteExpiredDocuments($sClass, $iTimeLimit, $sDateLimit);
 			}
-			$iProcessed++;
-			$oResult->DBDelete();
+			$aResults[] = "$iProcessed old temporary $sClass(s)";
 		}
-		
-		$iProcessed2 = 0;
-		if (class_exists('Attachment'))
-		{
-			$sOQL = "SELECT Attachment WHERE (item_id = 0) AND (expire < '$sDateLimit')";
-			while (time() < $iTimeLimit)
-			{
-				// Next one ?
-				$oSet = new CMDBObjectSet(DBObjectSearch::FromOQL($sOQL), array('expire' => true) /* order by*/, array(), null, 1 /* limit count */);
-				$oSet->OptimizeColumnLoad(array());
-				$oResult = $oSet->Fetch();
-				if (is_null($oResult))
-				{
-					// Nothing to be done
-					break;
-				}
-				$iProcessed2++;
-				$oResult->DBDelete();
-			}		
-		}
-		return "Cleaned $iProcessed old temporary InlineImage(s) and $iProcessed2 old temporary Attachment(s).";
+
+		return "Cleaned ".implode(' and ', $aResults).".";
 	}
+
+	/**
+	 * @param string $sClass
+	 * @param int $iTimeLimit
+	 * @param string $sDateLimit
+	 *
+	 * @return int
+	 * @throws \CoreException
+	 * @throws \CoreUnexpectedValue
+	 * @throws \DeleteException
+	 * @throws \MySQLException
+	 * @throws \OQLException
+	 */
+	protected function DeleteExpiredDocuments($sClass, $iTimeLimit, $sDateLimit)
+	{
+		$iProcessed = 0;
+		$sOQL = "SELECT $sClass WHERE (item_id = 0) AND (expire < '$sDateLimit')";
+		// Next one ?
+		$oSet = new CMDBObjectSet(DBObjectSearch::FromOQL($sOQL), array('expire' => true) /* order by*/, array(), null,
+			1 /* limit count */);
+		$oSet->OptimizeColumnLoad(array());
+		while ((time() < $iTimeLimit) && ($oResult = $oSet->Fetch()))
+		{
+			/** @var \ormDocument $oDocument */
+			$oDocument = $oResult->Get('contents');
+			IssueLog::Info($sClass.' GC: Removed temp. file '.$oDocument->GetFileName().' on "'.$oResult->Get('item_class').'" #'.$oResult->Get('item_id').' as it has expired.');
+			$oResult->DBDelete();
+			$iProcessed++;
+		}
+
+		return $iProcessed;
+}
 }

@@ -1,10 +1,9 @@
 <?php
-
 // Copyright (C) 2010-2016 Combodo SARL
 //
 //   This file is part of iTop.
 //
-//   iTop is free software; you can redistribute it and/or modify	
+//   iTop is free software; you can redistribute it and/or modify
 //   it under the terms of the GNU Affero General Public License as published by
 //   the Free Software Foundation, either version 3 of the License, or
 //   (at your option) any later version.
@@ -16,22 +15,21 @@
 //
 //   You should have received a copy of the GNU Affero General Public License
 //   along with iTop. If not, see <http://www.gnu.org/licenses/>
-
 /**
  * @copyright   Copyright (C) 2010-2012 Combodo SARL
  * @copyright   Copyright (C) 2016 ITOMIG GmbH
  * @license	 http://opensource.org/licenses/AGPL-3.0
  */
-
-
 // Portal
 Dict::Add('DE DE', 'German', 'Deutsch', array(
-	'Page:DefaultTitle' => 'iTop - Benutzer Portal',
+	'Page:DefaultTitle' => '%1$s - Benutzer Portal',
 	'Page:PleaseWait' => 'Bitte warten...',
 	'Page:Home' => 'Start',
 	'Page:GoPortalHome' => 'Startseite',
 	'Page:GoPreviousPage' => 'vorherige Seite',
+    'Page:ReloadPage' => 'Seite neu laden',
 	'Portal:Button:Submit' => 'Abschicken',
+    'Portal:Button:Apply' => 'Anwenden',
 	'Portal:Button:Cancel' => 'Zurück',
 	'Portal:Button:Close' => 'Schließen',
 	'Portal:Button:Add' => 'Hinzu',
@@ -39,11 +37,14 @@ Dict::Add('DE DE', 'German', 'Deutsch', array(
 	'Portal:Button:Delete' => 'Löschen',
 	'Portal:EnvironmentBanner:Title' => 'Sie sind im Moment im <strong>%1$s</strong> Modus',
 	'Portal:EnvironmentBanner:GoToProduction' => 'Zurück zum PRODUCTION Modus',
-	'Error:HTTP:404' => 'Seite nicht gefunden.',
+    'Error:HTTP:400' => 'Bad request~~',
+    'Error:HTTP:401' => 'Authentifizierung',
+    'Error:HTTP:404' => 'Seite nicht gefunden.',
 	'Error:HTTP:500' => 'Oops! Es ist ein Fehler aufgetreten.',
-	'Error:HTTP:GetHelp' => 'Bitte kontaktieren Sie Ihren iTop administrator falls das Problem öfter auftaucht.',
-	'Error:XHR:Fail' => 'Konnte Daten nicht laden, bitte kontaktieren Sie Ihren iTop administrator',
-	'Portal:Datatables:Language:Processing' => 'Bitte warten...',
+	'Error:HTTP:GetHelp' => 'Bitte kontaktieren Sie Ihren %1$s administrator falls das Problem öfter auftaucht.',
+	'Error:XHR:Fail' => 'Konnte Daten nicht laden, bitte kontaktieren Sie Ihren %1$s administrator',
+    'Portal:ErrorUserLoggedOut' => 'Sie sind ausgeloggt und müssen sich erneut einloggen, um fortfahren zu können.',
+    'Portal:Datatables:Language:Processing' => 'Bitte warten...',
 	'Portal:Datatables:Language:Search' => 'Filter :',
 	'Portal:Datatables:Language:LengthMenu' => 'Anzahl _MENU_ Einträge pro Seite',
 	'Portal:Datatables:Language:ZeroRecords' => 'Keine Resultate',
@@ -60,11 +61,13 @@ Dict::Add('DE DE', 'German', 'Deutsch', array(
 	'Portal:Datatables:Language:Sort:Descending' => 'wähle abfallende Sortierung',
 	'Portal:Autocomplete:NoResult' => 'keine Daten',
 	'Portal:Attachments:DropZone:Message' => 'Legen Sie hier Ihre Files ab, um sie als Anhang dem Ticket hinzuzufügen',
- 	'Portal:File:None' => 'Kein File vorhanden',
+	'Portal:File:None' => 'Kein File vorhanden',
 	'Portal:File:DisplayInfo' => '<a href="%2$s" class="file_download_link">%1$s</a>',
 	'Portal:File:DisplayInfo+' => '%1$s (%2$s) <a href="%3$s" class="file_open_link" target="_blank">Öffnen</a> / <a href="%4$s" class="file_download_link">Download</a>',
+	'Portal:Calendar-FirstDayOfWeek' => 'de', //work with moment.js locales
 ));
 
+// UserProfile brick
 Dict::Add('DE DE', 'German', 'Deutsch', array(
 	'Brick:Portal:UserProfile:Name' => 'Benutzer Profil',
 	'Brick:Portal:UserProfile:Navigation:Dropdown:MyProfil' => 'Mein Profil',
@@ -72,10 +75,15 @@ Dict::Add('DE DE', 'German', 'Deutsch', array(
 	'Brick:Portal:UserProfile:Password:Title' => 'Passwort',
 	'Brick:Portal:UserProfile:Password:ChoosePassword' => 'Passwort wählen',
 	'Brick:Portal:UserProfile:Password:ConfirmPassword' => 'Passwort bestätigen',
-	'Brick:Portal:UserProfile:Password:CantChangeContactAdministrator' => 'Um das Password zu ändern, kontaktieren Sie bitte Ihren iTop Administrator',
-	'Brick:Portal:UserProfile:Password:CantChangeForUnknownReason' => 'Kann das Passwort nicht ändern - bitte kontaktieren Sie Ihren iTop Administrator',
+	'Brick:Portal:UserProfile:Password:CantChangeContactAdministrator' => 'Um das Password zu ändern, kontaktieren Sie bitte Ihren %1$s Administrator',
+	'Brick:Portal:UserProfile:Password:CantChangeForUnknownReason' => 'Kann das Passwort nicht ändern - bitte kontaktieren Sie Ihren %1$s Administrator',
 	'Brick:Portal:UserProfile:PersonalInformations:Title' => 'Persönliche Informationen',
 	'Brick:Portal:UserProfile:Photo:Title' => 'Foto',
+));
+
+// AggregatePageBrick
+Dict::Add('DE DE', 'German', 'Deutsch', array(
+	'Brick:Portal:AggregatePage:DefaultTitle' => 'Dashboard',
 ));
 
 // BrowseBrick brick
@@ -83,6 +91,7 @@ Dict::Add('DE DE', 'German', 'Deutsch', array(
 	'Brick:Portal:Browse:Name' => 'List durchgehen',
 	'Brick:Portal:Browse:Mode:List' => 'Liste',
 	'Brick:Portal:Browse:Mode:Tree' => 'Baum',
+    'Brick:Portal:Browse:Mode:Mosaic' => 'Kachel',
 	'Brick:Portal:Browse:Action:Drilldown' => 'Drilldown',
 	'Brick:Portal:Browse:Action:View' => 'Details',
 	'Brick:Portal:Browse:Action:Edit' => 'Editieren',
@@ -93,9 +102,22 @@ Dict::Add('DE DE', 'German', 'Deutsch', array(
 	'Brick:Portal:Browse:Filter:NoData' => 'Kein Eintrag',
 ));
 
+// ManageBrick brick
 Dict::Add('DE DE', 'German', 'Deutsch', array(
 	'Brick:Portal:Manage:Name' => 'Einträge managen',
 	'Brick:Portal:Manage:Table:NoData' => 'Kein Eintrag.',
+    'Brick:Portal:Manage:Table:ItemActions' => 'Aktionen',
+    'Brick:Portal:Manage:DisplayMode:list' => 'Liste',
+	'Brick:Portal:Manage:DisplayMode:pie-chart' => 'Tortendiagramm',
+	'Brick:Portal:Manage:DisplayMode:bar-chart' => 'Balkendiagramm',
+	'Brick:Portal:Manage:Others' => 'Andere',
+	'Brick:Portal:Manage:All' => 'Alle',
+	'Brick:Portal:Manage:Group' => 'Gruppe',
+	'Brick:Portal:Manage:fct:count' => 'Anzahl',
+	'Brick:Portal:Manage:fct:sum' => 'Summe',
+	'Brick:Portal:Manage:fct:avg' => 'Durchschnitt',
+	'Brick:Portal:Manage:fct:min' => 'Minimum',
+	'Brick:Portal:Manage:fct:max' => 'Maximum',
 ));
 
 // ObjectBrick brick
@@ -113,5 +135,12 @@ Dict::Add('DE DE', 'German', 'Deutsch', array(
 // CreateBrick brick
 Dict::Add('DE DE', 'German', 'Deutsch', array(
 	'Brick:Portal:Create:Name' => 'Schnelles Erstellen',
+    'Brick:Portal:Create:ChooseType' => 'Bitte wählen Sie einen Typ',
 ));
-?>
+
+// Filter brick
+Dict::Add('DE DE', 'German', 'Deutsch', array(
+    'Brick:Portal:Filter:Name' => 'Brick vorfiltern',
+    'Brick:Portal:Filter:SearchInput:Placeholder' => 'z.B. connect wifi',
+    'Brick:Portal:Filter:SearchInput:Submit' => 'Suchen',
+));

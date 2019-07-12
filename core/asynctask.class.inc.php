@@ -150,7 +150,7 @@ abstract class AsyncTask extends DBObject
 	public function GetRetryDelay($iErrorCode = null)
 	{
 		$iRetryDelay = 600;
-		$aRetries = MetaModel::GetConfig()->Get('async_task_retries', array());
+		$aRetries = MetaModel::GetConfig()->Get('async_task_retries');
 		if (is_array($aRetries) && array_key_exists(get_class($this), $aRetries))
 		{
 			$aConfig = $aRetries[get_class($this)];
@@ -162,12 +162,13 @@ abstract class AsyncTask extends DBObject
 	public function GetMaxRetries($iErrorCode = null)
 	{
 		$iMaxRetries = 0;
-		$aRetries = MetaModel::GetConfig()->Get('async_task_retries', array());
+		$aRetries = MetaModel::GetConfig()->Get('async_task_retries');
 		if (is_array($aRetries) && array_key_exists(get_class($this), $aRetries))
 		{
 			$aConfig = $aRetries[get_class($this)];
 			$iMaxRetries = $aConfig['max_retries'];
 		}
+		return $iMaxRetries;
 	}
 
 	/**
@@ -186,7 +187,7 @@ abstract class AsyncTask extends DBObject
     * @return boolean True if the task record can be deleted
     */
 	public function Process()
-   {
+	{
 		// By default: consider that the task is not completed
 		$bRet = false;
 
@@ -196,16 +197,15 @@ abstract class AsyncTask extends DBObject
 		{
 			try
 			{
-		   	$sStatus = $this->DoProcess();
-		   	if ($this->Get('event_id') != 0)
-		   	{
-		   		$oEventLog = MetaModel::GetObject('Event', $this->Get('event_id'));
-		   		$oEventLog->Set('message', $sStatus);
-		   		$oEventLog->DBUpdate();
+				$sStatus = $this->DoProcess();
+				if ($this->Get('event_id') != 0)
+				{
+					$oEventLog = MetaModel::GetObject('Event', $this->Get('event_id'));
+					$oEventLog->Set('message', $sStatus);
+					$oEventLog->DBUpdate();
 				}
 				$bRet = true;
-			}
-			catch(Exception $e)
+			} catch (Exception $e)
 			{
 				$this->HandleError($e->getMessage(), $e->getCode());
 			}
@@ -215,6 +215,7 @@ abstract class AsyncTask extends DBObject
 			// Already done or being handled by another process... skip...
 			$bRet = false;
 		}
+
 		return $bRet;
 	}
 
@@ -238,7 +239,20 @@ abstract class AsyncTask extends DBObject
 		{
 			$iRetryDelay = $this->GetRetryDelay($iErrorCode);
 			IssueLog::Info('Failed to process async task #'.$this->GetKey().' - reason: '.$sErrorMessage.' - remaining retries: '.$iRemaining.' - next retry in '.$iRetryDelay.'s');
-
+			if ($this->Get('event_id') != 0)
+			{
+				$oEventLog = MetaModel::GetObject('Event', $this->Get('event_id'));
+				$oEventLog->Set('message', "$sErrorMessage\nFailed to process async task. Remaining retries: '.$iRemaining.'. Next retry in '.$iRetryDelay.'s'");
+                try
+                {
+                    $oEventLog->DBUpdate();
+                }
+                catch (Exception $e)
+                {
+                    $oEventLog->Set('message', "Failed to process async task. Remaining retries: '.$iRemaining.'. Next retry in '.$iRetryDelay.'s', more details in the log");
+                    $oEventLog->DBUpdate();
+                }
+			}
 			$this->Set('remaining_retries', $iRemaining - 1);
 			$this->Set('status', 'planned');
 			$this->Set('started', null);
@@ -247,7 +261,20 @@ abstract class AsyncTask extends DBObject
 		else
 		{
 			IssueLog::Error('Failed to process async task #'.$this->GetKey().' - reason: '.$sErrorMessage);
-
+			if ($this->Get('event_id') != 0)
+			{
+				$oEventLog = MetaModel::GetObject('Event', $this->Get('event_id'));
+				$oEventLog->Set('message', "$sErrorMessage\nFailed to process async task.");
+				try
+				{
+                    $oEventLog->DBUpdate();
+				}
+				catch (Exception $e)
+				{
+                    $oEventLog->Set('message', 'Failed to process async task, more details in the log');
+                    $oEventLog->DBUpdate();
+				}
+			}
 			$this->Set('status', 'error');
 			$this->Set('started', null);
 			$this->Set('planned', null);
@@ -354,6 +381,6 @@ class AsyncSendEmail extends AsyncTask
 		case EMAIL_SEND_ERROR:
 			return "Failed: ".implode(', ', $aIssues);
 		}
+		return '';
 	}
 }
-?>

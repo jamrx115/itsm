@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (C) 2010-2015 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -34,14 +34,18 @@ use utils;
  */
 class UrlGenerator extends SymfonyUrlGenerator
 {
-	/**
-	 * Overloading of the parent function to add the $_REQUEST parameters to the url parameters.
-	 * This is used to keep additionnal parameters in the url, especially when portal is accessed from the /pages/exec.php
-	 *
-	 * Note : As of now, it only adds the exec_module and exec_page parameters. Any other parameter will be ignored.
-	 *
-	 * @return string
-	 */
+    /**
+     * Overloading of the parent function to add the $_REQUEST parameters to the url parameters.
+     * This is used to keep additionnal parameters in the url, especially when portal is accessed from the /pages/exec.php
+     *
+     * Note: As of now, it only adds the exec_module/exec_page/portal_id/env_switch/debug parameters. Any other parameter will be ignored.
+     *
+     * @param string $name
+     * @param array $parameters
+     * @param boolean $referenceType
+     *
+     * @return string
+     */
 	public function generate($name, $parameters = array(), $referenceType = SymfonyUrlGenerator::ABSOLUTE_PATH)
 	{
 		// Mandatory parameters
@@ -54,12 +58,17 @@ class UrlGenerator extends SymfonyUrlGenerator
 		}
 
 		// Optional parameters
-		$sEnvSwitch = utils::ReadParam('env_switch', '', false, 'string');
-		if ($sEnvSwitch !== '')
-		{
-			$parameters['env_switch'] = $sEnvSwitch;
-		}
-		$sDebug = utils::ReadParam('debug', '', false, 'string');
+        $sPortalId = utils::ReadParam('portal_id', '', false, 'string');
+        if ($sPortalId !== '')
+        {
+            $parameters['portal_id'] = $sPortalId;
+        }
+        $sEnvSwitch = utils::ReadParam('env_switch', '', false, 'string');
+        if ($sEnvSwitch !== '')
+        {
+            $parameters['env_switch'] = $sEnvSwitch;
+        }
+        $sDebug = utils::ReadParam('debug', '', false, 'string');
 		if ($sDebug !== '')
 		{
 			$parameters['debug'] = $sDebug;
@@ -69,5 +78,3 @@ class UrlGenerator extends SymfonyUrlGenerator
 	}
 
 }
-
-?>

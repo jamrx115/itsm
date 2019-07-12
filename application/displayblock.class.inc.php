@@ -43,12 +43,14 @@ require_once(APPROOT.'/application/utils.inc.php');
 class DisplayBlock
 {
 	const TAG_BLOCK = 'itopblock';
+	/** @var \DBSearch */
 	protected $m_oFilter;
 	protected $m_aConditions; // Conditions added to the filter -> avoid duplicate conditions
 	protected $m_sStyle;
 	protected $m_bAsynchronous;
 	protected $m_aParams;
 	protected $m_oSet;
+	protected $m_bShowObsoleteData = null;
 	
 	public function __construct(DBSearch $oFilter, $sStyle = 'list', $bAsynchronous = false, $aParams = array(), $oSet = null)
 	{
@@ -58,16 +60,32 @@ class DisplayBlock
 		$this->m_bAsynchronous = $bAsynchronous;
 		$this->m_aParams = $aParams;
 		$this->m_oSet = $oSet;
+		if (array_key_exists('show_obsolete_data', $aParams))
+		{
+			$this->m_bShowObsoleteData = $aParams['show_obsolete_data'];
+		}
+		if ($this->m_bShowObsoleteData === null)
+		{
+			// User defined
+			$this->m_bShowObsoleteData = utils::ShowObsoleteData();
+		}
 	}
 	
 	public function GetFilter()
 	{
 		return $this->m_oFilter;
 	}
+
 	/**
 	 * Constructs a DisplayBlock object from a DBObjectSet already in memory
-	 * @param $oSet DBObjectSet
+	 *
+	 * @param DBObjectSet $oSet
+	 * @param string $sStyle
+	 * @param array $aParams
+	 *
 	 * @return DisplayBlock The DisplayBlock object, or null if the creation failed
+	 * @throws \CoreException
+	 * @throws \Exception
 	 */
 	public static function FromObjectSet(DBObjectSet $oSet, $sStyle, $aParams = array())
 	{
@@ -90,11 +108,15 @@ class DisplayBlock
 		$oBlock = new DisplayBlock($oDummyFilter, $sStyle, false, $aParams); // DisplayBlocks built this way are synchronous
 		return $oBlock;
 	}
-	
+
 	/**
 	 * Constructs a DisplayBlock object from an XML template
+	 *
 	 * @param $sTemplate string The XML template
+	 *
 	 * @return DisplayBlock The DisplayBlock object, or null if the template is invalid
+	 * @throws \ApplicationException
+	 * @throws \OQLException
 	 */
 	public static function FromTemplate($sTemplate)
 	{
@@ -104,7 +126,6 @@ class DisplayBlock
 		$aParams = array();
 		
 		if (($iStartPos === false) || ($iEndPos === false)) return null; // invalid template		
-		$sITopBlock = substr($sTemplate,$iStartPos, $iEndPos-$iStartPos+strlen('</'.self::TAG_BLOCK.'>'));
 		$sITopData = substr($sTemplate, 1+$iEndTag, $iEndPos - $iEndTag - 1);
 		$sITopTag = substr($sTemplate, $iStartPos + strlen('<'.self::TAG_BLOCK), $iEndTag - $iStartPos - strlen('<'.self::TAG_BLOCK));
 
@@ -124,10 +145,6 @@ class DisplayBlock
 		if (preg_match('/ blockclass="(.*)"/U',$sITopTag, $aMatches))
 		{
 			$sBlockClass = $aMatches[1];
-		}
-		if (preg_match('/ objectclass="(.*)"/U',$sITopTag, $aMatches))
-		{
-			$sObjectClass = $aMatches[1];
 		}
 		if (preg_match('/ encoding="(.*)"/U',$sITopTag, $aMatches))
 		{
@@ -177,6 +194,7 @@ class DisplayBlock
 			}
 
 		}
+		$oFilter = null;
 		switch($sEncoding)
 		{
 			case 'text/serialize':
@@ -202,47 +220,37 @@ class DisplayBlock
 		$aExtraParams['currentId'] = $sId;
 		$sExtraParams = addslashes(str_replace('"', "'", json_encode($aExtraParams))); // JSON encode, change the style of the quotes and escape them
 		
-		$bAutoReload = false;
-		if (isset($aExtraParams['auto_reload']))
+		if (isset($aExtraParams['query_params']))
 		{
-			if ($aExtraParams['auto_reload'] === true)
+			$aQueryParams = $aExtraParams['query_params'];
+		}
+		else
+		{
+			if (isset($aExtraParams['this->id']) && isset($aExtraParams['this->class']))
 			{
-				// Note: does not work in the switch (case true) because a positive number evaluates to true!!!
-				$aExtraParams['auto_reload'] = 'standard';
+				$sClass = $aExtraParams['this->class'];
+				$iKey = $aExtraParams['this->id'];
+				$oObj = MetaModel::GetObject($sClass, $iKey);
+				$aQueryParams = array('this->object()' => $oObj);
 			}
-			switch($aExtraParams['auto_reload'])
+			else
 			{
-				case 'fast':
-				$bAutoReload = true;
-				$iReloadInterval = MetaModel::GetConfig()->GetFastReloadInterval()*1000;
-				break;
-				
-				case 'standard':
-				case 'true':
-				$bAutoReload = true;
-				$iReloadInterval = MetaModel::GetConfig()->GetStandardReloadInterval()*1000;
-				break;
-				
-				default:
-				if (is_numeric($aExtraParams['auto_reload']) && ($aExtraParams['auto_reload'] > 0))
-				{
-					$bAutoReload = true;
-					$iReloadInterval = max(MetaModel::GetConfig()->Get('min_reload_interval'), $aExtraParams['auto_reload'])*1000;
-				}
-				else
-				{
-					// incorrect config, ignore it
-					$bAutoReload = false;
-				}
+				$aQueryParams = array();
 			}
 		}
 
-		$sFilter = $this->m_oFilter->serialize(); // Used either for asynchronous or auto_reload
+		$sFilter = addslashes($this->m_oFilter->serialize(false, $aQueryParams)); // Used either for asynchronous or auto_reload
 		if (!$this->m_bAsynchronous)
 		{
 			// render now
-			$sHtml .= "<div id=\"$sId\" class=\"display_block\">\n";
-			$sHtml .= $this->GetRenderContent($oPage, $aExtraParams, $sId);
+			$sHtml .= "<div id=\"$sId\" class=\"display_block\" >\n";
+			try
+			{
+				$sHtml .= $this->GetRenderContent($oPage, $aExtraParams, $sId);
+			} catch (Exception $e)
+			{
+
+			}
 			$sHtml .= "</div>\n";
 		}
 		else
@@ -255,20 +263,49 @@ class DisplayBlock
 			$.post("ajax.render.php?style='.$this->m_sStyle.'",
 			   { operation: "ajax", filter: "'.$sFilter.'", extra_params: "'.$sExtraParams.'" },
 			   function(data){
-				 $("#'.$sId.'").empty();
-				 $("#'.$sId.'").append(data);
-				 $("#'.$sId.'").removeClass("loading");
+				 $("#'.$sId.'")
+				    .empty()
+				    .append(data)
+				    .removeClass("loading")
+                 ;
 				}
 			 );
 			 ');
 		}
-		if (($bAutoReload) && ($this->m_sStyle != 'search')) // Search form do NOT auto-reload
-		{
-			$oPage->add_script('setInterval("ReloadBlock(\''.$sId.'\', \''.$this->m_sStyle.'\', \''.$sFilter.'\', \"'.$sExtraParams.'\")", '.$iReloadInterval.');');
-		}
+
+
+        if ($this->m_sStyle == 'list') // Search form need to extract result list extra data, the simplest way is to expose this configuration
+        {
+
+            $listJsonExtraParams = json_encode(json_encode($aExtraParams));
+            $oPage->add_ready_script("
+            $('#$sId').data('sExtraParams', ".$listJsonExtraParams.");
+//            console.debug($('#$sId').data());
+//            console.debug($('#$sId'));
+//            console.debug('#$sId'); 
+            ");
+
+
+
+
+//            $oPage->add_ready_script("console.debug($('#Menu_UserRequest_OpenRequests').data());");
+
+        }
+
+
 		return $sHtml;
 	}
-	
+
+	/**
+	 * @param \WebPage $oPage
+	 * @param array $aExtraParams
+	 *
+	 * @throws \ApplicationException
+	 * @throws \CoreException
+	 * @throws \CoreWarning
+	 * @throws \DictExceptionMissingString
+	 * @throws \MySQLException
+	 */
 	public function RenderContent(WebPage $oPage, $aExtraParams = array())
 	{
 		if (!isset($aExtraParams['currentId']))
@@ -281,20 +318,44 @@ class DisplayBlock
 		}
 		$oPage->add($this->GetRenderContent($oPage, $aExtraParams, $sId));
 	}
-	
-	public function GetRenderContent(WebPage $oPage, $aExtraParams = array(), $sId)
+
+	/**
+	 * @param WebPage $oPage
+	 * @param array $aExtraParams
+	 * @param $sId
+	 * @return string
+	 * @throws ApplicationException
+	 * @throws CoreException
+	 * @throws CoreWarning
+	 * @throws DictExceptionMissingString
+	 * @throws MySQLException
+	 * @throws Exception
+	 */
+	public function GetRenderContent(WebPage $oPage, $aExtraParams, $sId)
 	{
 		$sHtml = '';
 		// Add the extra params into the filter if they make sense for such a filter
 		$bDoSearch = utils::ReadParam('dosearch', false);
+		$aQueryParams = array();
+		if (isset($aExtraParams['query_params']))
+		{
+			$aQueryParams = $aExtraParams['query_params'];
+		}
+		else
+		{
+			if (isset($aExtraParams['this->id']) && isset($aExtraParams['this->class']))
+			{
+				$sClass = $aExtraParams['this->class'];
+				$iKey = $aExtraParams['this->id'];
+				$oObj = MetaModel::GetObject($sClass, $iKey);
+				$aQueryParams = array('this->object()' => $oObj);
+			}
+		}
 		if ($this->m_oSet == null)
 		{
-			$aQueryParams = array();
-			if (isset($aExtraParams['query_params']))
-			{
-				$aQueryParams = $aExtraParams['query_params'];
-			}
-			if ($this->m_sStyle != 'links')
+
+			// In case of search, the context filtering is done by the search itself
+			if (($this->m_sStyle != 'links') && ($this->m_sStyle != 'search') && ($this->m_sStyle != 'list_search'))
 			{
 				$oAppContext = new ApplicationContext();
 				$sClass = $this->m_oFilter->GetClass();
@@ -390,42 +451,14 @@ class DisplayBlock
 			
 			$this->m_oSet = new CMDBObjectSet($this->m_oFilter, $aOrderBy, $aQueryParams);
 		}
+		$this->m_oSet->SetShowObsoleteData($this->m_bShowObsoleteData);
 		switch($this->m_sStyle)
 		{
 			case 'count':
 			if (isset($aExtraParams['group_by']))
 			{
-				if (isset($aExtraParams['group_by_label']))
-				{
-					$oGroupByExp = Expression::FromOQL($aExtraParams['group_by']);					
-					$sGroupByLabel = $aExtraParams['group_by_label'];
-				}
-				else
-				{
-					// Backward compatibility: group_by is simply a field id
-					$sAlias = $this->m_oFilter->GetClassAlias();
-					$oGroupByExp = new FieldExpression($aExtraParams['group_by'], $sAlias);
-					$sGroupByLabel = MetaModel::GetLabel($this->m_oFilter->GetClass(), $aExtraParams['group_by']);
-				}
+				$this->MakeGroupByQuery($aExtraParams, $oGroupByExp, $sGroupByLabel, $aGroupBy, $sAggregationFunction, $sFctVar, $sAggregationAttr, $sSql);
 
-				// Security filtering
-				$aFields = $oGroupByExp->ListRequiredFields();
-				foreach($aFields as $sFieldAlias)
-				{
-					if (preg_match('/^([^.]+)\\.([^.]+)$/', $sFieldAlias, $aMatches))
-					{
-						$sFieldClass = $this->m_oFilter->GetClassName($aMatches[1]);
-						$oAttDef = MetaModel::GetAttributeDef($sFieldClass, $aMatches[2]);
-						if ($oAttDef instanceof AttributeOneWayPassword)
-						{
-							throw new Exception('Grouping on password fields is not supported.');
-						}
-					}
-				}
-				
-				$aGroupBy = array();
-				$aGroupBy['grouped_by_1'] = $oGroupByExp;
-				$sSql = $this->m_oFilter->MakeGroupByQuery($aQueryParams, $aGroupBy, true);
 				$aRes = CMDBSource::QueryToArray($sSql);
 
 				$aGroupBy = array();
@@ -438,7 +471,7 @@ class DisplayBlock
 					$aValues[$iRow] = $sValue;
 					$sHtmlValue = $oGroupByExp->MakeValueLabel($this->m_oFilter, $sValue, $sValue);
 					$aLabels[$iRow] = $sHtmlValue;
-					$aGroupBy[$iRow] = (int) $aRow['_itop_count_'];
+					$aGroupBy[$iRow] = (int) $aRow[$sFctVar];
 					$iTotalCount += $aRow['_itop_count_'];
 				}
 
@@ -452,14 +485,22 @@ class DisplayBlock
 					$oSubsetSearch = $this->m_oFilter->DeepClone();
 					$oCondition = new BinaryExpression($oGroupByExp, '=', new ScalarExpression($aValues[$iRow]));
 					$oSubsetSearch->AddConditionExpression($oCondition);
-					$sFilter = urlencode($oSubsetSearch->serialize());
+					if (isset($aExtraParams['query_params']))
+					{
+						$aQueryParams = $aExtraParams['query_params'];
+					}
+					else
+					{
+						$aQueryParams = array();
+					}
+					$sFilter = rawurlencode($oSubsetSearch->serialize(false, $aQueryParams));
 
-					$aData[] = array ( 'group' => $aLabels[$iRow],
+					$aData[] = array ('group' => $aLabels[$iRow],
 									  'value' => "<a href=\"".utils::GetAbsoluteUrlAppRoot()."pages/UI.php?operation=search&dosearch=1&$sParams&filter=$sFilter\">$iCount</a>"); // TO DO: add the context information
 				}
 				$aAttribs =array(
 					'group' => array('label' => $sGroupByLabel, 'description' => ''),
-					'value' => array('label'=> Dict::S('UI:GroupBy:Count'), 'description' => Dict::S('UI:GroupBy:Count+'))
+					'value' => array('label'=> Dict::S('UI:GroupBy:'.$sAggregationFunction), 'description' => Dict::Format('UI:GroupBy:'.$sAggregationFunction.'+', $sAggregationAttr))
 				);
 				$sFormat = isset($aExtraParams['format']) ? $aExtraParams['format'] : 'UI:Pagination:HeaderNoSelection';
 				$sHtml .= $oPage->GetP(Dict::Format($sFormat, $iTotalCount));
@@ -575,6 +616,7 @@ class DisplayBlock
 			}
 			break;
 
+			case 'list_search':
 			case 'list':
 			$aClasses = $this->m_oSet->GetSelectedClasses();
 			$aAuthorizedClasses = array();
@@ -583,14 +625,14 @@ class DisplayBlock
 				// Check the classes that can be read (i.e authorized) by this user...
 				foreach($aClasses as $sAlias => $sClassName)
 				{
-					if (UserRights::IsActionAllowed($sClassName, UR_ACTION_READ,  $this->m_oSet) && (UR_ALLOWED_YES || UR_ALLOWED_DEPENDS))
+					if (UserRights::IsActionAllowed($sClassName, UR_ACTION_READ,  $this->m_oSet) != UR_ALLOWED_NO)
 					{
 						$aAuthorizedClasses[$sAlias] = $sClassName;
 					}
 				}
 				if (count($aAuthorizedClasses) > 0)
 				{
-					if($this->m_oSet->Count() > 0)
+					if($this->m_oSet->CountWithLimit(1) > 0)
 					{
 						$sHtml .= cmdbAbstractObject::GetDisplayExtendedSet($oPage, $this->m_oSet, $aExtraParams);
 					}
@@ -609,7 +651,7 @@ class DisplayBlock
 			else
 			{
 				// The list is made of only 1 class of objects, actions on the list are possible
-				if ( ($this->m_oSet->Count()> 0) && (UserRights::IsActionAllowed($this->m_oSet->GetClass(), UR_ACTION_READ, $this->m_oSet) == UR_ALLOWED_YES) )
+				if ( ($this->m_oSet->CountWithLimit(1)> 0) && (UserRights::IsActionAllowed($this->m_oSet->GetClass(), UR_ACTION_READ, $this->m_oSet) == UR_ALLOWED_YES) )
 				{
 					$sHtml .= cmdbAbstractObject::GetDisplaySet($oPage, $this->m_oSet, $aExtraParams);
 				}
@@ -644,13 +686,32 @@ class DisplayBlock
 						}
 					}
 				}
+
+				if (isset($aExtraParams['update_history']) && true == $aExtraParams['update_history'])
+				{
+					$sSearchFilter = $this->m_oSet->GetFilter()->serialize();
+					// Limit the size of the URL (N°1585 - request uri too long)
+					if (strlen($sSearchFilter) < SERVER_MAX_URL_LENGTH)
+					{
+						$seventAttachedData = json_encode(array(
+							'filter' => $sSearchFilter,
+							'breadcrumb_id' => "ui-search-".$this->m_oSet->GetClass(),
+							'breadcrumb_label' => MetaModel::GetName($this->m_oSet->GetClass()),
+							'breadcrumb_max_count' => utils::GetConfig()->Get('breadcrumb.max_count'),
+							'breadcrumb_instance_id' => MetaModel::GetConfig()->GetItopInstanceid(),
+							'breadcrumb_icon' => utils::GetAbsoluteUrlAppRoot().'images/breadcrumb-search.png'
+						));
+
+						$oPage->add_ready_script("$('body').trigger('update_history.itop', [$seventAttachedData])");
+					}
+				}
 			}
 			break;
 			
 			case 'links':
 			//$bDashboardMode = isset($aExtraParams['dashboard']) ? ($aExtraParams['dashboard'] == 'true') : false;
 			//$bSelectMode = isset($aExtraParams['select']) ? ($aExtraParams['select'] == 'true') : false;
-			if ( ($this->m_oSet->Count()> 0) && (UserRights::IsActionAllowed($this->m_oSet->GetClass(), UR_ACTION_READ, $this->m_oSet) == UR_ALLOWED_YES) )
+			if ( ($this->m_oSet->CountWithLimit(1) > 0) && (UserRights::IsActionAllowed($this->m_oSet->GetClass(), UR_ACTION_READ, $this->m_oSet) == UR_ALLOWED_YES) )
 			{
 				//$sLinkage = isset($aExtraParams['linkage']) ? $aExtraParams['linkage'] : '';
 				$sHtml .= cmdbAbstractObject::GetDisplaySet($oPage, $this->m_oSet, $aExtraParams);
@@ -666,8 +727,6 @@ class DisplayBlock
 				{
 					if ((UserRights::IsActionAllowed($sClass, UR_ACTION_MODIFY) == UR_ALLOWED_YES))
 					{
-						$oAppContext = new ApplicationContext();
-						$sParams = $oAppContext->GetForLink();
 						$sDefaults = '';
 						if (isset($this->m_aParams['default']))
 						{
@@ -693,9 +752,8 @@ class DisplayBlock
 			$sClass = $this->m_oFilter->GetClass();
 			$oAppContext = new ApplicationContext();
 			$bContextFilter = isset($aExtraParams['context_filter']) ? isset($aExtraParams['context_filter']) != 0 : false;
-			if ($bContextFilter)
+			if ($bContextFilter && is_null($this->m_oSet))
 			{
-				$aFilterCodes = array_keys(MetaModel::GetClassFilterDefs($this->m_oFilter->GetClass()));
 				foreach($oAppContext->GetNames() as $sFilterCode)
 				{
 					$sContextParamValue = $oAppContext->GetCurrentValue($sFilterCode, null);
@@ -709,10 +767,11 @@ class DisplayBlock
 				{
 					$aQueryParams = $aExtraParams['query_params'];
 				}
-				$this->m_oSet = new CMDBObjectSet($this->m_oFilter, array(), $aQueryParams);				
+				$this->m_oSet = new CMDBObjectSet($this->m_oFilter, array(), $aQueryParams);
+				$this->m_oSet->SetShowObsoleteData($this->m_bShowObsoleteData);
 			}
 			$iCount = $this->m_oSet->Count();
-			$sHyperlink = utils::GetAbsoluteUrlAppRoot().'pages/UI.php?operation=search&'.$oAppContext->GetForLink().'&filter='.urlencode($this->m_oFilter->serialize());
+			$sHyperlink = utils::GetAbsoluteUrlAppRoot().'pages/UI.php?operation=search&'.$oAppContext->GetForLink().'&filter='.rawurlencode($this->m_oFilter->serialize());
 			$sHtml .= '<p><a class="actions" href="'.$sHyperlink.'">';
 			// Note: border set to 0 due to various browser interpretations (IE9 adding a 2px border)
 			$sHtml .= MetaModel::GetClassIcon($sClass, true, 'float;left;margin-right:10px;border:0;');
@@ -738,7 +797,6 @@ class DisplayBlock
 			$bContextFilter = isset($aExtraParams['context_filter']) ? isset($aExtraParams['context_filter']) != 0 : false;
 			if ($bContextFilter)
 			{
-				$aFilterCodes = array_keys(MetaModel::GetClassFilterDefs($this->m_oFilter->GetClass()));
 				foreach($oAppContext->GetNames() as $sFilterCode)
 				{
 					$sContextParamValue = $oAppContext->GetCurrentValue($sFilterCode, null);
@@ -752,7 +810,8 @@ class DisplayBlock
 				{
 					$aQueryParams = $aExtraParams['query_params'];
 				}
-				$this->m_oSet = new CMDBObjectSet($this->m_oFilter, array(), $aQueryParams);				
+				$this->m_oSet = new CMDBObjectSet($this->m_oFilter, array(), $aQueryParams);
+				$this->m_oSet->SetShowObsoleteData($this->m_bShowObsoleteData);
 			}
 			// Summary details
 			$aCounts = array();
@@ -761,20 +820,47 @@ class DisplayBlock
 			{
 				$aStates = explode(',', $sStatesList);
 				$oAttDef = MetaModel::GetAttributeDef($sClass, $sStateAttrCode);
+
+				// Generate one count + group by query [#1330]
+				$sClassAlias = $this->m_oFilter->GetClassAlias();
+				$oGroupByExpr = Expression::FromOQL($sClassAlias.'.'.$sStateAttrCode);
+				$aGroupBy = array('group1' => $oGroupByExpr);
+				$oGroupBySearch = $this->m_oFilter->DeepClone();
+				if (isset($this->m_bShowObsoleteData))
+				{
+					$oGroupBySearch->SetShowObsoleteData($this->m_bShowObsoleteData);
+				}
+				$sCountGroupByQuery = $oGroupBySearch->MakeGroupByQuery(array(), $aGroupBy, false);
+				$aCountGroupByResults = CMDBSource::QueryToArray($sCountGroupByQuery);
+				$aCountsQueryResults = array();
+				foreach ($aCountGroupByResults as $aCountGroupBySingleResult)
+				{
+					$aCountsQueryResults[$aCountGroupBySingleResult[0]] = $aCountGroupBySingleResult[1];
+				}
+
 				foreach($aStates as $sStateValue)
 				{
-					$oFilter = $this->m_oFilter->DeepClone();
-					$oFilter->AddCondition($sStateAttrCode, $sStateValue, '=');
-					$oSet = new DBObjectSet($oFilter);
-					$aCounts[$sStateValue] = $oSet->Count();
 					$aStateLabels[$sStateValue] = htmlentities($oAttDef->GetValueLabel($sStateValue), ENT_QUOTES, 'UTF-8');
+
+					$aCounts[$sStateValue] = (array_key_exists($sStateValue, $aCountsQueryResults))
+						? $aCountsQueryResults[$sStateValue]
+						: 0;
+
 					if ($aCounts[$sStateValue] == 0)
 					{
 						$aCounts[$sStateValue] = '-';
 					}
 					else
 					{
-						$sHyperlink = utils::GetAbsoluteUrlAppRoot().'pages/UI.php?operation=search&'.$oAppContext->GetForLink().'&filter='.urlencode($oFilter->serialize());
+						$oSingleGroupByValueFilter = $this->m_oFilter->DeepClone();
+						$oSingleGroupByValueFilter->AddCondition($sStateAttrCode, $sStateValue, '=');
+						if (isset($this->m_bShowObsoleteData))
+						{
+							$oSingleGroupByValueFilter->SetShowObsoleteData($this->m_bShowObsoleteData);
+						}
+						$sHyperlink = utils::GetAbsoluteUrlAppRoot()
+							.'pages/UI.php?operation=search&'.$oAppContext->GetForLink()
+							.'&filter='.rawurlencode($oSingleGroupByValueFilter->serialize());
 						$aCounts[$sStateValue] = "<a href=\"$sHyperlink\">{$aCounts[$sStateValue]}</a>";
 					}
 				}
@@ -783,7 +869,7 @@ class DisplayBlock
 			$sHtml .= '<tr><td>'.implode('</td><td>', $aCounts).'</td></tr></table></div>';
 			// Title & summary
 			$iCount = $this->m_oSet->Count();
-			$sHyperlink = utils::GetAbsoluteUrlAppRoot().'pages/UI.php?operation=search&'.$oAppContext->GetForLink().'&filter='.urlencode($this->m_oFilter->serialize());
+			$sHyperlink = utils::GetAbsoluteUrlAppRoot().'pages/UI.php?operation=search&'.$oAppContext->GetForLink().'&filter='.rawurlencode($this->m_oFilter->serialize());
 			$sHtml .= '<h1>'.Dict::S(str_replace('_', ':', $sTitle)).'</h1>';
 			$sHtml .= '<a class="summary" href="'.$sHyperlink.'">'.Dict::Format(str_replace('_', ':', $sLabel), $iCount).'</a>';
 			$sHtml .= '<div style="clear:both;"></div>';
@@ -794,7 +880,7 @@ class DisplayBlock
 
 			$sCsvFile = strtolower($this->m_oFilter->GetClass()).'.csv'; 
 			$sDownloadLink = utils::GetAbsoluteUrlAppRoot().'webservices/export.php?expression='.urlencode($this->m_oFilter->ToOQL(true)).'&format=csv&filename='.urlencode($sCsvFile);
-			$sLinkToToggle = utils::GetAbsoluteUrlAppRoot().'pages/UI.php?operation=search&'.$oAppContext->GetForLink().'&filter='.urlencode($this->m_oFilter->serialize()).'&format=csv';
+			$sLinkToToggle = utils::GetAbsoluteUrlAppRoot().'pages/UI.php?operation=search&'.$oAppContext->GetForLink().'&filter='.rawurlencode($this->m_oFilter->serialize()).'&format=csv';
 			// Pass the parameters via POST, since expression may be very long
 			$aParamsToPost = array(
 				'expression' => $this->m_oFilter->ToOQL(true),
@@ -815,36 +901,6 @@ class DisplayBlock
 			}
 			$sAjaxLink = utils::GetAbsoluteUrlAppRoot().'webservices/export.php';
 				
-/*
-			$sCSVData = cmdbAbstractObject::GetSetAsCSV($this->m_oSet, array('fields_advanced' => $bAdvancedMode));
-			$sCharset = MetaModel::GetConfig()->Get('csv_file_default_charset');
-			if ($sCharset == 'UTF-8')
-			{
-				$bLostChars = false;
-			}
-			else
-			{
-				$sConverted = @iconv('UTF-8', $sCharset, $sCSVData);
-				$sRestored = @iconv($sCharset, 'UTF-8', $sConverted);
-				$bLostChars = ($sRestored != $sCSVData);
-			}
-
-			if ($bLostChars)
-			{
-				$sCharsetNotice = "&nbsp;&nbsp;<span id=\"csv_charset_issue\">";
-				$sCharsetNotice .= '<img src="../images/error.png"  style="vertical-align:middle"/>';
-				$sCharsetNotice .= "</span>";
-
-				$sTip = "<p>".htmlentities(Dict::S('UI:CSVExport:LostChars'), ENT_QUOTES, 'UTF-8')."</p>";
-				$sTip .= "<p>".htmlentities(Dict::Format('UI:CSVExport:LostChars+', $sCharset), ENT_QUOTES, 'UTF-8')."</p>";
-				$oPage->add_ready_script("$('#csv_charset_issue').qtip( { content: '$sTip', show: 'mouseover', hide: 'mouseout', style: { name: 'dark', tip: 'leftTop' }, position: { corner: { target: 'rightMiddle', tooltip: 'leftTop' }} } );");
-			}
-			else
-			{
-				$sCharsetNotice = '';
-			}
-
-*/
 			$sCharsetNotice = false;
 			$sHtml .= "<div>";
 			$sHtml .= '<table style="width:100%" class="transparent">';
@@ -881,21 +937,10 @@ class DisplayBlock
 			case 'search':
 			if (!$oPage->IsPrintableVersion())
 			{
-				$sStyle = (isset($aExtraParams['open']) && ($aExtraParams['open'] == 'true')) ? 'SearchDrawer' : 'SearchDrawer DrawerClosed';
-				$sHtml .= "<div id=\"ds_$sId\" class=\"$sStyle\">\n";
-				$oPage->add_ready_script(
-<<<EOF
-		$("#dh_$sId").click( function() {
-			$("#ds_$sId").slideToggle('normal', function() { $("#ds_$sId").parent().resize(); FixSearchFormsDisposition();  $("#dh_$sId").trigger('toggle_complete'); } );
-			$("#dh_$sId").toggleClass('open');
-		});
-EOF
-				);
+				$sHtml .= "<div id=\"ds_$sId\" class=\"search_box\">\n";
 				$aExtraParams['currentId'] = $sId;
 				$sHtml .= cmdbAbstractObject::GetSearchForm($oPage, $this->m_oSet, $aExtraParams);
 		 		$sHtml .= "</div>\n";
-		 		$sHtml .= "<div class=\"HRDrawer\"></div>\n";
-		 		$sHtml .= "<div id=\"dh_$sId\" class=\"DrawerHandle\">".Dict::S('UI:SearchToggle')."</div>\n";
 		 	}
 			break;
 			
@@ -905,24 +950,27 @@ EOF
 	
 			$sChartType = isset($aExtraParams['chart_type']) ? $aExtraParams['chart_type'] : 'pie';
 			$sTitle = isset($aExtraParams['chart_title']) ? '<h1 style="text-align:center">'.htmlentities(Dict::S($aExtraParams['chart_title']), ENT_QUOTES, 'UTF-8').'</h1>' : '';
-			$sHtml = "$sTitle<div style=\"height:200px;width:100%\" id=\"my_chart_$sId{$iChartCounter}\"><div style=\"height:200px;line-height:200px;vertical-align:center;text-align:center;width:100%\"><img src=\"../images/indicator.gif\"></div></div>\n";
+			$sHtml = "$sTitle<div style=\"height:200px;width:100%\" class=\"dashboard_chart\" id=\"my_chart_$sId{$iChartCounter}\"><div style=\"height:200px;line-height:200px;vertical-align:center;text-align:center;width:100%\"><img src=\"../images/indicator.gif\"></div></div>\n";
 			$sGroupBy = isset($aExtraParams['group_by']) ? $aExtraParams['group_by'] : '';
 			$sGroupByExpr = isset($aExtraParams['group_by_expr']) ? '&params[group_by_expr]='.$aExtraParams['group_by_expr'] : '';
-			$sFilter = $this->m_oFilter->serialize();
+			$sFilter = $this->m_oFilter->serialize(false, $aQueryParams);
 			$oContext = new ApplicationContext();
 			$sContextParam = $oContext->GetForLink();
+			$sAggregationFunction = isset($aExtraParams['aggregation_function']) ? $aExtraParams['aggregation_function'] : '';
+			$sAggregationAttr = isset($aExtraParams['aggregation_attribute']) ? $aExtraParams['aggregation_attribute'] : '';
+			$sLimit = isset($aExtraParams['limit']) ? $aExtraParams['limit'] : '';
+			$sOrderBy = isset($aExtraParams['order_by']) ? $aExtraParams['order_by'] : '';
+			$sOrderDirection = isset($aExtraParams['order_direction']) ? $aExtraParams['order_direction'] : '';
 
 			if (isset($aExtraParams['group_by_label']))
 			{
-				$sUrl = json_encode(utils::GetAbsoluteUrlAppRoot()."pages/ajax.render.php?operation=chart&params[group_by]=$sGroupBy{$sGroupByExpr}&params[group_by_label]={$aExtraParams['group_by_label']}&params[chart_type]=$sChartType&params[currentId]=$sId{$iChartCounter}&id=$sId{$iChartCounter}&filter=".urlencode($sFilter).'&'.$sContextParam);
+				$sUrl = json_encode(utils::GetAbsoluteUrlAppRoot()."pages/ajax.render.php?operation=chart&params[group_by]=$sGroupBy{$sGroupByExpr}&params[group_by_label]={$aExtraParams['group_by_label']}&params[chart_type]=$sChartType&params[currentId]=$sId{$iChartCounter}&params[order_direction]=$sOrderDirection&params[order_by]=$sOrderBy&params[limit]=$sLimit&params[aggregation_function]=$sAggregationFunction&params[aggregation_attribute]=$sAggregationAttr&id=$sId{$iChartCounter}&filter=".rawurlencode($sFilter).'&'.$sContextParam);
 			}
 			else
 			{
-				$sUrl = json_encode(utils::GetAbsoluteUrlAppRoot()."pages/ajax.render.php?operation=chart&params[group_by]=$sGroupBy{$sGroupByExpr}&params[chart_type]=$sChartType&params[currentId]=$sId{$iChartCounter}&id=$sId{$iChartCounter}&filter=".urlencode($sFilter).'&'.$sContextParam);
+				$sUrl = json_encode(utils::GetAbsoluteUrlAppRoot()."pages/ajax.render.php?operation=chart&params[group_by]=$sGroupBy{$sGroupByExpr}&params[chart_type]=$sChartType&params[currentId]=$sId{$iChartCounter}&params[order_direction]=$sOrderDirection&params[order_by]=$sOrderBy&params[limit]=$sLimit&params[aggregation_function]=$sAggregationFunction&params[aggregation_attribute]=$sAggregationAttr&id=$sId{$iChartCounter}&filter=".rawurlencode($sFilter).'&'.$sContextParam);
 			}
-			
-			$sType = ($sChartType == 'pie') ? 'pie' : 'bar';
-			
+
 			$oPage->add_ready_script(
 <<<EOF
 $.post($sUrl, {}, function(data) {
@@ -939,22 +987,7 @@ EOF
 
 			if (isset($aExtraParams['group_by']))
 			{
-				if (isset($aExtraParams['group_by_label']))
-				{
-					$oGroupByExp = Expression::FromOQL($aExtraParams['group_by']);
-					$sGroupByLabel = $aExtraParams['group_by_label'];
-				}
-				else
-				{
-					// Backward compatibility: group_by is simply a field id
-					$sAlias = $this->m_oFilter->GetClassAlias();
-					$oGroupByExp = new FieldExpression($aExtraParams['group_by'], $sAlias);
-					$sGroupByLabel = MetaModel::GetLabel($this->m_oFilter->GetClass(), $aExtraParams['group_by']);
-				}
-
-				$aGroupBy = array();
-				$aGroupBy['grouped_by_1'] = $oGroupByExp;
-				$sSql = $this->m_oFilter->MakeGroupByQuery($aQueryParams, $aGroupBy, true);
+				$this->MakeGroupByQuery($aExtraParams, $oGroupByExp, $sGroupByLabel, $aGroupBy, $sAggregationFunction, $sFctVar, $sAggregationAttr, $sSql);
 				$aRes = CMDBSource::QueryToArray($sSql);
 				$oContext = new ApplicationContext();
 				$sContextParam = $oContext->GetForLink();
@@ -967,15 +1000,15 @@ EOF
 				{
 					$sValue = $aRow['grouped_by_1'];
 					$sHtmlValue = $oGroupByExp->MakeValueLabel($this->m_oFilter, $sValue, $sValue);
-					$aGroupBy[(int)$iRow] = (int) $aRow['_itop_count_'];
+					$aGroupBy[(int)$iRow] = (int) $aRow[$sFctVar];
 					$iTotalCount += $aRow['_itop_count_'];
-					$aValues[] = array('label' => html_entity_decode(strip_tags($sHtmlValue), ENT_QUOTES, 'UTF-8'), 'label_html' => $sHtmlValue, 'value' => (int) $aRow['_itop_count_']);
+					$aValues[] = array('label' => html_entity_decode(strip_tags($sHtmlValue), ENT_QUOTES, 'UTF-8'), 'label_html' => $sHtmlValue, 'value' => (int) $aRow[$sFctVar]);
 					
 					// Build the search for this subset
 					$oSubsetSearch = $this->m_oFilter->DeepClone();
 					$oCondition = new BinaryExpression($oGroupByExp, '=', new ScalarExpression($sValue));
 					$oSubsetSearch->AddConditionExpression($oCondition);
-					$aURLs[] = utils::GetAbsoluteUrlAppRoot()."pages/UI.php?operation=search&format=html&filter=".urlencode($oSubsetSearch->serialize()).'&'.$sContextParam;
+					$aURLs[] = utils::GetAbsoluteUrlAppRoot()."pages/UI.php?operation=search&format=html&filter=".rawurlencode($oSubsetSearch->serialize()).'&'.$sContextParam;
 				}
 				$sJSURLs = json_encode($aURLs);
 			}
@@ -991,9 +1024,9 @@ EOF
 				$sJSNames = json_encode($aNames);
 				
 				$sJson = json_encode($aValues);
-				$sJSCount = json_encode(Dict::S('UI:GroupBy:Count'));
 				$oPage->add_ready_script(
 <<<EOF
+
 var chart = c3.generate({
     bindto: d3.select('#my_chart_$sId'),
     data: {
@@ -1041,6 +1074,12 @@ var chart = c3.generate({
 	  }
 	}
 });
+
+if (typeof(charts) === "undefined")
+{
+  charts = [];
+}
+charts.push(chart);
 EOF
 				);
 				break;
@@ -1067,6 +1106,7 @@ var chart = c3.generate({
 			var aURLs = $sJSURLs;
 		    window.location.href= aURLs[d.index];
 		},
+		order: null,
     },
     legend: {
       show: true,
@@ -1078,6 +1118,12 @@ var chart = c3.generate({
 	  }
 	}
 });
+
+if (typeof(charts) === "undefined")
+{
+  charts = [];
+}
+charts.push(chart);
 EOF
 				);
 				break;				
@@ -1088,12 +1134,71 @@ EOF
 			// Unsupported style, do nothing.
 			$sHtml .= Dict::format('UI:Error:UnsupportedStyleOfBlock', $this->m_sStyle);
 		}
+
+
+		$bAutoReload = false;
+		if (isset($aExtraParams['auto_reload']))
+		{
+			if ($aExtraParams['auto_reload'] === true)
+			{
+				// Note: does not work in the switch (case true) because a positive number evaluates to true!!!
+				$aExtraParams['auto_reload'] = 'standard';
+			}
+			switch($aExtraParams['auto_reload'])
+			{
+				case 'fast':
+					$bAutoReload = true;
+					$iReloadInterval = MetaModel::GetConfig()->GetFastReloadInterval()*1000;
+					break;
+
+				case 'standard':
+				case 'true':
+					$bAutoReload = true;
+					$iReloadInterval = MetaModel::GetConfig()->GetStandardReloadInterval()*1000;
+					break;
+
+				default:
+					if (is_numeric($aExtraParams['auto_reload']) && ($aExtraParams['auto_reload'] > 0))
+					{
+						$bAutoReload = true;
+						$iReloadInterval = max(MetaModel::GetConfig()->Get('min_reload_interval'), $aExtraParams['auto_reload'])*1000;
+					}
+					else
+					{
+						// incorrect config, ignore it
+						$bAutoReload = false;
+					}
+			}
+		}
+		if (($bAutoReload) && ($this->m_sStyle != 'search')) // Search form do NOT auto-reload
+		{
+			$sFilter = addslashes(str_replace('"', "'", $this->m_oFilter->serialize())); // Used either for asynchronous or auto_reload
+			$sExtraParams = addslashes(str_replace('"', "'", json_encode($aExtraParams))); // JSON encode, change the style of the quotes and escape them
+
+			$oPage->add_script('if (typeof window.oAutoReloadBlock == "undefined") {
+				    window.oAutoReloadBlock = {};
+				}
+				if (typeof window.oAutoReloadBlock[\''.$sId.'\'] != "undefined") {
+				    clearInterval(window.oAutoReloadBlock[\''.$sId.'\']);
+				}
+				window.oAutoReloadBlock[\''.$sId.'\'] = setInterval("ReloadBlock(\''.$sId.'\', \''.$this->m_sStyle.'\', \"'.$sFilter.'\", \"'.$sExtraParams.'\")", '.$iReloadInterval.');');
+		}
+
 		return $sHtml;
 	}
-	
+
 	/**
 	 * Add a condition (restriction) to the current DBSearch on which the display block is based
 	 * taking into account the hierarchical keys for which the condition is based on the 'below' operator
+	 *
+	 * @param string $sFilterCode
+	 * @param array $condition
+	 * @param string $sOpCode
+	 * @param bool $bParseSearchString
+	 *
+	 * @throws \CoreException
+	 * @throws \CoreWarning
+	 * @throws \Exception
 	 */
 	protected function AddCondition($sFilterCode, $condition, $sOpCode = null, $bParseSearchString = false)
 	{
@@ -1150,7 +1255,7 @@ EOF
 		// In all other cases, just add the condition directly
 		if (!$bConditionAdded)
 		{
-			$this->m_oFilter->AddCondition($sFilterCode, $condition, null, $bParseSearchString); // Use the default 'loose' operator
+			$this->m_oFilter->AddCondition($sFilterCode, $condition, null); // Use the default 'loose' operator
 		}
 	}
 	
@@ -1170,6 +1275,97 @@ EOF
 	public function GetDisplayedCount()
 	{
 		return $this->m_oSet->Count();
+	}
+
+	/**
+	 * @param $aExtraParams
+	 * @param $oGroupByExp
+	 * @param $sGroupByLabel
+	 * @param $aGroupBy
+	 * @param $sAggregationFunction
+	 * @param $sFctVar
+	 * @param $sAggregationAttr
+	 * @param $sSql
+	 *
+	 * @throws \Exception
+	 */
+	protected function MakeGroupByQuery(&$aExtraParams, &$oGroupByExp, &$sGroupByLabel, &$aGroupBy, &$sAggregationFunction, &$sFctVar, &$sAggregationAttr, &$sSql)
+	{
+		$sAlias = $this->m_oFilter->GetClassAlias();
+		if (isset($aExtraParams['group_by_label']))
+		{
+			$oGroupByExp = Expression::FromOQL($aExtraParams['group_by']);
+			$sGroupByLabel = $aExtraParams['group_by_label'];
+		}
+		else
+		{
+			// Backward compatibility: group_by is simply a field id
+			$oGroupByExp = new FieldExpression($aExtraParams['group_by'], $sAlias);
+			$sGroupByLabel = MetaModel::GetLabel($this->m_oFilter->GetClass(), $aExtraParams['group_by']);
+		}
+
+		// Security filtering
+		$aFields = $oGroupByExp->ListRequiredFields();
+		foreach($aFields as $sFieldAlias)
+		{
+			$aMatches = array();
+			if (preg_match('/^([^.]+)\\.([^.]+)$/', $sFieldAlias, $aMatches))
+			{
+				$sFieldClass = $this->m_oFilter->GetClassName($aMatches[1]);
+				$oAttDef = MetaModel::GetAttributeDef($sFieldClass, $aMatches[2]);
+				if ($oAttDef instanceof AttributeOneWayPassword)
+				{
+					throw new Exception('Grouping on password fields is not supported.');
+				}
+			}
+		}
+
+		$aGroupBy = array();
+		$aGroupBy['grouped_by_1'] = $oGroupByExp;
+		$aQueryParams = array();
+		if (isset($aExtraParams['query_params']))
+		{
+			$aQueryParams = $aExtraParams['query_params'];
+		}
+		$aFunctions = array();
+		$sAggregationFunction = 'count';
+		$sFctVar = '_itop_count_';
+		$sAggregationAttr = '';
+		if (isset($aExtraParams['aggregation_function']) && !empty($aExtraParams['aggregation_attribute']))
+		{
+			$sAggregationFunction = $aExtraParams['aggregation_function'];
+			$sAggregationAttr = $aExtraParams['aggregation_attribute'];
+			$oAttrExpr = Expression::FromOQL('`'.$sAlias.'`.`'.$sAggregationAttr.'`');
+			$oFctExpr = new FunctionExpression(strtoupper($sAggregationFunction), array($oAttrExpr));
+			$sFctVar = '_itop_'.$sAggregationFunction.'_';
+			$aFunctions = array($sFctVar => $oFctExpr);
+		}
+
+		if (!empty($sAggregationAttr))
+		{
+			$sClass = $this->m_oFilter->GetClass();
+			$sAggregationAttr = MetaModel::GetLabel($sClass, $sAggregationAttr);
+		}
+		$iLimit = 0;
+		if (isset($aExtraParams['limit']))
+		{
+			$iLimit = intval($aExtraParams['limit']);
+		}
+		$aOrderBy = array();
+		if (isset($aExtraParams['order_direction']) && isset($aExtraParams['order_by']))
+		{
+			switch ($aExtraParams['order_by'])
+			{
+				case 'attribute':
+					$aOrderBy = array('grouped_by_1' => ($aExtraParams['order_direction'] === 'asc'));
+					break;
+				case 'function':
+					$aOrderBy = array($sFctVar => ($aExtraParams['order_direction'] === 'asc'));
+					break;
+			}
+		}
+
+		$sSql = $this->m_oFilter->MakeGroupByQuery($aQueryParams, $aGroupBy, true, $aFunctions, $aOrderBy, $iLimit);
 	}
 }
 
@@ -1245,7 +1441,7 @@ class HistoryBlock extends DisplayBlock
 			default:
 			if ($bTruncated)
 			{
-				$sFilter = $this->m_oFilter->serialize();
+				$sFilter = htmlentities($this->m_oFilter->serialize(), ENT_QUOTES, 'UTF-8');
 				$sHtml .= '<div id="history_container"><p>';
 				$sHtml .= Dict::Format('UI:TruncatedResults', $this->iLimitCount, $oSet->Count());
 				$sHtml .= ' ';
@@ -1322,15 +1518,25 @@ EOF
  * For backward compatibility 'popup' is equivalent to 'list'...
  */
 class MenuBlock extends DisplayBlock
-{	
+{
 	/**
 	 * Renders the "Actions" popup menu for the given set of objects
-	 * 
+	 *
 	 * Note that the menu links containing (or ending) with a hash (#) will have their fragment
 	 * part (whatever is after the hash) dynamically replaced (by javascript) when the menu is
 	 * displayed, to correspond to the current hash/fragment in the page. This allows modifying
 	 * an object in with the same tab active by default as the tab that was active when selecting
 	 * the "Modify..." action.
+	 *
+	 * @param \WebPage $oPage
+	 * @param array $aExtraParams
+	 * @param string $sId
+	 *
+	 * @return string
+	 * @throws \DictExceptionMissingString
+	 * @throws \Exception
+	 * @throws \MissingQueryArgument
+	 * @throws \MySQLException
 	 */
 	public function GetRenderContent(WebPage $oPage, $aExtraParams = array(), $sId)
 	{
@@ -1349,10 +1555,15 @@ class MenuBlock extends DisplayBlock
 		$oReflectionClass = new ReflectionClass($sClass);
 		$oSet = new CMDBObjectSet($this->m_oFilter);
 		$sFilter = $this->m_oFilter->serialize();
-		$sFilterDesc = $this->m_oFilter->ToOql(true);
 		$aActions = array();
 		$sUIPage = cmdbAbstractObject::ComputeStandardUIPage($sClass);
 		$sRootUrl = utils::GetAbsoluteUrlAppRoot();
+		// Common params that will be applied to actions
+        $aActionParams = array();
+		if(isset($aExtraParams['menu_actions_target']))
+        {
+            $aActionParams['target'] = $aExtraParams['menu_actions_target'];
+        }
 		// 1:n links, populate the target object as a default value when creating a new linked object
 		if (isset($aExtraParams['target_attr']))
 		{
@@ -1372,7 +1583,7 @@ class MenuBlock extends DisplayBlock
 		{
 			case 0:
 			// No object in the set, the only possible action is "new"
-			if ($bIsCreationAllowed) { $aActions['UI:Menu:New'] = array ('label' => Dict::S('UI:Menu:New'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=new&class=$sClass{$sContext}{$sDefault}"); }
+			if ($bIsCreationAllowed) { $aActions['UI:Menu:New'] = array ('label' => Dict::S('UI:Menu:New'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=new&class=$sClass{$sContext}{$sDefault}") + $aActionParams; }
 			break;
 			
 			case 1:
@@ -1381,7 +1592,7 @@ class MenuBlock extends DisplayBlock
 			{
 				if (!isset($aExtraParams['link_attr']))
 				{
-					if ($bIsCreationAllowed) { $aActions['UI:Menu:New'] = array ('label' => Dict::S('UI:Menu:New'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=new&class=$sClass{$sContext}{$sDefault}"); }
+					if ($bIsCreationAllowed) { $aActions['UI:Menu:New'] = array ('label' => Dict::S('UI:Menu:New'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=new&class=$sClass{$sContext}{$sDefault}") + $aActionParams; }
 				}
 			}
 			else
@@ -1416,9 +1627,9 @@ class MenuBlock extends DisplayBlock
 				// Just one object in the set, possible actions are "new / clone / modify and delete"
 				if (!isset($aExtraParams['link_attr']))
 				{
-					if ($bIsModifyAllowed) { $aActions['UI:Menu:Modify'] = array ('label' => Dict::S('UI:Menu:Modify'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=modify&class=$sClass&id=$id{$sContext}#"); }
-					if ($bIsCreationAllowed) { $aActions['UI:Menu:New'] = array ('label' => Dict::S('UI:Menu:New'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=new&class=$sClass{$sContext}{$sDefault}"); }
-					if ($bIsDeleteAllowed) { $aActions['UI:Menu:Delete'] = array ('label' => Dict::S('UI:Menu:Delete'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=delete&class=$sClass&id=$id{$sContext}"); }
+					if ($bIsModifyAllowed) { $aActions['UI:Menu:Modify'] = array ('label' => Dict::S('UI:Menu:Modify'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=modify&class=$sClass&id=$id{$sContext}#") + $aActionParams; }
+					if ($bIsCreationAllowed) { $aActions['UI:Menu:New'] = array ('label' => Dict::S('UI:Menu:New'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=new&class=$sClass{$sContext}{$sDefault}") + $aActionParams; }
+					if ($bIsDeleteAllowed) { $aActions['UI:Menu:Delete'] = array ('label' => Dict::S('UI:Menu:Delete'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=delete&class=$sClass&id=$id{$sContext}") + $aActionParams; }
 					// Transitions / Stimuli
 					if (!$bLocked)
 					{
@@ -1433,7 +1644,7 @@ class MenuBlock extends DisplayBlock
 								switch($iActionAllowed)
 								{
 									case UR_ALLOWED_YES:
-									$aActions[$sStimulusCode] = array('label' => $aStimuli[$sStimulusCode]->GetLabel(), 'url' => "{$sRootUrl}pages/UI.php?operation=stimulus&stimulus=$sStimulusCode&class=$sClass&id=$id{$sContext}");
+									$aActions[$sStimulusCode] = array('label' => $aStimuli[$sStimulusCode]->GetLabel(), 'url' => "{$sRootUrl}pages/UI.php?operation=stimulus&stimulus=$sStimulusCode&class=$sClass&id=$id{$sContext}") + $aActionParams;
 									break;
 									
 									default:
@@ -1451,17 +1662,18 @@ class MenuBlock extends DisplayBlock
 						{
 							if (array_key_exists('down', $aRelationInfo))
 							{
-								$aActions[$sRelationCode.'_down'] = array ('label' => $aRelationInfo['down'], 'url' => "{$sRootUrl}pages/$sUIPage?operation=swf_navigator&relation=$sRelationCode&direction=down&class=$sClass&id=$id{$sContext}");
+								$aActions[$sRelationCode.'_down'] = array ('label' => $aRelationInfo['down'], 'url' => "{$sRootUrl}pages/$sUIPage?operation=swf_navigator&relation=$sRelationCode&direction=down&class=$sClass&id=$id{$sContext}") + $aActionParams;
 							}
 							if (array_key_exists('up', $aRelationInfo))
 							{
-								$aActions[$sRelationCode.'_up'] = array ('label' => $aRelationInfo['up'], 'url' => "{$sRootUrl}pages/$sUIPage?operation=swf_navigator&relation=$sRelationCode&direction=up&class=$sClass&id=$id{$sContext}");
+								$aActions[$sRelationCode.'_up'] = array ('label' => $aRelationInfo['up'], 'url' => "{$sRootUrl}pages/$sUIPage?operation=swf_navigator&relation=$sRelationCode&direction=up&class=$sClass&id=$id{$sContext}") + $aActionParams;
 							}
 						}
 					}
 					if ($bLocked && $bRawModifiedAllowed)
 					{
 						// Add a special menu to kill the lock, but only to allowed users who can also modify this object
+						/** @var array $aAllowedProfiles */
 						$aAllowedProfiles = MetaModel::GetConfig()->Get('concurrent_lock_override_profiles');
 						$bCanKill = false;
 					
@@ -1512,7 +1724,7 @@ class MenuBlock extends DisplayBlock
 					$oSet->Rewind();
 					foreach($oExtensionInstance->EnumAllowedActions($oSet) as $sLabel => $sUrl)
 					{
-						$aActions[$sLabel] = array ('label' => $sLabel, 'url' => $sUrl);
+						$aActions[$sLabel] = array ('label' => $sLabel, 'url' => $sUrl) + $aActionParams;
 					}
 				}
 			}
@@ -1530,24 +1742,23 @@ class MenuBlock extends DisplayBlock
 				$sTargetAttr = $aExtraParams['target_attr'];
 				$oAttDef = MetaModel::GetAttributeDef($sClass, $sTargetAttr);
 				$sTargetClass = $oAttDef->GetTargetClass();
-				$bIsDeleteAllowed = UserRights::IsActionAllowed($sClass, UR_ACTION_DELETE, $oSet);
-				if ($bIsModifyAllowed) { $aActions['UI:Menu:Add'] = array ('label' => Dict::S('UI:Menu:Add'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=modify_links&class=$sClass&link_attr=".$aExtraParams['link_attr']."&target_class=$sTargetClass&id=$id&addObjects=true{$sContext}"); }
-				if ($bIsBulkModifyAllowed) { $aActions['UI:Menu:Manage'] = array ('label' => Dict::S('UI:Menu:Manage'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=modify_links&class=$sClass&link_attr=".$aExtraParams['link_attr']."&target_class=$sTargetClass&id=$id{$sContext}"); }
-				//if ($bIsBulkDeleteAllowed) { $aActions[] = array ('label' => 'Remove All...', 'url' => "#"); }
+				if ($bIsModifyAllowed) { $aActions['UI:Menu:Add'] = array ('label' => Dict::S('UI:Menu:Add'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=modify_links&class=$sClass&link_attr=".$aExtraParams['link_attr']."&target_class=$sTargetClass&id=$id&addObjects=true{$sContext}") + $aActionParams; }
+				if ($bIsBulkModifyAllowed) { $aActions['UI:Menu:Manage'] = array ('label' => Dict::S('UI:Menu:Manage'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=modify_links&class=$sClass&link_attr=".$aExtraParams['link_attr']."&target_class=$sTargetClass&id=$id{$sContext}") + $aActionParams; }
+				//if ($bIsBulkDeleteAllowed) { $aActions[] = array ('label' => 'Remove All...', 'url' => "#") + $aActionParams; }
 			}
 			else
 			{
 				// many objects in the set, possible actions are: new / modify all / delete all
-				if ($bIsCreationAllowed) { $aActions['UI:Menu:New'] = array ('label' => Dict::S('UI:Menu:New'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=new&class=$sClass{$sContext}{$sDefault}"); }
-				if ($bIsBulkModifyAllowed) { $aActions['UI:Menu:ModifyAll'] = array ('label' => Dict::S('UI:Menu:ModifyAll'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=select_for_modify_all&class=$sClass&filter=".urlencode($sFilter)."{$sContext}"); }
-				if ($bIsBulkDeleteAllowed) { $aActions['UI:Menu:BulkDelete'] = array ('label' => Dict::S('UI:Menu:BulkDelete'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=select_for_deletion&filter=".urlencode($sFilter)."{$sContext}"); }
+				if ($bIsCreationAllowed) { $aActions['UI:Menu:New'] = array ('label' => Dict::S('UI:Menu:New'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=new&class=$sClass{$sContext}{$sDefault}") + $aActionParams; }
+				if ($bIsBulkModifyAllowed) { $aActions['UI:Menu:ModifyAll'] = array ('label' => Dict::S('UI:Menu:ModifyAll'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=select_for_modify_all&class=$sClass&filter=".urlencode($sFilter)."{$sContext}") + $aActionParams; }
+				if ($bIsBulkDeleteAllowed) { $aActions['UI:Menu:BulkDelete'] = array ('label' => Dict::S('UI:Menu:BulkDelete'), 'url' => "{$sRootUrl}pages/$sUIPage?operation=select_for_deletion&filter=".urlencode($sFilter)."{$sContext}") + $aActionParams; }
 
 				// Stimuli
 				$aStates = MetaModel::EnumStates($sClass);
 				// Do not perform time consuming computations if there are too may objects in the list
 				$iLimit = MetaModel::GetConfig()->Get('complex_actions_limit');
 				
-				if ((count($aStates) > 0) && (($iLimit == 0) || ($oSet->Count() < $iLimit)))
+				if ((count($aStates) > 0) && (($iLimit == 0) || ($oSet->CountWithLimit($iLimit + 1) < $iLimit)))
 				{
 					// Life cycle actions may be available... if all objects are in the same state
 					//
@@ -1581,7 +1792,7 @@ class MenuBlock extends DisplayBlock
 								{
 									case UR_ALLOWED_YES:
 									case UR_ALLOWED_DEPENDS:
-									$aActions[$sStimulusCode] = array('label' => $aStimuli[$sStimulusCode]->GetLabel(), 'url' => "{$sRootUrl}pages/UI.php?operation=select_bulk_stimulus&stimulus=$sStimulusCode&state=$sState&class=$sClass&filter=".urlencode($sFilter)."{$sContext}");
+									$aActions[$sStimulusCode] = array('label' => $aStimuli[$sStimulusCode]->GetLabel(), 'url' => "{$sRootUrl}pages/UI.php?operation=select_bulk_stimulus&stimulus=$sStimulusCode&state=$sState&class=$sClass&filter=".urlencode($sFilter)."{$sContext}") + $aActionParams;
 									break;
 									
 									default:
@@ -1617,11 +1828,12 @@ class MenuBlock extends DisplayBlock
 				else
 				{
 					// Backward compatibility with old plugins
-					$aActions[$sLabel] = array ('label' => $sLabel, 'url' => $data);
+					$aActions[$sLabel] = array ('label' => $sLabel, 'url' => $data) + $aActionParams;
 				}
 			}
 		}
-					
+		$param  =  null;
+		$iMenuId = null;
 		// New extensions based on iPopupMenuItem interface 
 		switch($this->m_sStyle)
 		{
@@ -1654,11 +1866,7 @@ class MenuBlock extends DisplayBlock
 				}
 			}
 		}
-		else
-		{
-			$aShortcutActions = array();
-		}
-		
+
 		if (!$oPage->IsPrintableVersion())
 		{
 			if (count($aFavoriteActions) > 0)
@@ -1669,12 +1877,27 @@ class MenuBlock extends DisplayBlock
 			{
 				$sHtml .= "<div class=\"itop_popup actions_menu\"><ul>\n<li>".Dict::S('UI:Menu:Actions')."\n<ul>\n";
 			}
-				
+
 			$sHtml .= $oPage->RenderPopupMenuItems($aActions, $aFavoriteActions);
+
+			if ($this->m_sStyle == 'details')
+			{
+				$sSearchAction = "window.location=\"{$sRootUrl}pages/UI.php?operation=search_form&do_search=0&class=$sClass{$sContext}\"";
+				$sHtml .= "<div class=\"actions_button icon_actions_button\" title=\"".htmlentities(Dict::Format('UI:SearchFor_Class', MetaModel::GetName($sClass)), ENT_QUOTES, 'UTF-8')."\"><span class=\"search-button fa fa-search\" onclick='$sSearchAction'></span></div>";
+			}
+
+
+            if (empty($sRefreshAction) && $this->m_sStyle == 'list')
+            {
+                //for the detail page this var is defined way beyond this line
+                $sRefreshAction = "window.location.reload();";
+            }
 			if (!$oPage->IsPrintableVersion() && ($sRefreshAction!=''))
 			{
-				$sHtml .= "<div class=\"actions_button\" title=\"".htmlentities(Dict::S('UI:Button:Refresh'), ENT_QUOTES, 'UTF-8')."\"><span class=\"refresh-button\" onclick=\"$sRefreshAction\"></span></div>";
+				$sHtml .= "<div class=\"actions_button icon_actions_button\" title=\"".htmlentities(Dict::S('UI:Button:Refresh'), ENT_QUOTES, 'UTF-8')."\"><span class=\"refresh-button fa fa-refresh\" onclick=\"$sRefreshAction\"></span></div>";
 			}
+
+
 		}
 
 		static $bPopupScript = false;
@@ -1689,7 +1912,7 @@ class MenuBlock extends DisplayBlock
 	
 	/**
 	 * Appends a menu separator to the current list of actions
-	 * @param Hash $aActions The current actions list
+	 * @param array $aActions The current actions list
 	 * @return void
 	 */
 	protected function AddMenuSeparator(&$aActions)

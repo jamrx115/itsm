@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2010-2015 Combodo SARL
+// Copyright (C) 2010-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,7 +19,7 @@
 /**
  * Associated with the metamodel -> MakeQuery/MakeQuerySingleTable
  *
- * @copyright   Copyright (C) 2010-2015 Combodo SARL
+ * @copyright   Copyright (C) 2010-2017 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 
@@ -30,16 +30,18 @@ class QueryBuilderContext
 	protected $m_aTableAliases;
 	protected $m_aModifierProperties;
 	protected $m_aSelectedClasses;
+	protected $m_aFilteredTables;
 
 	public $m_oQBExpressions;
 
-	public function __construct($oFilter, $aModifierProperties, $aGroupByExpr = null, $aSelectedClasses = null)
+	public function __construct($oFilter, $aModifierProperties, $aGroupByExpr = null, $aSelectedClasses = null, $aSelectExpr = null)
 	{
 		$this->m_oRootFilter = $oFilter;
-		$this->m_oQBExpressions = new QueryBuilderExpressions($oFilter, $aGroupByExpr);
+		$this->m_oQBExpressions = new QueryBuilderExpressions($oFilter, $aGroupByExpr, $aSelectExpr);
 
 		$this->m_aClassAliases = $oFilter->GetJoinedClasses();
 		$this->m_aTableAliases = array();
+		$this->m_aFilteredTables = array();
 
 		$this->m_aModifierProperties = $aModifierProperties;
 		if (is_null($aSelectedClasses))
@@ -83,5 +85,22 @@ class QueryBuilderContext
 	public function GetSelectedClass($sAlias)
 	{
 		return $this->m_aSelectedClasses[$sAlias];
+	}
+
+	public function AddFilteredTable($sTableAlias, $oCondition)
+	{
+		if (array_key_exists($sTableAlias, $this->m_aFilteredTables))
+		{
+			$this->m_aFilteredTables[$sTableAlias][] = $oCondition;
+		}
+		else
+		{
+			$this->m_aFilteredTables[$sTableAlias] = array($oCondition);
+		}
+	}
+
+	public function GetFilteredTables()
+	{
+		return $this->m_aFilteredTables;
 	}
 }

@@ -392,7 +392,7 @@ $(function()
 				}
 			});
 			
-			this.element.height(maxHeight - 20);
+			this.element.height(maxHeight - 13);
 			this.oPaper.setSize(this.element.width(), this.element.height());
 		},
 		auto_scale: function()
@@ -407,7 +407,7 @@ $(function()
 			ymax = this.options.ymax + iMargin;
 			var xScale = this.element.width() / (xmax - xmin);
 			var yScale = this.element.height() / (ymax - ymin + this.iTextHeight);
-			
+
 			this.fZoom = Math.min(xScale, yScale, fMaxZoom);
 			switch(this.options.align)
 			{
@@ -682,7 +682,7 @@ $(function()
 		},
 		_on_resize: function()
 		{
-			this.element.closest('.ui-tabs').tabs({ heightStyle: "fill" });
+			this.element.closest('.ui-tabs').tabs({ heightStyle: "content" });
 			this.auto_scale();
 			this._close_all_tooltips();
 			this.draw();
@@ -801,7 +801,11 @@ $(function()
 			}
 			var aContexts = [];
 			$('#'+sId+'_contexts').multiselect('getChecked').each(function() { aContexts[$(this).val()] = me.options.additional_contexts[$(this).val()].oql; });
-			this.element.closest('.ui-tabs').tabs({ heightStyle: "fill" });
+			// Don't set the height on the tabs widget, only on the current tab
+			// Adjust the height of the graph to the window size
+			var sTabHeight = parseInt($(window).height() - this.element.parent().offset().top - 50);
+			this.element.closest('.ui-tabs-panel').css({ height: sTabHeight + "px" });
+
 			this.adjust_height();
 			this._close_all_tooltips();
 			this.oPaper.rect(this.xPan, this.yPan, this.element.width(), this.element.height()).attr({fill: '#000', opacity: 0.4, 'stroke-width': 0});
@@ -896,8 +900,6 @@ $(function()
 				items: '.popupMenuTarget',
 				tooltipClass: 'tooltip-simple-graph',
 				position: {
-					my: "center bottom-10",
-					at: "center  top",	
 					using: function( position, feedback ) { 
 						$(this).css( position );  
 						$( "<div>" )
@@ -910,19 +912,19 @@ $(function()
 			.off( "mouseover mouseout" )
 			.on( "mouseover", function(event){
 				event.stopImmediatePropagation();
-				var jMe = $(this);
+				var jMe = $('text[data-id="'+$(this).attr('data-id')+'"]');
 				jMe.data('openTimeoutId', setTimeout(function() {
 					var sDataId = jMe.attr('data-id');
-					if ($('.tooltip-close-button[data-id="'+sDataId+'"]').length == 0)
+					if (jMe.tooltip())
 					{
 						jMe.data('openTimeoutId', 0);
-						jMe.tooltip('open');						
+						jMe.tooltip('open');
 					}
 				}, 1000));					
 			})
 			.on( "mouseout", function(event){
 				event.stopImmediatePropagation();
-				clearTimeout($(this).data('openTimeoutId'));					
+				clearTimeout($('text[data-id="'+$(this).attr('data-id')+'"]').data('openTimeoutId'));					
 			});
 			/* Happens at every on_drag_end !!!
 			.on( "click", function(){

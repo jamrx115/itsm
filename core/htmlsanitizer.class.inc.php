@@ -151,11 +151,17 @@ class HTMLPurifierSanitizer extends HTMLSanitizer
 class HTMLDOMSanitizer extends HTMLSanitizer
 {
 	protected $oDoc;
+
+	/**
+	 * @var array
+	 * @see https://www.itophub.io/wiki/page?id=2_6_0%3Aadmin%3Arich_text_limitations
+	 */
 	protected static $aTagsWhiteList = array(
 		'html' => array(),
 		'body' => array(),
-		'a' => array('href', 'name', 'style', 'target'),
+		'a' => array('href', 'name', 'style', 'target', 'title'),
 		'p' => array('style'),
+		'blockquote' => array('style'),
 		'br' => array(),
 		'span' => array('style'),
 		'div' => array('style'),
@@ -164,7 +170,7 @@ class HTMLDOMSanitizer extends HTMLSanitizer
 		'u' => array(),
 		'em' => array(),
 		'strong' => array(),
-		'img' => array('src','style'),
+		'img' => array('src', 'style', 'alt', 'title'),
 		'ul' => array('style'),
 		'ol' => array('style'),
 		'li' => array('style'),
@@ -178,16 +184,15 @@ class HTMLDOMSanitizer extends HTMLSanitizer
 		'table' => array('style', 'width', 'summary', 'align', 'border', 'cellpadding', 'cellspacing'),
 		'thead' => array('style'),
 		'tbody' => array('style'),
-		'tr' => array('style'),
-		'td' => array('style', 'colspan'),
-		'th' => array('style'),
+		'tr' => array('style', 'colspan', 'rowspan'),
+		'td' => array('style', 'colspan', 'rowspan'),
+		'th' => array('style', 'colspan', 'rowspan'),
 		'fieldset' => array('style'),
 		'legend' => array('style'),
 		'font' => array('face', 'color', 'style', 'size'),
 		'big' => array(),
 		'small' => array(),
 		'tt' => array(),
-		'code' => array(),
 		'kbd' => array(),
 		'samp' => array(),
 		'var' => array(),
@@ -198,23 +203,51 @@ class HTMLDOMSanitizer extends HTMLSanitizer
 		'q' => array(),
 		'hr' => array('style'),
 		'pre' => array(),
-		'center' => array(),
-		'caption' => array(),
 	);
-	
+
 	protected static $aAttrsWhiteList = array(
 		'src' => '/^(http:|https:|data:)/i',
 	);
-	
+
+	/**
+	 * @var array
+	 * @see https://www.itophub.io/wiki/page?id=2_6_0%3Aadmin%3Arich_text_limitations
+	 */
 	protected static $aStylesWhiteList = array(
-		'background-color', 'color', 'float', 'font', 'font-style', 'font-size', 'font-family', 'padding', 'margin', 'border', 'cellpadding', 'cellspacing', 'bordercolor', 'border-collapse', 'width', 'height', 'text-align',
+		'background-color',
+		'border',
+		'border-collapse',
+		'bordercolor',
+		'cellpadding',
+		'cellspacing',
+		'color',
+		'float',
+		'font',
+		'font-family',
+		'font-size',
+		'font-style',
+		'height',
+		'margin',
+		'padding',
+		'text-align',
+		'vertical-align',
+		'width',
+		'white-space',
 	);
 
 	public function __construct()
 	{
+		// Building href validation pattern from url and email validation patterns as the patterns are not used the same way in HTML content than in standard attributes value.
+		// eg. "foo@bar.com" vs "mailto:foo@bar.com?subject=Title&body=Hello%20world"
 		if (!array_key_exists('href', self::$aAttrsWhiteList))
 		{
-			$sPattern = '/'.str_replace('/', '\/', utils::GetConfig()->Get('url_validation_pattern')).'/i';
+			// Regular urls
+			$sUrlPattern = utils::GetConfig()->Get('url_validation_pattern');
+			// Mailto urls
+			$sMailtoPattern = '(mailto:(' . utils::GetConfig()->Get('email_validation_pattern') . ')(?:\?(?:subject|body)=([a-zA-Z0-9+\$_.-]*)(?:&(?:subject|body)=([a-zA-Z0-9+\$_.-]*))?)?)';
+
+			$sPattern = $sUrlPattern . '|' . $sMailtoPattern;
+			$sPattern = '/'.str_replace('/', '\/', $sPattern).'/i';
 			self::$aAttrsWhiteList['href'] = $sPattern;
 		}
 	}
@@ -315,7 +348,7 @@ class HTMLDOMSanitizer extends HTMLSanitizer
 					$this->CleanNode($oNode);
 					if (($oNode instanceof DOMElement) && (strtolower($oNode->tagName) == 'img'))
 					{
-						$this->ProcessImage($oNode);
+						InlineImage::ProcessImageTag($oNode);
 					}
 				}
 			}
@@ -326,24 +359,7 @@ class HTMLDOMSanitizer extends HTMLSanitizer
 			}
 		}
 	}
-	
-	/**
-	 * Add an extra attribute data-img-id for images which are based on an actual InlineImage
-	 * so that we can later reconstruct the full "src" URL when needed
-	 * @param DOMNode $oElement
-	 */
-	protected function ProcessImage(DOMNode $oElement)
-	{
-		$sSrc = $oElement->getAttribute('src');
-		$sDownloadUrl = str_replace(array('.', '?'), array('\.', '\?'), INLINEIMAGE_DOWNLOAD_URL); // Escape . and ?
-		$sUrlPattern = '|'.$sDownloadUrl.'([0-9]+)&s=([0-9a-f]+)|';
-		if (preg_match($sUrlPattern, $sSrc, $aMatches))
-		{
-			$oElement->setAttribute('data-img-id', $aMatches[1]);
-			$oElement->setAttribute('data-img-secret', $aMatches[2]);
-		}
-	}
-	
+
 	protected function CleanStyle($sStyle)
 	{
 		$aAllowedStyles = array();

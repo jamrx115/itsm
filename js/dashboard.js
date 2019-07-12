@@ -84,14 +84,14 @@ $(function()
 						var oDashletParams = oDashlet.get_params();
 						var sId = oDashletParams.dashlet_id;
 						oState[sId] = oDashletParams;				
-						aList.push({dashlet_id: sId, dashlet_class: oDashletParams.dashlet_class} );
+						aList.push({dashlet_id: sId, dashlet_class: oDashletParams.dashlet_class, dashlet_type: oDashletParams.dashlet_type} );
 					}
 				});
 				
 				if (aList.length == 0)
 				{
-					oState[0] = {dashlet_id: 0, dashlet_class: 'DashletEmptyCell'};
-					aList.push({dashlet_id: 0, dashlet_class: 'DashletEmptyCell'});
+					oState[0] = {dashlet_id: 0, dashlet_class: 'DashletEmptyCell', dashlet_type: 'DashletEmptyCell'};
+					aList.push({dashlet_id: 0, dashlet_class: 'DashletEmptyCell', dashlet_type: 'DashletEmptyCell'});
 				}
 				oState.cells.push(aList);
 			});
@@ -171,7 +171,7 @@ $(function()
 		add_dashlet_finalize: function(options, sDashletId, sDashletClass)
 		{
 			$('#dashlet_'+sDashletId)
-			.dashlet({dashlet_id: sDashletId, dashlet_class: sDashletClass})
+			.dashlet({dashlet_id: sDashletId, dashlet_class: sDashletClass, dashlet_type: options.dashlet_type})
 			.dashlet('deselect_all')
 			.dashlet('select')
 			.draggable({
@@ -304,12 +304,17 @@ $(function()
 		{
 			$('#dashboard_editor .ui-layout-east .itop-property-field-modified').trigger('apply_changes');
 		},
-		save: function()
+		save: function(dialog)
 		{
 			var oParams = this._get_state(this.options.submit_parameters);
 			var me = this;
 			$.post(this.options.submit_to, oParams, function(data){
 				me.ajax_div.html(data);
+				if(dialog)
+				{
+                    dialog.dialog( "close" );
+                    dialog.remove();
+                }
 			});
 		},
 		add_dashlet_ajax: function(options, sDashletId)
@@ -318,6 +323,7 @@ $(function()
 			var sDashletClass = options.dashlet_class;
 			oParams.dashlet_class = sDashletClass;
 			oParams.dashlet_id = sDashletId;
+			oParams.dashlet_type = options.dashlet_type;
 			var me = this;
 			$.post(this.options.render_to, oParams, function(data){
 				me.ajax_div.html(data);
@@ -341,6 +347,7 @@ $(function()
 function UploadDashboard(oOptions)
 {
 	var sFileId = 'dashboard_upload_file';
+
 	var oDlg = $('<div id="dashboard_upload_dlg"><form><p>'+oOptions.text+'</p><p><input type="file" id="'+sFileId+'" name="dashboard_upload_file"></p></form></div>');
 	$('body').append(oDlg);
 	oOptions.file_id = sFileId;
@@ -365,6 +372,8 @@ $(function()
 		{
 			dashboard_id: '',
 			file_id: '',
+			file: '',
+			transaction: '',
 			text: 'Select a dashboard file to import',
 			title: 'Dahsboard Import',
 			close_btn: 'Close',
@@ -382,13 +391,13 @@ $(function()
 				//me.onClose();
 			};
 			$('#'+this.options.file_id).fileupload({
-				url: me.options.submit_to+'&id='+me.options.dashboard_id,
+				url: me.options.submit_to+'&id='+me.options.dashboard_id+'&file='+me.options.file+'&transaction_id='+me.options.transaction,
 		        dataType: 'json',
 				pasteZone: null, // Don't accept files via Chrome's copy/paste
 		        done: function (e, data) {
-					if(typeof(data.result.error) != 'undefined')
+					if(typeof(data.result.error) !== 'undefined')
 					{
-						if(data.result.error != '')
+						if(data.result.error !== '')
 						{
 							alert(data.result.error);
 							me.element.dialog('close');

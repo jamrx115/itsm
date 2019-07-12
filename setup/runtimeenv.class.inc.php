@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2010-2017 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -20,13 +20,14 @@
 /**
  * Manage a runtime environment
  *
- * @copyright   Copyright (C) 2010-2017 Combodo SARL
+ * @copyright   Copyright (C) 2010-2018 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 
 require_once(APPROOT."setup/modulediscovery.class.inc.php");
 require_once(APPROOT.'setup/modelfactory.class.inc.php');
 require_once(APPROOT.'setup/compiler.class.inc.php');
+require_once(APPROOT.'setup/extensionsmap.class.inc.php');
 require_once(APPROOT.'core/metamodel.class.php');
 
 define ('MODULE_ACTION_OPTIONAL', 1);
@@ -39,11 +40,53 @@ define ('DATAMODEL_MODULE', 'datamodel'); // Convention to store the version of 
 
 class RunTimeEnvironment
 {
+	/**
+	 * The name of the environment that the caller wants to build
+	 * @var string sFinalEnv
+	 */
+	protected $sFinalEnv;
+
+	/**
+	 * Environment into which the build will be performed
+	 * @var string sTargetEnv
+	 */
 	protected $sTargetEnv;
-	
-	public function __construct($sEnvironment = 'production')
+
+	/**
+	 * Extensions map of the source environment
+	 * @var iTopExtensionsMap
+	 */
+	protected $oExtensionsMap;
+
+	/**
+	 * Toolset for building a run-time environment
+	 *
+	 * @param string $sEnvironment (e.g. 'test')
+	 * @param bool $bAutoCommit (make the target environment directly, or build a temporary one)
+	 */
+	public function __construct($sEnvironment = 'production', $bAutoCommit = true)
 	{
-		$this->sTargetEnv = $sEnvironment;
+		$this->sFinalEnv = $sEnvironment;
+		if ($bAutoCommit)
+		{
+			// Build directly onto the requested environment
+			$this->sTargetEnv = $sEnvironment;
+		}
+		else
+		{
+			// Build into a temporary target
+			$this->sTargetEnv = $sEnvironment.'-build';
+		}
+		$this->oExtensionsMap = null;
+	}
+
+	/**
+	 * Return the full path to the compiled code (do not use after commit)
+	 * @return string
+	 */
+	public function GetBuildDir()
+	{
+		return APPROOT.'env-'.$this->sTargetEnv;
 	}
 
 	/**
@@ -56,6 +99,7 @@ class RunTimeEnvironment
 	public function LogQueryCallback($sQuery, $fDuration)
 	{
 		$this->log_info(sprintf('%.3fs - query: %s ', $fDuration, $sQuery));
+		$this->log_db_query($sQuery);
 	}
 	
 	/**
@@ -104,6 +148,11 @@ class RunTimeEnvironment
 		}
 	
 		MetaModel::Startup($oConfig, $bModelOnly, $bUseCache, false /* $bTraceSourceFiles */, $this->sTargetEnv);
+		
+		if ($this->oExtensionsMap === null)
+		{
+			$this->oExtensionsMap = new iTopExtensionsMap($this->sTargetEnv);
+		}
 	}
 	
 	/**
@@ -195,9 +244,8 @@ class RunTimeEnvironment
 		try
 		{
 			require_once(APPROOT.'/core/cmdbsource.class.inc.php');
-			CMDBSource::Init($oConfig->GetDBHost(), $oConfig->GetDBUser(), $oConfig->GetDBPwd(), $oConfig->GetDBName());
-			CMDBSource::SetCharacterSet($oConfig->GetDBCharacterSet(), $oConfig->GetDBCollation());
-			$aSelectInstall = CMDBSource::QueryToArray("SELECT * FROM ".$oConfig->GetDBSubname()."priv_module_install");
+			CMDBSource::InitFromConfig($oConfig);
+			$aSelectInstall = CMDBSource::QueryToArray("SELECT * FROM ".$oConfig->Get('db_subname')."priv_module_install");
 		}
 		catch (MySQLException $e)
 		{
@@ -311,6 +359,26 @@ class RunTimeEnvironment
 	}
 
 	/**
+	 * Return an array with extra directories to scan for extensions/modules to install
+	 * @return string[]
+	 */
+	protected function GetExtraDirsToScan()
+	{
+		// Do nothing, overload this method if needed
+		return array();
+	}
+	
+	/**
+	 * Decide whether or not the given extension is selected for installation
+	 * @param iTopExtension $oExtension
+	 * @return boolean
+	 */
+	protected function IsExtensionSelected(iTopExtension $oExtension)
+	{
+		return ($oExtension->sSource == iTopExtension::SOURCE_REMOTE);
+	}
+	
+	/**
 	 * Get the installed modules (only the installed ones)	
 	 */	
 	protected function GetMFModulesToCompile($sSourceEnv, $sSourceDir)
@@ -330,14 +398,32 @@ class RunTimeEnvironment
 		{
 			$aDirsToCompile[] = $sExtraDir;
 		}
-		
+
+		$aExtraDirs = $this->GetExtraDirsToScan($aDirsToCompile);
+		$aDirsToCompile = array_merge($aDirsToCompile, $aExtraDirs);
+				
 		$aRet = array();
 
-		// Determine the installed modules
+		// Determine the installed modules and extensions
 		//
 		$oSourceConfig = new Config(APPCONF.$sSourceEnv.'/'.ITOP_CONFIG_FILE);
 		$oSourceEnv = new RunTimeEnvironment($sSourceEnv);
 		$aAvailableModules = $oSourceEnv->AnalyzeInstallation($oSourceConfig, $aDirsToCompile);
+		
+		// Actually read the modules available for the target environment,
+		// but get the selection from the source environment and finally
+		// mark as (automatically) chosen alll the "remote" modules present in the
+		// target environment (data/<target-env>-modules)
+		// The actual choices will be recorded by RecordInstallation below
+		$this->oExtensionsMap = new iTopExtensionsMap($this->sTargetEnv, true, $aExtraDirs);
+		$this->oExtensionsMap->LoadChoicesFromDatabase($oSourceConfig);
+		foreach($this->oExtensionsMap->GetAllExtensions() as $oExtension)
+		{
+			if($this->IsExtensionSelected($oExtension))
+			{
+				$this->oExtensionsMap->MarkAsChosen($oExtension->sCode);
+			}
+		}
 
 		// Do load the required modules
 		//
@@ -359,11 +445,11 @@ class RunTimeEnvironment
 		}
 		
 		$aModules = $oFactory->FindModules();
-		foreach($aModules as $foo => $oModule)
+		foreach($aModules as $oModule)
 		{
 			$sModule = $oModule->GetName();
 			$sModuleRootDir = $oModule->GetRootDir();
-			$bIsExtra = (strpos($sModuleRootDir, $sExtraDir) !== false);
+			$bIsExtra = $this->oExtensionsMap->ModuleIsChosenAsPartOfAnExtension($sModule, iTopExtension::SOURCE_REMOTE);
 			if (array_key_exists($sModule, $aAvailableModules)) 
 			{
 				if (($aAvailableModules[$sModule]['version_db'] != '') ||  $bIsExtra && !$oModule->IsAutoSelect()) //Extra modules are always unless they are 'AutoSelect'
@@ -378,7 +464,7 @@ class RunTimeEnvironment
 		{
 			// Loop while new modules are added...
 			$bModuleAdded = false;
-			foreach($aModules as $foo => $oModule)
+			foreach($aModules as $oModule)
 			{
 				if (!array_key_exists($oModule->GetName(), $aRet) && $oModule->IsAutoSelect())
 				{
@@ -401,7 +487,7 @@ class RunTimeEnvironment
 			}
 		}
 		while($bModuleAdded);
-		
+
 		$sDeltaFile = APPROOT.'data/'.$this->sTargetEnv.'.delta.xml';
 		if (file_exists($sDeltaFile))
 		{
@@ -419,6 +505,7 @@ class RunTimeEnvironment
 	 *  - plus the list of modules present in the "extra" directory of the target environment: data/<target_environment>-modules/
 	 * @param string $sSourceEnv The name of the source environment to 'imitate'
 	 * @param bool $bUseSymLinks Whether to create symbolic links instead of copies
+	 * @return string[]
 	 */
 	public function CompileFrom($sSourceEnv, $bUseSymLinks = false)
 	{
@@ -429,41 +516,43 @@ class RunTimeEnvironment
 		// Do load the required modules
 		//
 		$oFactory = new ModelFactory($sSourceDirFull);
-		foreach($this->GetMFModulesToCompile($sSourceEnv, $sSourceDir) as $oModule)
+		$aModulesToCompile = $this->GetMFModulesToCompile($sSourceEnv, $sSourceDir);
+		foreach($aModulesToCompile as $oModule)
 		{
-			$sModule = $oModule->GetName();
-			$oFactory->LoadModule($oModule);
-			if ($oFactory->HasLoadErrors())
+			if ($oModule instanceof MFDeltaModule)
 			{
-				break;
+				// Just before loading the delta, let's save an image of the datamodel
+				// in case there is no delta the operation will be done after the end of the loop
+				$oFactory->SaveToFile(APPROOT.'data/datamodel-'.$this->sTargetEnv.'.xml');
 			}
+			$oFactory->LoadModule($oModule);
 		}
 		
-		if ($oFactory->HasLoadErrors())
+
+		if ($oModule instanceof MFDeltaModule)
 		{
-			foreach($oFactory->GetLoadErrors() as $sModuleId => $aErrors)
-			{
-				echo "<h3>Module: ".$sModuleId."</h3>\n";
-				foreach($aErrors as $oXmlError)
-				{
-					echo "<p>File: ".$oXmlError->file." Line:".$oXmlError->line." Message:".$oXmlError->message."</p>\n";
-				}
-			}
+			// A delta was loaded, let's save a second copy of the datamodel
+			$oFactory->SaveToFile(APPROOT.'data/datamodel-'.$this->sTargetEnv.'-with-delta.xml');
 		}
 		else
 		{
-			$sTargetDir = APPROOT.'env-'.$this->sTargetEnv;
-			self::MakeDirSafe($sTargetDir);
-			$oMFCompiler = new MFCompiler($oFactory);
-			$oMFCompiler->Compile($sTargetDir, null, $bUseSymLinks);
-
-			$sCacheDir = APPROOT.'data/cache-'.$this->sTargetEnv;
-			Setuputils::builddir($sCacheDir);
-			Setuputils::tidydir($sCacheDir);
-
-			require_once(APPROOT.'/core/dict.class.inc.php');
-			MetaModel::ResetCache(md5(APPROOT).'-'.$this->sTargetEnv);
+			// No delta was loaded, let's save the datamodel now
+			$oFactory->SaveToFile(APPROOT.'data/datamodel-'.$this->sTargetEnv.'.xml');
 		}
+
+		$sTargetDir = APPROOT.'env-'.$this->sTargetEnv;
+		self::MakeDirSafe($sTargetDir);
+		$bSkipTempDir = ($this->sFinalEnv != $this->sTargetEnv); // No need for a temporary directory if sTargetEnv is already a temporary directory
+		$oMFCompiler = new MFCompiler($oFactory);
+		$oMFCompiler->Compile($sTargetDir, null, $bUseSymLinks, $bSkipTempDir);
+
+		$sCacheDir = APPROOT.'data/cache-'.$this->sTargetEnv;
+		SetupUtils::builddir($sCacheDir);
+		SetupUtils::tidydir($sCacheDir);
+
+		MetaModel::ResetCache(md5(APPROOT).'-'.$this->sTargetEnv);
+
+		return array_keys($aModulesToCompile);
 	}
 
 	/**
@@ -472,13 +561,13 @@ class RunTimeEnvironment
 	 */
 	public function CreateDatabaseStructure(Config $oConfig, $sMode)
 	{
-		if (strlen($oConfig->GetDBSubname()) > 0)
+		if (strlen($oConfig->Get('db_subname')) > 0)
 		{
-			$this->log_info("Creating the structure in '".$oConfig->GetDBName()."' (table names prefixed by '".$oConfig->GetDBSubname()."').");
+			$this->log_info("Creating the structure in '".$oConfig->Get('db_name')."' (table names prefixed by '".$oConfig->Get('db_subname')."').");
 		}
 		else
 		{
-			$this->log_info("Creating the structure in '".$oConfig->GetDBSubname()."'.");
+			$this->log_info("Creating the structure in '".$oConfig->Get('db_subname')."'.");
 		}
 	
 		//MetaModel::CheckDefinitions();
@@ -491,13 +580,13 @@ class RunTimeEnvironment
 			}
 			else
 			{
-				if (strlen($oConfig->GetDBSubname()) > 0)
+				if (strlen($oConfig->Get('db_subname')) > 0)
 				{
-					throw new Exception("Error: found iTop tables into the database '".$oConfig->GetDBName()."' (prefix: '".$oConfig->GetDBSubname()."'). Please, try selecting another database instance or specify another prefix to prevent conflicting table names.");
+					throw new Exception("Error: found iTop tables into the database '".$oConfig->Get('db_name')."' (prefix: '".$oConfig->Get('db_subname')."'). Please, try selecting another database instance or specify another prefix to prevent conflicting table names.");
 				}
 				else
 				{
-					throw new Exception("Error: found iTop tables into the database '".$oConfig->GetDBName()."'. Please, try selecting another database instance or specify a prefix to prevent conflicting table names.");
+					throw new Exception("Error: found iTop tables into the database '".$oConfig->Get('db_name')."'. Please, try selecting another database instance or specify a prefix to prevent conflicting table names.");
 				}
 			}
 		}
@@ -536,13 +625,13 @@ class RunTimeEnvironment
 			}
 			else
 			{
-				if (strlen($oConfig->GetDBSubname()) > 0)
+				if (strlen($oConfig->Get('db_subname')) > 0)
 				{
-					throw new Exception("Error: No previous instance of iTop found into the database '".$oConfig->GetDBName()."' (prefix: '".$oConfig->GetDBSubname()."'). Please, try selecting another database instance.");
+					throw new Exception("Error: No previous instance of iTop found into the database '".$oConfig->Get('db_name')."' (prefix: '".$oConfig->Get('db_subname')."'). Please, try selecting another database instance.");
 				}
 				else
 				{
-					throw new Exception("Error: No previous instance of iTop found into the database '".$oConfig->GetDBName()."'. Please, try selecting another database instance.");
+					throw new Exception("Error: No previous instance of iTop found into the database '".$oConfig->Get('db_name')."'. Please, try selecting another database instance.");
 				}
 			}
 		}
@@ -610,11 +699,17 @@ class RunTimeEnvironment
 		$oConfig->Set('access_mode', $iPrevAccessMode);
 	}
 	
-	public function RecordInstallation(Config $oConfig, $sDataModelVersion, $aSelectedModules, $sModulesRelativePath, $sShortComment = null)
+	public function RecordInstallation(Config $oConfig, $sDataModelVersion, $aSelectedModuleCodes, $aSelectedExtensionCodes, $sShortComment = null)
 	{
 		// Have it work fine even if the DB has been set in read-only mode for the users
 		$iPrevAccessMode = $oConfig->Get('access_mode');
 		$oConfig->Set('access_mode', ACCESS_FULL);
+
+		if (CMDBSource::DBName() == '')
+		{		
+			// In case this has not yet been done
+			CMDBSource::InitFromConfig($oConfig);
+		}
 
 		if ($sShortComment === null)
 		{
@@ -645,10 +740,11 @@ class RunTimeEnvironment
 		$iMainItopRecord = $oInstallRec->DBInsertNoReload();
 	
 		
-		// Record installed modules
+		// Record installed modules and extensions
 		//
-		$aAvailableModules = $this->AnalyzeInstallation($oConfig, APPROOT.$sModulesRelativePath);
-		foreach($aSelectedModules as $sModuleId)
+		$aAvailableExtensions = array();
+		$aAvailableModules = $this->AnalyzeInstallation($oConfig, $this->GetBuildDir());
+		foreach($aSelectedModuleCodes as $sModuleId)
 		{
 			$aModuleData = $aAvailableModules[$sModuleId];
 			$sName = $sModuleId;
@@ -685,6 +781,30 @@ class RunTimeEnvironment
 			$oInstallRec->Set('installed', $iInstallationTime);
 			$oInstallRec->DBInsertNoReload();
 		}
+		
+		if ($this->oExtensionsMap)
+		{
+			// Mark as chosen the selected extensions code passed to us
+			// Note: some other extensions may already be marked as chosen
+			foreach($this->oExtensionsMap->GetAllExtensions() as $oExtension)
+			{
+				if (in_array($oExtension->sCode, $aSelectedExtensionCodes))
+				{
+					$this->oExtensionsMap->MarkAsChosen($oExtension->sCode);
+				}
+			}
+			
+			foreach($this->oExtensionsMap->GetChoices() as $oExtension)
+			{
+				$oInstallRec = new ExtensionInstallation();
+				$oInstallRec->Set('code', $oExtension->sCode);
+				$oInstallRec->Set('label', $oExtension->sLabel);
+				$oInstallRec->Set('version', $oExtension->sVersion);
+				$oInstallRec->Set('source',  $oExtension->sSource);
+				$oInstallRec->Set('installed', $iInstallationTime);
+				$oInstallRec->DBInsertNoReload();
+			}
+		}
 
 		// Restore the previous access mode
 		$oConfig->Set('access_mode', $iPrevAccessMode);
@@ -699,15 +819,14 @@ class RunTimeEnvironment
 		try
 		{
 			require_once(APPROOT.'/core/cmdbsource.class.inc.php');
-			CMDBSource::Init($oConfig->GetDBHost(), $oConfig->GetDBUser(), $oConfig->GetDBPwd(), $oConfig->GetDBName());
-			CMDBSource::SetCharacterSet($oConfig->GetDBCharacterSet(), $oConfig->GetDBCollation());
-			$sSQLQuery = "SELECT * FROM ".$oConfig->GetDBSubname()."priv_module_install";
+			CMDBSource::InitFromConfig($oConfig);
+			$sSQLQuery = "SELECT * FROM ".$oConfig->Get('db_subname')."priv_module_install";
 			$aSelectInstall = CMDBSource::QueryToArray($sSQLQuery);
 		}
 		catch (MySQLException $e)
 		{
 			// No database or erroneous information
-			$this->log_error('Can not connect to the database: host: '.$oConfig->GetDBHost().', user:'.$oConfig->GetDBUser().', pwd:'.$oConfig->GetDBPwd().', db name:'.$oConfig->GetDBName());
+			$this->log_error('Can not connect to the database: host: '.$oConfig->Get('db_host').', user:'.$oConfig->Get('db_user').', pwd:'.$oConfig->Get('db_pwd').', db name:'.$oConfig->Get('db_name'));
 			$this->log_error('Exception '.$e->getMessage());
 			return false;
 		}
@@ -783,11 +902,30 @@ class RunTimeEnvironment
 	{
 		SetupPage::log_ok($sText);
 	}
+
+	/**
+	 * Writes queries run by the setup in a SQL file
+	 *
+	 * @param string $sQuery
+	 *
+	 * @since 2.5 N°1001 utf8mb4 switch
+	 * @uses \SetupUtils::GetSetupQueriesFilePath()
+	 */
+	protected function log_db_query($sQuery)
+	{
+		$sSetupQueriesFilePath = SetupUtils::GetSetupQueriesFilePath();
+		$hSetupQueriesFile = @fopen($sSetupQueriesFilePath, 'a');
+		if ($hSetupQueriesFile !== false)
+		{
+			fwrite($hSetupQueriesFile, "$sQuery\n");
+			fclose($hSetupQueriesFile);
+		}
+	}
 	
 	public function GetCurrentDataModelVersion()
 	{
 		$oSearch = DBObjectSearch::FromOQL("SELECT ModuleInstallation WHERE name='".DATAMODEL_MODULE."'");
-		$oSet = new DBObjectSet($oSearch, array(), array('installed' => false));
+		$oSet = new DBObjectSet($oSearch, array('installed' => false));
 		$oLatestDM = $oSet->Fetch();
 		if ($oLatestDM == null)
 		{
@@ -795,4 +933,316 @@ class RunTimeEnvironment
 		}
 		return $oLatestDM->Get('version');
 	}
+
+	public function Commit()
+	{
+		if ($this->sFinalEnv != $this->sTargetEnv)
+		{
+			if (file_exists(APPROOT.'data/'.$this->sTargetEnv.'.delta.xml'))
+			{
+				if (file_exists(APPROOT.'data/'.$this->sFinalEnv.'.delta.xml'))
+				{
+					// Make a "previous" file
+					copy(
+						APPROOT.'data/'.$this->sTargetEnv.'.delta.xml',
+						APPROOT.'data/'.$this->sFinalEnv.'.delta.prev.xml'
+					);
+				}
+				$this->CommitFile(
+					APPROOT.'data/'.$this->sTargetEnv.'.delta.xml',
+					APPROOT.'data/'.$this->sFinalEnv.'.delta.xml'
+				);
+			}
+			$this->CommitFile(
+				APPROOT.'data/datamodel-'.$this->sTargetEnv.'.xml',
+				APPROOT.'data/datamodel-'.$this->sFinalEnv.'.xml'
+			);
+			$this->CommitFile(
+				APPROOT.'data/datamodel-'.$this->sTargetEnv.'-with-delta.xml',
+				APPROOT.'data/datamodel-'.$this->sFinalEnv.'-with-delta.xml',
+				false
+			);
+			$this->CommitDir(
+				APPROOT.'data/'.$this->sTargetEnv.'-modules/',
+				APPROOT.'data/'.$this->sFinalEnv.'-modules/',
+				false
+			);
+			$this->CommitDir(
+				APPROOT.'data/cache-'.$this->sTargetEnv,
+				APPROOT.'data/cache-'.$this->sFinalEnv,
+				false
+			);
+			$this->CommitDir(
+				APPROOT.'env-'.$this->sTargetEnv,
+				APPROOT.'env-'.$this->sFinalEnv,
+                true,
+                false
+			);
+
+			// Move the config file
+			//
+			$sTargetConfig = APPCONF.$this->sTargetEnv.'/config-itop.php';
+			$sFinalConfig = APPCONF.$this->sFinalEnv.'/config-itop.php';
+			@chmod($sFinalConfig, 0770); // In case it exists: RWX for owner and group, nothing for others
+			$this->CommitFile($sTargetConfig, $sFinalConfig);
+			@chmod($sFinalConfig, 0440); // Read-only for owner and group, nothing for others
+			@rmdir(dirname($sTargetConfig)); // Cleanup the temporary build dir if empty
+
+			MetaModel::ResetCache(md5(APPROOT).'-'.$this->sFinalEnv);
+		}
+	}
+
+	/**
+	 * Overwrite or create the destination file
+	 *
+	 * @param $sSource
+	 * @param $sDest
+	 * @param bool $bSourceMustExist
+	 * @throws Exception
+	 */
+	protected function CommitFile($sSource, $sDest, $bSourceMustExist = true)
+	{
+		if (file_exists($sSource))
+		{
+			SetupUtils::builddir(dirname($sDest));
+			if (file_exists($sDest))
+			{
+				$bRes = @unlink($sDest);
+				if (!$bRes)
+				{
+					throw new Exception('Commit - Failed to cleanup destination file: '.$sDest);
+				}
+			}
+			rename($sSource, $sDest);
+		}
+		else
+		{
+			// The file does not exist
+			if ($bSourceMustExist)
+			{
+				throw new Exception('Commit - Missing file: '.$sSource);
+			}
+			else
+			{
+				// Align the destination with the source... make sure there is NO file
+				if (file_exists($sDest))
+				{
+					$bRes = @unlink($sDest);
+					if (!$bRes)
+					{
+						throw new Exception('Commit - Failed to cleanup destination file: '.$sDest);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Overwrite or create the destination directory
+	 *
+	 * @param $sSource
+	 * @param $sDest
+	 * @param boolean $bSourceMustExist
+     * @param boolean $bRemoveSource If true $sSource will be removed, otherwise $sSource will just be emptied
+	 * @throws Exception
+	 */
+	protected function CommitDir($sSource, $sDest, $bSourceMustExist = true, $bRemoveSource = true)
+	{
+		if (file_exists($sSource))
+		{
+			SetupUtils::movedir($sSource, $sDest, $bRemoveSource);
+		}
+		else
+		{
+			// The file does not exist
+			if ($bSourceMustExist)
+			{
+				throw new Exception('Commit - Missing directory: '.$sSource);
+			}
+			else
+			{
+				// Align the destination with the source... make sure there is NO file
+				if (file_exists($sDest))
+				{
+					SetupUtils::rrmdir($sDest);
+				}
+			}
+		}
+	}
+	
+	/**
+	 * Call the given handler method for all selected modules having an installation handler
+	 * @param array[] $aAvailableModules
+	 * @param string[] $aSelectedModules
+	 * @param string $sHandlerName
+	 */
+	public function CallInstallerHandlers($aAvailableModules, $aSelectedModules, $sHandlerName)
+	{
+	    foreach($aAvailableModules as $sModuleId => $aModule)
+	    {
+	        if (($sModuleId != ROOT_MODULE) && in_array($sModuleId, $aSelectedModules) &&
+	            isset($aAvailableModules[$sModuleId]['installer']) )
+	        {
+	            $sModuleInstallerClass = $aAvailableModules[$sModuleId]['installer'];
+	            SetupPage::log_info("Calling Module Handler: $sModuleInstallerClass::$sHandlerName(oConfig, {$aModule['version_db']}, {$aModule['version_code']})");
+	            $aCallSpec = array($sModuleInstallerClass, $sHandlerName);
+	            if (is_callable($aCallSpec))
+	            {
+	               call_user_func_array($aCallSpec, array(MetaModel::GetConfig(), $aModule['version_db'], $aModule['version_code']));
+	            }
+	        }
+	    }
+	}
+	
+	/**
+	 * Load data from XML files for the selected modules (structural data and/or sample data)
+	 * @param array[] $aAvailableModules All available modules and their definition
+	 * @param string[] $aSelectedModules List of selected modules
+	 * @param bool $bSampleData Wether or not to load sample data
+	 */
+	public function LoadData($aAvailableModules, $aSelectedModules, $bSampleData)
+	{
+	    $oDataLoader = new XMLDataLoader();
+	    
+	    CMDBObject::SetTrackInfo("Initialization");
+	    $oMyChange = CMDBObject::GetCurrentChange();
+	    
+	    SetupPage::log_info("starting data load session");
+	    $oDataLoader->StartSession($oMyChange);
+	    
+	    $aFiles = array();
+	    $aPreviouslyLoadedFiles = array();
+	    foreach($aAvailableModules as $sModuleId => $aModule)
+	    {
+	        if (($sModuleId != ROOT_MODULE))
+	        {
+	            $sRelativePath = 'env-'.$this->sTargetEnv.'/'.basename($aModule['root_dir']);
+	            // Load data only for selected AND newly installed modules
+	            if (in_array($sModuleId, $aSelectedModules))
+	            {
+	                if ($aModule['version_db'] != '')
+	                {
+	                    // Simulate the load of the previously loaded XML files to get the mapping of the keys
+	                    if ($bSampleData)
+	                    {
+	                        $aPreviouslyLoadedFiles = static::MergeWithRelativeDir($aPreviouslyLoadedFiles, $sRelativePath, $aAvailableModules[$sModuleId]['data.struct']);
+	                        $aPreviouslyLoadedFiles = static::MergeWithRelativeDir($aPreviouslyLoadedFiles, $sRelativePath, $aAvailableModules[$sModuleId]['data.sample']);
+	                    }
+	                    else
+	                    {
+	                        // Load only structural data
+	                        $aPreviouslyLoadedFiles = static::MergeWithRelativeDir($aPreviouslyLoadedFiles, $sRelativePath, $aAvailableModules[$sModuleId]['data.struct']);
+	                    }
+	                }
+	                else
+	                {
+	                    if ($bSampleData)
+	                    {
+	                        $aFiles = static::MergeWithRelativeDir($aFiles, $sRelativePath, $aAvailableModules[$sModuleId]['data.struct']);
+	                        $aFiles = static::MergeWithRelativeDir($aFiles, $sRelativePath, $aAvailableModules[$sModuleId]['data.sample']);
+	                    }
+	                    else
+	                    {
+	                        // Load only structural data
+	                        $aFiles = static::MergeWithRelativeDir($aFiles, $sRelativePath, $aAvailableModules[$sModuleId]['data.struct']);
+	                    }
+	                }
+	            }
+	        }
+	    }
+	    
+	    // Simulate the load of the previously loaded files, in order to initialize
+	    // the mapping between the identifiers in the XML and the actual identifiers
+	    // in the current database
+	    foreach($aPreviouslyLoadedFiles as $sFileRelativePath)
+	    {
+	        $sFileName = APPROOT.$sFileRelativePath;
+	        SetupPage::log_info("Loading file: $sFileName (just to get the keys mapping)");
+	        if (empty($sFileName) || !file_exists($sFileName))
+	        {
+	            throw(new Exception("File $sFileName does not exist"));
+	        }
+	        
+	        $oDataLoader->LoadFile($sFileName, true);
+	        $sResult = sprintf("loading of %s done.", basename($sFileName));
+	        SetupPage::log_info($sResult);
+	    }
+	    
+	    foreach($aFiles as $sFileRelativePath)
+	    {
+	        $sFileName = APPROOT.$sFileRelativePath;
+	        SetupPage::log_info("Loading file: $sFileName");
+	        if (empty($sFileName) || !file_exists($sFileName))
+	        {
+	            throw(new Exception("File $sFileName does not exist"));
+	        }
+	        
+	        $oDataLoader->LoadFile($sFileName);
+	        $sResult = sprintf("loading of %s done.", basename($sFileName));
+	        SetupPage::log_info($sResult);
+	    }
+	    
+	    $oDataLoader->EndSession();
+	    SetupPage::log_info("ending data load session");
+	}
+	
+	/**
+	 * Merge two arrays of file names, adding the relative path to the files provided in the array to merge
+	 * @param string[] $aSourceArray
+	 * @param string $sBaseDir
+	 * @param string[] $aFilesToMerge
+	 * @return string[]
+	 */
+	protected static function MergeWithRelativeDir($aSourceArray, $sBaseDir, $aFilesToMerge)
+	{
+	    $aToMerge = array();
+	    foreach($aFilesToMerge as $sFile)
+	    {
+	        $aToMerge[] = $sBaseDir.'/'.$sFile;
+	    }
+	    return array_merge($aSourceArray, $aToMerge);
+	}
+	
+	/**
+	 * Check the MetaModel for some common pitfall (class name too long, classes requiring too many joins...)
+	 * The check takes about 900 ms for 200 classes
+	 * @throws Exception
+	 * @return string
+	 */
+    public function CheckMetaModel()
+    {
+        $iCount = 0;
+        $fStart = microtime(true);
+        foreach(MetaModel::GetClasses() as $sClass)
+        {
+            if (false == MetaModel::HasTable($sClass) && MetaModel::IsAbstract($sClass))
+            {
+                //if a class is not persisted and is abstract, the code below would crash. Needed by the class AbstractRessource. This is tolerable to skip this because we check the setup process integrity, not the datamodel integrity.
+                continue;
+            }
+
+            $oSearch = new DBObjectSearch($sClass);
+            $oSearch->SetShowObsoleteData(false);
+            $oSQLQuery = $oSearch->GetSQLQueryStructure(null, false);
+            $sViewName = MetaModel::DBGetView($sClass);
+            if (strlen($sViewName) > 64)
+            {
+                throw new Exception("Class name too long for class: '$sClass'. The name of the corresponding view ($sViewName) would exceed MySQL's limit for the name of a table (64 characters).");
+            }
+            $sTableName = MetaModel::DBGetTable($sClass);
+            if (strlen($sTableName) > 64)
+            {
+                throw new Exception("Table name too long for class: '$sClass'. The name of the corresponding MySQL table ($sTableName) would exceed MySQL's limit for the name of a table (64 characters).");
+            }
+            $iTableCount = $oSQLQuery->CountTables();
+            if ($iTableCount > 61)
+            {
+                throw new Exception("Class requiring too many tables: '$sClass'. The structure of the class ($sClass) would require a query with more than 61 JOINS (MySQL's limitation).");
+            }
+            $iCount++;
+        }
+        $fDuration = microtime(true) - $fStart;
+        
+        return sprintf("Checked %d classes in %.1f ms. No error found.\n", $iCount, $fDuration*1000.0);
+    }
 } // End of class

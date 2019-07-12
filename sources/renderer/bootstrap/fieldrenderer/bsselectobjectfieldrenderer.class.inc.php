@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (C) 2010-2016 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,18 +19,15 @@
 
 namespace Combodo\iTop\Renderer\Bootstrap\FieldRenderer;
 
-use \Exception;
-use \CoreException;
-use \utils;
-use \IssueLog;
-use \Dict;
-use \UserRights;
-use \InlineImage;
-use \DBObjectSet;
-use \MetaModel;
-use \Combodo\iTop\Renderer\FieldRenderer;
-use \Combodo\iTop\Renderer\RenderingOutput;
-use \Combodo\iTop\Form\Field\SelectObjectField;
+use Combodo\iTop\Renderer\FieldRenderer;
+use Combodo\iTop\Renderer\RenderingOutput;
+use ContextTag;
+use CoreException;
+use DBObjectSet;
+use Dict;
+use Exception;
+use IssueLog;
+use MetaModel;
 
 /**
  * Description of BsSelectObjectFieldRenderer
@@ -40,14 +37,20 @@ use \Combodo\iTop\Form\Field\SelectObjectField;
 class BsSelectObjectFieldRenderer extends FieldRenderer
 {
 
-	/**
-	 * Returns a RenderingOutput for the FieldRenderer's Field
-	 *
-	 * @return \Combodo\iTop\Renderer\RenderingOutput
-	 */
+    /**
+     * Returns a RenderingOutput for the FieldRenderer's Field
+     *
+     * @return \Combodo\iTop\Renderer\RenderingOutput
+     *
+     * @throws \Exception
+     * @throws \CoreException
+     * @throws \ArchivedObjectException
+     */
 	public function Render()
 	{
 		$oOutput = new RenderingOutput();
+        $oOutput->AddCssClass('form_field_' . $this->oField->GetDisplayMode());
+
 		$sFieldValueClass = $this->oField->GetSearch()->GetClass();
 		$sFieldMandatoryClass = ($this->oField->GetMandatory()) ? 'form_mandatory' : '';
 		$iFieldControlType = $this->oField->GetControlType();
@@ -58,12 +61,26 @@ class BsSelectObjectFieldRenderer extends FieldRenderer
 		// Rendering field in edition mode
 		if (!$this->oField->GetReadOnly() && !$this->oField->GetHidden())
 		{
+		    // Debug trace: This is very useful when this kind of field doesn't return the expected values.
+            if(ContextTag::Check('debug'))
+            {
+                IssueLog::Info('Form field #'.$this->oField->GetId().' OQL query: '.$this->oField->GetSearch()->ToOQL(true));
+            }
+
 			// Rendering field
-			$oOutput->AddHtml('<div class="form-group ' . $sFieldMandatoryClass . '">');
+            // - Opening container
+			$oOutput->AddHtml('<div class="form-group form_group_small ' . $sFieldMandatoryClass . '">');
+
+			// Label
+            $oOutput->AddHtml('<div class="form_field_label">');
 			if ($this->oField->GetLabel() !== '')
 			{
 				$oOutput->AddHtml('<label for="' . $this->oField->GetGlobalId() . '" class="control-label">')->AddHtml($this->oField->GetLabel(), true)->AddHtml('</label>');
 			}
+            $oOutput->AddHtml('</div>');
+
+            // Value
+            $oOutput->AddHtml('<div class="form_field_control">');
 			$oOutput->AddHtml('<div class="help-block"></div>');
 			// - As a select
 			// TODO : This should be changed when we do the radio button display. For now we display everything with select
@@ -75,8 +92,7 @@ class BsSelectObjectFieldRenderer extends FieldRenderer
 				$oCountSet = new DBObjectSet($oSearch);
 				$iSetCount = $oCountSet->Count();
 				// Note : Autocomplete/Search is disabled for template fields as they are not external keys, thus they will just be displayed as regular select.
-				//$bRegularSelect = ($iSetCount <= $this->oField->GetMaximumComboLength());
-				$bRegularSelect = ( ($iSetCount <= $this->oField->GetMaximumComboLength()) || ($this->oField->GetSearchEndpoint() === null) || ($this->oField->GetSearchEndpoint() === '') );
+				$bRegularSelect = ( ($iSetCount < $this->oField->GetMaximumComboLength()) || ($this->oField->GetSearchEndpoint() === null) || ($this->oField->GetSearchEndpoint() === '') );
 				unset($oCountSet);
 
 				// - For regular select
@@ -91,6 +107,7 @@ class BsSelectObjectFieldRenderer extends FieldRenderer
 					$oOutput->AddHtml('<option value="">')->AddHtml(Dict::S('UI:SelectOne'), false)->AddHtml('</option>');
 					// - Retrieving choices
 					$oChoicesSet = new DBObjectSet($oSearch);
+					$oChoicesSet->OptimizeColumnLoad(array($oSearch->GetClassAlias() => array('friendlyname')));
 					while ($oChoice = $oChoicesSet->Fetch())
 					{
 						// Note : The test is a double equal on purpose as the type of the value received from the XHR is not always the same as the type of the allowed values. (eg : string vs int)
@@ -139,7 +156,8 @@ EOF
 					$sNoResultText = Dict::S('Portal:Autocomplete:NoResult');
 					
 					// Retrieving field value
-					if (($this->oField->GetCurrentValue() !== null) && ($this->oField->GetCurrentValue() !== 0) && ($this->oField->GetCurrentValue() !== ''))
+                    $currentValue = $this->oField->GetCurrentValue();
+                    if (!empty($currentValue))
 					{
 						try
 						{
@@ -159,24 +177,18 @@ EOF
 					}
 
 					// HTML for autocomplete part
-					// - Opening row
-					$oOutput->AddHtml('<div class="row">');
-					// - Rendering autocomplete search
-					$oOutput->AddHtml('<div class="col-xs-' . ( $this->oField->GetHierarchical() ? 9 : 10 ) . ' col-sm-' . ( $this->oField->GetHierarchical() ? 8 : 9 ) . ' col-md-' . ( $this->oField->GetHierarchical() ? 8 : 10 ) . ' col-lg-' . ( $this->oField->GetHierarchical() ? 9 : 10 ) . '">');
-					$oOutput->AddHtml('<input type="text" id="' . $sAutocompleteFieldId . '" name="' . $sAutocompleteFieldId . '" value="')->AddHtml($sFieldValue)->AddHtml('" data-target-id="' . $this->oField->GetGlobalId() . ' "class="form-control" />');
-					$oOutput->AddHtml('<input type="hidden" id="' . $this->oField->GetGlobalId() . '" name="' . $this->oField->GetId() . '" value="' . $this->oField->GetCurrentValue() . '" />');
-					$oOutput->AddHtml('</div>');
-					// - Rendering buttons
-					$oOutput->AddHtml('<div class="col-xs-' . ( $this->oField->GetHierarchical() ? 3 : 2 ) . ' col-sm-' . ( $this->oField->GetHierarchical() ? 4 : 3 ) . ' col-md-' . ( $this->oField->GetHierarchical() ? 4 : 2 ) . ' col-lg-' . ( $this->oField->GetHierarchical() ? 3 : 2 ) . ' text-right">');
-					$oOutput->AddHtml('<div class="btn-group" role="group">');
-					//   - Rendering hierarchy button
-					$this->RenderHierarchicalSearch($oOutput);
-					//   - Rendering regular search
-					$this->RenderRegularSearch($oOutput);
-					$oOutput->AddHtml('</div>');
-					$oOutput->AddHtml('</div>');
-					// - Closing row
-					$oOutput->AddHtml('</div>');
+                    // - Opening input group
+                    $oOutput->AddHtml('<div class="input-group selectobject">');
+                    // - Rendering autocomplete search
+                    $oOutput->AddHtml('<input type="text" id="' . $sAutocompleteFieldId . '" name="' . $sAutocompleteFieldId . '" value="')->AddHtml($sFieldValue)->AddHtml('" data-target-id="' . $this->oField->GetGlobalId() . ' "class="form-control" />');
+                    $oOutput->AddHtml('<input type="hidden" id="' . $this->oField->GetGlobalId() . '" name="' . $this->oField->GetId() . '" value="' . $this->oField->GetCurrentValue() . '" />');
+                    // - Rendering buttons
+                    //   - Rendering hierarchy button
+                    $this->RenderHierarchicalSearch($oOutput);
+                    //   - Rendering regular search
+                    $this->RenderRegularSearch($oOutput);
+                    // - Closing input group
+                    $oOutput->AddHtml('</div>');
 
 					// JS FieldChange trigger (:input are not always at the same depth)
 					// Note : Not used for that field type
@@ -297,6 +309,9 @@ EOF
 					);
 				}
 			}
+            $oOutput->AddHtml('</div>');
+
+            // - Closing container
 			$oOutput->AddHtml('</div>');
 		}
 		// ... and in read-only mode (or hidden)
@@ -314,43 +329,31 @@ EOF
 				$sFieldValue = Dict::S('UI:UndefinedObject');
 			}
 
-			$oOutput->AddHtml('<div class="form-group">');
+			// Opening container
+			$oOutput->AddHtml('<div class="form-group form_group_small">');
+
 			// Showing label / value only if read-only but not hidden
 			if (!$this->oField->GetHidden())
 			{
+			    // Label
+                $oOutput->AddHtml('<div class="form_field_label">');
 				if ($this->oField->GetLabel() !== '')
 				{
 					$oOutput->AddHtml('<label for="' . $this->oField->GetGlobalId() . '" class="control-label">')->AddHtml($this->oField->GetLabel(), true)->AddHtml('</label>');
 				}
+                $oOutput->AddHtml('</div>');
+
+                // Value
+                $oOutput->AddHtml('<div class="form_field_control">');
 				$oOutput->AddHtml('<div class="form-control-static">' . $sFieldValue . '</div>');
+                $oOutput->AddHtml('</div>');
 			}
+
+			// Adding hidden value
 			$oOutput->AddHtml('<input type="hidden" id="' . $this->oField->GetGlobalId() . '" name="' . $this->oField->GetId() . '" value="' . $this->oField->GetCurrentValue() . '" class="form-control" />');
+
+			// Closing container
 			$oOutput->AddHtml('</div>');
-
-
-			// JS FieldChange trigger (:input are not always at the same depth)
-			$oOutput->AddJs(
-<<<EOF
-				$("#{$this->oField->GetGlobalId()}").off("change keyup").on("change keyup", function(){
-					var me = this;
-
-					$(this).closest(".field_set").trigger("field_change", {
-						id: $(me).attr("id"),
-						name: $(me).closest(".form_field").attr("data-field-id"),
-						value: $(me).val()
-					});
-				});
-EOF
-			);
-
-			// Attaching JS widget
-			$oOutput->AddJs(
-<<<EOF
-				$("[data-field-id='{$this->oField->GetId()}'][data-form-path='{$this->oField->GetFormPath()}']").portal_form_field({
-					'validators': {$this->GetValidatorsAsJson()}
-				});
-EOF
-			);
 		}
 
 		return $oOutput;
@@ -363,12 +366,12 @@ EOF
 	 */
 	protected function RenderHierarchicalSearch(RenderingOutput &$oOutput)
 	{
-		if ($this->oField->GetHierarchical())
-		{
+        if ($this->oField->GetHierarchical())
+        {
 			$sHierarchicalButtonId = 's_hi_' . $this->oField->GetGlobalId();
 			$sEndpoint = str_replace('-sMode-', 'hierarchy', $this->oField->GetSearchEndpoint());
 
-			$oOutput->AddHtml('<button type="button" class="btn btn-default" id="' . $sHierarchicalButtonId . '"><span class="glyphicon glyphicon-ext-hierarchy"></span></button>');
+			$oOutput->AddHtml('<div class="input-group-addon" id="' . $sHierarchicalButtonId . '"><span class="fa fa-sitemap"></span></div>');
 
 			$oOutput->AddJs(
 <<<EOF
@@ -386,7 +389,14 @@ EOF
 						{
 							sFormPath: '{$this->oField->GetFormPath()}',
 							sFieldId: '{$this->oField->GetId()}'
-						}
+						},
+                        function(sResponseText, sStatus, oXHR){
+                            // Hiding modal in case of error as the general AJAX error handler will display a message
+                            if(sStatus === 'error')
+                            {
+                                oModalElem.modal('hide');
+                            }
+                        }
 					);
 					oModalElem.modal('show');
 				});
@@ -405,8 +415,8 @@ EOF
 		$sSearchButtonId = 's_rg_' . $this->oField->GetGlobalId();
 		$sEndpoint = str_replace('-sMode-', 'from-attribute', $this->oField->GetSearchEndpoint());
 
-		$oOutput->AddHtml('<button type="button" class="btn btn-default" id="' . $sSearchButtonId . '"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></button>');
-		
+        $oOutput->AddHtml('<div class="input-group-addon" id="' . $sSearchButtonId . '"><span class="glyphicon glyphicon-search" aria-hidden="true"></span></div>');
+
 		$oOutput->AddJs(
 <<<EOF
 			$('#{$sSearchButtonId}').off('click').on('click', function(){
@@ -433,7 +443,14 @@ EOF
 						formmanager_class: $(this).closest('.portal_form_handler').portal_form_handler('getOptions').formmanager_class,
 						formmanager_data: JSON.stringify($(this).closest('.portal_form_handler').portal_form_handler('getOptions').formmanager_data),
 						current_values: $(this).closest('.portal_form_handler').portal_form_handler('getCurrentValues')
-					}
+					},
+                    function(sResponseText, sStatus, oXHR){
+                        // Hiding modal in case of error as the general AJAX error handler will display a message
+                        if(sStatus === 'error')
+                        {
+                            oModalElem.modal('hide');
+                        }
+                    }
 				);
 				oModalElem.modal('show');
 			});

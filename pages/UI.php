@@ -73,22 +73,26 @@ EOF
 
 /**
  * Apply the 'next-action' to the given object or redirect to the page that prompts for additional information if needed
+ *
  * @param $oP WebPage The page for the output
  * @param $oObj CMDBObject The object to process
  * @param $sNextAction string The code of the stimulus for the 'action' (i.e. Transition) to apply
+ *
+ * @throws \ApplicationException
+ * @throws \CoreException
+ * @throws \CoreUnexpectedValue
  */
 function ApplyNextAction(Webpage $oP, CMDBObject $oObj, $sNextAction)
 {
 	// Here handle the apply stimulus
 	$aTransitions = $oObj->EnumTransitions();
-	$aStimuli = MetaModel::EnumStimuli(get_class($oObj));
 	if (!isset($aTransitions[$sNextAction]))
 	{
 		// Invalid stimulus
 		throw new ApplicationException(Dict::Format('UI:Error:Invalid_Stimulus_On_Object_In_State', $sNextAction, $oObj->GetName(), $oObj->GetStateLabel()));
 	}
 	// Get the list of missing mandatory fields for the target state, considering only the changes from the previous form (i.e don't prompt twice)
-	$aExpectedAttributes = $oObj->GetExpectedAttributes($oObj->GetState(), $sNextAction, true /* $bOnlyNewOnes */);
+	$aExpectedAttributes = $oObj->GetTransitionAttributes($sNextAction);
 	
 	if (count($aExpectedAttributes) == 0)
 	{
@@ -118,19 +122,29 @@ function ReloadAndDisplay($oPage, $oObj, $sMessageId = '', $sMessage = '', $sSev
 	}
 	$oPage->add_header('Location: '.utils::GetAbsoluteUrlAppRoot().'pages/UI.php?operation=details&class='.get_class($oObj).'&id='.$oObj->getKey().'&'.$oAppContext->GetForLink());
 }
+
 /**
  * Displays the details of an object
  * @param $oP WebPage Page for the output
  * @param $sClass string The name of the class of the object
  * @param $oObj DBObject The object to display
  * @param $id mixed Identifier of the object (name or ID)
- */
+ * @throws \CoreException
+ * @throws \DictExceptionMissingString
+ * @throws \SecurityException
+*/
 function DisplayDetails($oP, $sClass, $oObj, $id)
 {
 	$sClassLabel = MetaModel::GetName($sClass);
-	$oSearch = new DBObjectSearch($sClass);
-	$oBlock = new DisplayBlock($oSearch, 'search', false);
-	$oBlock->Display($oP, 0);
+
+// 2018-04-11 : removal of the search block
+//	$oSearch = new DBObjectSearch($sClass);
+//	$oBlock = new DisplayBlock($oSearch, 'search', false);
+//	$oBlock->Display($oP, 0, array(
+//		'table_id'  => 'search-widget-results-outer',
+//		'open'      => false,
+//		'update_history' => false,
+//	));
 
 	// The object could be listed, check if it is actually allowed to view it
 	$oSet = CMDBObjectSet::FromObject($oObj);
@@ -164,8 +178,26 @@ function DisplayMessages($sMessageKey, WebPage $oPage)
 		foreach ($aMessages as $sMessage)
 		{
 			$oPage->add($sMessage);
-		}		
+		}
 	}
+}
+
+/**
+ * Helper to update the breadrumb for the current object
+ * @param DBObject $oObj
+ * @param WebPage $oPage
+ * @throws \CoreException
+ * @throws \DictExceptionMissingString
+*/
+function SetObjectBreadCrumbEntry(DBObject $oObj, WebPage $oPage)
+{
+	$sClass = get_class($oObj); // get the leaf class
+	$sIcon = MetaModel::GetClassIcon($sClass, false);
+	if ($sIcon == '')
+	{
+		$sIcon = utils::GetAbsoluteUrlAppRoot().'images/breadcrumb_object.png';
+	}
+	$oPage->SetBreadCrumbEntry("ui-details-$sClass-".$oObj->GetKey(), $oObj->Get('friendlyname'), MetaModel::GetName($sClass).': '.$oObj->Get('friendlyname'), '', $sIcon);
 }
 
 /**
@@ -177,12 +209,14 @@ function DisplayMessages($sMessageKey, WebPage $oPage)
  * @param $sFormat string The format to use for the output: csv or html
  * @param $bDoSearch bool True to display the search results below the search form
  * @param $bSearchFormOpen bool True to display the search form fully expanded (only if $bSearchForm of course)
+ * @throws \CoreException
+ * @throws \DictExceptionMissingString
  */
-function DisplaySearchSet($oP, $oFilter, $bSearchForm = true, $sBaseClass = '', $sFormat = '', $bDoSearch = true, $bSearchFormOpen = false)
+function DisplaySearchSet($oP, $oFilter, $bSearchForm = true, $sBaseClass = '', $sFormat = '', $bDoSearch = true, $bSearchFormOpen = true)
 {
 	if ($bSearchForm)
 	{
-		$aParams = array('open' => $bSearchFormOpen);
+		$aParams = array('open' => $bSearchFormOpen, 'table_id' => '1');
 		if (!empty($sBaseClass))
 		{
 			$aParams['baseClass'] = $sBaseClass;
@@ -216,21 +250,22 @@ function DisplaySearchSet($oP, $oFilter, $bSearchForm = true, $sBaseClass = '', 
 /**
  * Displays a form (checkboxes) to select the objects for which to apply a given action
  * Only the objects for which the action is valid can be checked. By default all valid objects are checked
- * @param $oP WebPage The page for output
- * @param $oFilter DBSearch The filter that defines the list of objects
-  * @param $sNextOperation string The next operation (code) to be executed when the form is submitted
- * @param $oChecker ActionChecker The helper class/instance used to check for which object the action is valid
- * @return none
+ *
+ * @param \WebPage $oP WebPage The page for output
+ * @param \DBSearch $oFilter DBSearch The filter that defines the list of objects
+ * @param string $sNextOperation string The next operation (code) to be executed when the form is submitted
+ * @param ActionChecker $oChecker ActionChecker The helper class/instance used to check for which object the action is valid
+ * @param array $aExtraFormParams
+ *
+ * @throws \ApplicationException
  */
 function DisplayMultipleSelectionForm($oP, $oFilter, $sNextOperation, $oChecker, $aExtraFormParams = array())
 {
 		$oAppContext = new ApplicationContext();
 		$iBulkActionAllowed = $oChecker->IsAllowed();
-		$sClass = $oFilter->GetClass();
 		$aExtraParams = array('selection_type' => 'multiple', 'selection_mode' => true, 'display_limit' => false, 'menu' => false);
 		if ($iBulkActionAllowed == UR_ALLOWED_DEPENDS)
 		{
-			$aAllowed = array();
 			$aExtraParams['selection_enabled'] = $oChecker->GetAllowedIDs();
 		}
 		else if(UR_ALLOWED_NO)
@@ -242,7 +277,7 @@ function DisplayMultipleSelectionForm($oP, $oFilter, $sNextOperation, $oChecker,
 		$oP->add("<form method=\"post\" action=\"./UI.php\">\n");
 		$oP->add("<input type=\"hidden\" name=\"operation\" value=\"$sNextOperation\">\n");
 		$oP->add("<input type=\"hidden\" name=\"class\" value=\"".$oFilter->GetClass()."\">\n");
-		$oP->add("<input type=\"hidden\" name=\"filter\" value=\"".$oFilter->Serialize()."\">\n");
+	$oP->add("<input type=\"hidden\" name=\"filter\" value=\"".htmlentities($oFilter->Serialize(), ENT_QUOTES, 'UTF-8')."\">\n");
 		$oP->add("<input type=\"hidden\" name=\"transaction_id\" value=\"".utils::GetNewTransactionId()."\">\n");
 		foreach($aExtraFormParams as $sName => $sValue)
 		{
@@ -303,14 +338,15 @@ function DisplayNavigatorGroupTab($oP)
  * Main user interface page starts here
  *
  ***********************************************************************************/
+require_once('../approot.inc.php');
+require_once(APPROOT.'/application/application.inc.php');
+require_once(APPROOT.'/application/itopwebpage.class.inc.php');
+require_once(APPROOT.'/application/wizardhelper.class.inc.php');
+
+require_once(APPROOT.'/application/startup.inc.php');
+
 try
 {
-	require_once('../approot.inc.php');
-	require_once(APPROOT.'/application/application.inc.php');
-	require_once(APPROOT.'/application/itopwebpage.class.inc.php');
-	require_once(APPROOT.'/application/wizardhelper.class.inc.php');
-
-	require_once(APPROOT.'/application/startup.inc.php');
 	$operation = utils::ReadParam('operation', '');
 	$bPrintable = (utils::ReadParam('printable', 0) == '1');
 
@@ -327,7 +363,6 @@ try
 
 	$oP = new iTopWebPage(Dict::S('UI:WelcomeToITop'), $bPrintable);
 	$oP->SetMessage($sLoginMessage);
-
 
 	// All the following actions use advanced forms that require more javascript to be loaded
 	switch($operation)
@@ -377,7 +412,27 @@ try
 				$sMessageKey = $sClass.'::'.$id;
 				DisplayMessages($sMessageKey, $oP);
 				$oP->set_title(Dict::S('UI:ErrorPageTitle'));
-				$oP->P(Dict::S('UI:ObjectDoesNotExist'));
+
+				// Attempt to load the object in archive mode
+				utils::PushArchiveMode(true);
+				if (is_numeric($id))
+				{
+					$oObj = MetaModel::GetObject($sClass, $id, false /* MustBeFound */);
+				}
+				else
+				{
+					$oObj = MetaModel::GetObjectByName($sClass, $id, false /* MustBeFound */);
+				}
+				utils::PopArchiveMode();
+				if (is_null($oObj))
+				{
+					$oP->P(Dict::S('UI:ObjectDoesNotExist'));
+				}
+				else
+				{
+					SetObjectBreadCrumbEntry($oObj, $oP);
+					$oP->P(Dict::S('UI:ObjectArchived'));
+				}
 			}
 			else
 			{
@@ -399,20 +454,14 @@ try
 				}
 				if (!is_null($oObj))
 				{
-					$sClass = get_class($oObj); // get the leaf class
-					$sIcon = MetaModel::GetClassIcon($sClass, false);
-					if ($sIcon == '')
-					{
-						$sIcon = utils::GetAbsoluteUrlAppRoot().'images/breadcrumb_object.png';
-					}
-					$oP->SetBreadCrumbEntry("ui-details-$sClass-$id", $oObj->Get('friendlyname'), MetaModel::GetName($sClass).': '.$oObj->Get('friendlyname'), '', $sIcon);
+					SetObjectBreadCrumbEntry($oObj, $oP);
 					DisplayDetails($oP, $sClass, $oObj, $id);
 				}				
 			}
 		break;
 
 		case 'release_lock_and_details':
-		$oP->DisableBreadCrumb();
+        $oP->DisableBreadCrumb();
 		$sClass = utils::ReadParam('class', '');
 		$id = utils::ReadParam('id', '');
 		$oObj = MetaModel::GetObject($sClass, $id);
@@ -452,9 +501,9 @@ try
 				if ($bSearchForm)
 				{
 					$oBlock = new DisplayBlock($oFilter, 'search', false);
-					$oBlock->Display($oP, 0);
+					$oBlock->Display($oP, 0, array('table_id' => 'search-widget-result-outer'));
 				}
-				$oP->P('<b>'.Dict::Format('UI:Error:IncorrectOQLQuery_Message', $e->getHtmlDesc()).'</b>');
+				$oP->add('<div id="search-widget-result-outer"><p><b>'.Dict::Format('UI:Error:IncorrectOQLQuery_Message', $e->getHtmlDesc()).'</b></p></div>');
 			}
 			catch(Exception $e)
 			{
@@ -489,8 +538,8 @@ try
 				throw new ApplicationException(Dict::Format('UI:Error:1ParametersMissing', 'filter'));
 			}
 			$oP->set_title(Dict::S('UI:SearchResultsPageTitle'));
-			// TO DO: limit the search filter by the user context
 			$oFilter = DBSearch::unserialize($sFilter); // TO DO : check that the filter is valid
+			$oFilter->UpdateContextFromUser();
 			DisplaySearchSet($oP, $oFilter, $bSearchForm, '' /* sBaseClass */, $sFormat);
 		break;
 	
@@ -541,11 +590,22 @@ try
 					if (strlen($sNeedle) < $iMinLenth)
 					{
 						$oP->p(Dict::Format('UI:Search:NeedleTooShort', $sNeedle, $iMinLenth));
-						$iErrors++;
+						$key = array_search($sNeedle, $aFullTextNeedles);
+						if($key!== false)
+						{
+							unset($aFullTextNeedles[$key]);
+						}
 					}
 				}
+				if(empty($aFullTextNeedles))
+				{
+					$oP->p(Dict::S('UI:Search:NoSearch'));
+					break;
+				}
+				$sFullText = implode(' ', $aFullTextNeedles);
 
 				// Sanity check of the accelerators
+				/** @var array $aAccelerators */
 				$aAccelerators = MetaModel::GetConfig()->Get('full_text_accelerators');
 				foreach ($aAccelerators as $sClass => $aAccelerator)
 				{
@@ -576,9 +636,6 @@ try
 					$sLabel = Dict::S('UI:SearchResultsTitle');
 					$sDescription = Dict::S('UI:SearchResultsTitle+');
 					$oP->SetBreadCrumbEntry($sPageId, $sLabel, $sDescription, '', utils::GetAbsoluteUrlAppRoot().'images/search.png');
-					$oP->add_linked_script(utils::GetAbsoluteUrlAppRoot().'js/tabularfieldsselector.js');
-					$oP->add_linked_script(utils::GetAbsoluteUrlAppRoot().'js/jquery.dragtable.js');
-					$oP->add_linked_stylesheet(utils::GetAbsoluteUrlAppRoot().'css/dragtable.css');					
 					$oP->add("<div style=\"padding: 10px;\">\n");
 					$oP->add("<div class=\"header_message\" id=\"full_text_progress\" style=\"position: fixed; background-color: #cccccc; opacity: 0.7; padding: 1.5em;\">\n");
 					$oP->add('<img id="full_text_indicator" src="../images/indicator.gif">&nbsp;<span style="padding: 1.5em;">'.Dict::Format('UI:Search:Ongoing', htmlentities($sFullText, ENT_QUOTES, 'UTF-8')).'</span>');
@@ -646,9 +703,10 @@ EOF
 		{
 			throw new ApplicationException(Dict::Format('UI:Error:1ParametersMissing', 'filter'));
 		}
-		// TO DO: limit the search filter by the user context
-		$oFilter = DBObjectSearch::unserialize($sFilter); // TO DO : check that the filter is valid
-		$sClass = $oFilter->GetClass();	
+		$oFilter = DBObjectSearch::unserialize($sFilter); //TODO : check that the filter is valid
+		// Add user filter
+		$oFilter->UpdateContextFromUser();
+		$sClass = $oFilter->GetClass();
 		$oChecker = new ActionChecker($oFilter, UR_ACTION_BULK_MODIFY);
 		$oP->add("<h1>".Dict::S('UI:ModifyAllPageTitle')."</h1>\n");			
 		
@@ -661,9 +719,11 @@ EOF
 		$sFilter = utils::ReadParam('filter', '', false, 'raw_data');
 		$sClass = utils::ReadParam('class', '', false, 'class');
 		$oFullSetFilter = DBObjectSearch::unserialize($sFilter);
+		// Add user filter
+		$oFullSetFilter->UpdateContextFromUser();
 		$aSelectedObj = utils::ReadMultipleSelection($oFullSetFilter);
 		$sCancelUrl = "./UI.php?operation=search&filter=".urlencode($sFilter)."&".$oAppContext->GetForLink();
-		$aContext = array('filter' => $sFilter);
+		$aContext = array('filter' => htmlentities($sFilter, ENT_QUOTES, 'UTF-8'));
 		cmdbAbstractObject::DisplayBulkModifyForm($oP, $sClass, $aSelectedObj, 'preview_or_modify_all', $sCancelUrl, array(), $aContext);
 		break;
 		
@@ -672,8 +732,9 @@ EOF
 		case 'preview_or_modify_all': // Preview or apply bulk modify
 		$oP->DisableBreadCrumb();
 		$sFilter = utils::ReadParam('filter', '', false, 'raw_data');
-		// TO DO: limit the search filter by the user context
 		$oFilter = DBObjectSearch::unserialize($sFilter); // TO DO : check that the filter is valid
+		// Add user filter
+		$oFilter->UpdateContextFromUser();
 		$oChecker = new ActionChecker($oFilter, UR_ACTION_BULK_MODIFY);
 
 		$sClass = utils::ReadParam('class', '', false, 'class');
@@ -686,7 +747,7 @@ EOF
 		$aSelectedObj = explode(',', $sSelectedObj);
 		$sCancelUrl = "./UI.php?operation=search&filter=".urlencode($sFilter)."&".$oAppContext->GetForLink();
 		$aContext = array(
-			'filter' => $sFilter,
+			'filter' => htmlentities($sFilter, ENT_QUOTES, 'UTF-8'),
 			'selectObj' => $sSelectedObj,
 		);
 		cmdbAbstractObject::DoBulkModify($oP, $sClass, $aSelectedObj, 'preview_or_modify_all', $bPreview, $sCancelUrl, $aContext);
@@ -751,9 +812,14 @@ EOF
 
 				// 1st - set context values
 				$oAppContext->InitObjectFromContext($oObjToClone);
-
 				// 2nd - set values from the page argument 'default'
 				$oObjToClone->UpdateObjectFromArg('default');
+				$aPrefillFormParam = array( 'user' => $_SESSION["auth_user"],
+					'context' => $oAppContext->GetAsHash(),
+					'default' => utils::ReadParam('default', array(), '', 'raw_data'),
+					'origin' => 'console'
+				);
+				$oObjToClone->PrefillForm('creation_from_0',$aPrefillFormParam);
 
 				cmdbAbstractObject::DisplayCreationForm($oP, $sRealClass, $oObjToClone, array());
 				$oP->add("</div>\n");
@@ -819,7 +885,7 @@ EOF
 			$sClass = utils::ReadPostedParam('class', '');
 			$sClassLabel = MetaModel::GetName($sClass);
 			$id = utils::ReadPostedParam('id', '');
-			$sTransactionId = utils::ReadPostedParam('transaction_id', '');
+			$sTransactionId = utils::ReadPostedParam('transaction_id', '', 'transaction_id');
 			if ( empty($sClass) || empty($id)) // TO DO: check that the class name is valid !
 			{
 				throw new ApplicationException(Dict::Format('UI:Error:2ParametersMissing', 'class', 'id'));
@@ -834,16 +900,18 @@ EOF
 			}
 			elseif (!utils::IsTransactionValid($sTransactionId, false))
 			{
+				$sUser = UserRights::GetUser();
+				IssueLog::Error("UI.php '$operation' : invalid transaction_id ! data: user='$sUser', class='$sClass'");
 				$oP->set_title(Dict::Format('UI:ModificationPageTitle_Object_Class', $oObj->GetRawName(), $sClassLabel)); // Set title will take care of the encoding
 				$oP->p("<strong>".Dict::S('UI:Error:ObjectAlreadyUpdated')."</strong>\n");
 			}
 			else
 			{
-				$oObj->UpdateObjectFromPostedForm();
+				$aErrors = $oObj->UpdateObjectFromPostedForm();
 				$sMessage = '';
 				$sSeverity = 'ok';
 
-				if (!$oObj->IsModified())
+				if (!$oObj->IsModified() && empty($aErrors))
 				{
 					$oP->set_title(Dict::Format('UI:ModificationPageTitle_Object_Class', $oObj->GetRawName(), $sClassLabel)); // Set title will take care of the encoding
 					$sMessage = Dict::Format('UI:Class_Object_NotUpdated', MetaModel::GetName(get_class($oObj)), $oObj->GetName());
@@ -851,41 +919,44 @@ EOF
 				}
 				else
 				{
-					list($bRes, $aIssues) = $oObj->CheckToWrite();
-					if ($bRes)
+					try
 					{
-						try
+						CMDBSource::Query('START TRANSACTION');
+						if (!empty($aErrors))
 						{
-							CMDBSource::Query('START TRANSACTION');
-							$oObj->DBUpdate();
-							CMDBSource::Query('COMMIT');
-							$sMessage = Dict::Format('UI:Class_Object_Updated', MetaModel::GetName(get_class($oObj)), $oObj->GetName());
-							$sSeverity = 'ok';
+							throw new CoreCannotSaveObjectException(array('id' => $oObj->GetKey(), 'class' => $sClass, 'issues' => $aErrors));
 						}
-						catch(DeleteException $e)
-						{
-							CMDBSource::Query('ROLLBACK');
-							// Say two things: 1) Don't be afraid nothing was modified
-							$sMessage = Dict::Format('UI:Class_Object_NotUpdated', MetaModel::GetName(get_class($oObj)), $oObj->GetName());
-							$sSeverity = 'info';
-							cmdbAbstractObject::SetSessionMessage(get_class($oObj), $oObj->GetKey(), 'UI:Class_Object_NotUpdated', $sMessage, $sSeverity, 0, true /* must not exist */);
-							// 2) Ok, there was some trouble indeed	
-							$sMessage = $e->getMessage();
-							$sSeverity = 'error';
-							$bDisplayDetails = true;
-						}
-						utils::RemoveTransaction($sTransactionId);
-			
+						$oObj->DBUpdate();
+						CMDBSource::Query('COMMIT');
+						$sMessage = Dict::Format('UI:Class_Object_Updated', MetaModel::GetName(get_class($oObj)), $oObj->GetName());
+						$sSeverity = 'ok';
 					}
-					else
+					catch (CoreCannotSaveObjectException $e)
 					{
-						$bDisplayDetails = false;
 						// Found issues, explain and give the user a second chance
 						//
-						$oObj->DisplayModifyForm($oP, array('wizard_container' => true)); // wizard_container: display the wizard border and the title
-						$sIssueDesc = Dict::Format('UI:ObjectCouldNotBeWritten', implode(', ', $aIssues));
-						$oP->add_ready_script("alert('".addslashes($sIssueDesc)."');");
+						CMDBSource::Query('ROLLBACK');
+						$bDisplayDetails = false;
+						$aIssues = $e->getIssues();
+						$oP->AddHeaderMessage($e->getHtmlMessage(), 'message_error');
+						$oObj->DisplayModifyForm($oP,
+							array('wizard_container' => true)); // wizard_container: display the wizard border and the title
 					}
+					catch (DeleteException $e)
+					{
+						CMDBSource::Query('ROLLBACK');
+						// Say two things:
+						// - 1) Don't be afraid nothing was modified
+						$sMessage = Dict::Format('UI:Class_Object_NotUpdated', MetaModel::GetName(get_class($oObj)), $oObj->GetName());
+						$sSeverity = 'info';
+						cmdbAbstractObject::SetSessionMessage(get_class($oObj), $oObj->GetKey(), 'UI:Class_Object_NotUpdated', $sMessage,
+							$sSeverity, 0, true /* must not exist */);
+						// - 2) Ok, there was some trouble indeed
+						$sMessage = $e->getMessage();
+						$sSeverity = 'error';
+						$bDisplayDetails = true;
+					}
+					utils::RemoveTransaction($sTransactionId);
 				}
 			}
 			if ($bDisplayDetails)
@@ -906,7 +977,7 @@ EOF
 				if ($bLockEnabled)
 				{
 					// Release the concurrent lock, if any
-					$sOwnershipToken = utils::ReadPostedParam('ownership_token', null, false, 'raw_data');
+					$sOwnershipToken = utils::ReadPostedParam('ownership_token', null, 'raw_data');
 					if ($sOwnershipToken !== null)
 					{
 						// We're done, let's release the lock
@@ -927,8 +998,8 @@ EOF
 			}
 			$oP->set_title(Dict::S('UI:BulkDeletePageTitle'));
 			$oP->add("<h1>".Dict::S('UI:BulkDeleteTitle')."</h1>\n");
-			// TO DO: limit the search filter by the user context
 			$oFilter = DBSearch::unserialize($sFilter); // TO DO : check that the filter is valid
+			$oFilter->UpdateContextFromUser();
 			$oChecker = new ActionChecker($oFilter, UR_ACTION_BULK_DELETE);
 			DisplayMultipleSelectionForm($oP, $oFilter, 'bulk_delete', $oChecker);
 		break;
@@ -937,9 +1008,12 @@ EOF
 
 		case 'bulk_delete_confirmed': // Confirm bulk deletion of objects
 			$oP->DisableBreadCrumb();
-			$sTransactionId = utils::ReadPostedParam('transaction_id', '');
+			$sTransactionId = utils::ReadPostedParam('transaction_id', '', 'transaction_id');
 			if (!utils::IsTransactionValid($sTransactionId))
 			{
+				$sUser = UserRights::GetUser();
+				$sClass = utils::ReadParam('class', '', false, 'class');
+				IssueLog::Error("UI.php '$operation' : invalid transaction_id ! data: user='$sUser', class='$sClass'");
 				throw new ApplicationException(Dict::S('UI:Error:ObjectsAlreadyDeleted'));
 			}
 		// Fall through
@@ -966,8 +1040,10 @@ EOF
 			else
 			{
 				// Several objects
-				$sFilter = utils::ReadPostedParam('filter', '');
+				$sFilter = utils::ReadPostedParam('filter', '', 'raw_data');
 				$oFullSetFilter = DBObjectSearch::unserialize($sFilter);
+				// Add user filter
+				$oFullSetFilter->UpdateContextFromUser();
 				$aSelectObject = utils::ReadMultipleSelection($oFullSetFilter);
 				if ( empty($sClass) || empty($aSelectObject)) // TO DO: check that the class name is valid !
 				{
@@ -1003,17 +1079,21 @@ EOF
 		$oP->DisableBreadCrumb();
 		$sClass = utils::ReadPostedParam('class', '', 'class');
 		$sClassLabel = MetaModel::GetName($sClass);
-		$sTransactionId = utils::ReadPostedParam('transaction_id', '');
+			$sTransactionId = utils::ReadPostedParam('transaction_id', '', 'transaction_id');
+		$aErrors = array();
 		if ( empty($sClass) ) // TO DO: check that the class name is valid !
 		{
 			throw new ApplicationException(Dict::Format('UI:Error:1ParametersMissing', 'class'));
 		}
 		if (!utils::IsTransactionValid($sTransactionId, false))
 		{
+			$sUser = UserRights::GetUser();
+			IssueLog::Error("UI.php '$operation' : invalid transaction_id ! data: user='$sUser', class='$sClass'");
 			$oP->p("<strong>".Dict::S('UI:Error:ObjectAlreadyCreated')."</strong>\n");
 		}
 		else
 		{
+			/** @var \cmdbAbstractObject $oObj */
 			$oObj = MetaModel::NewObject($sClass);
 			$sStateAttCode = MetaModel::GetStateAttributeCode($sClass);
 			if (!empty($sStateAttCode))
@@ -1024,25 +1104,30 @@ EOF
 					$oObj->Set($sStateAttCode, $sTargetState);
 				}
 			}
-			$oObj->UpdateObjectFromPostedForm();
+			$aErrors = $oObj->UpdateObjectFromPostedForm();
 		}
 		if (isset($oObj) && is_object($oObj))
 		{
 			$sClass = get_class($oObj);
 			$sClassLabel = MetaModel::GetName($sClass);
 
-			list($bRes, $aIssues) = $oObj->CheckToWrite();
-			if ($bRes)
+			try
 			{
-				$oObj->DBInsertNoReload(); // No need to reload
+				if (!empty($aErrors))
+				{
+					throw new CoreCannotSaveObjectException(array('id' => $oObj->GetKey(), 'class' => $sClass, 'issues' => $aErrors));
+				}
+
+				$oObj->DBInsertNoReload();// No need to reload
+
 				utils::RemoveTransaction($sTransactionId);
 				$oP->set_title(Dict::S('UI:PageTitle:ObjectCreated'));
-				
+
 				// Compute the name, by reloading the object, even if it disappeared from the silo
 				$oObj = MetaModel::GetObject($sClass, $oObj->GetKey(), true /* Must be found */, true /* Allow All Data*/);
-				$sName = $oObj->GetName(); 
+				$sName = $oObj->GetName();
 				$sMessage = Dict::Format('UI:Title:Object_Of_Class_Created', $sName, $sClassLabel);
-				
+
 				$sNextAction = utils::ReadPostedParam('next_action', '');
 				if (!empty($sNextAction))
 				{
@@ -1055,17 +1140,18 @@ EOF
 					ReloadAndDisplay($oP, $oObj, 'create', $sMessage, 'ok');
 				}
 			}
-			else
+			catch (CoreCannotSaveObjectException $e)
 			{
 				// Found issues, explain and give the user a second chance
 				//
+				$aIssues = $e->getIssues();
+
 				$oP->set_title(Dict::Format('UI:CreationPageTitle_Class', $sClassLabel));
 				$oP->add("<h1>".MetaModel::GetClassIcon($sClass)."&nbsp;".Dict::Format('UI:CreationTitle_Class', $sClassLabel)."</h1>\n");
 				$oP->add("<div class=\"wizContainer\">\n");
+				$oP->AddHeaderMessage($e->getHtmlMessage(), 'message_error');
 				cmdbAbstractObject::DisplayCreationForm($oP, $sClass, $oObj);
 				$oP->add("</div>\n");
-				$sIssueDesc = Dict::Format('UI:ObjectCouldNotBeWritten', implode(', ', $aIssues));
-				$oP->add_ready_script("alert('".addslashes($sIssueDesc)."');");
 			}
 		}
 		break;
@@ -1082,7 +1168,8 @@ EOF
 			throw new ApplicationException(Dict::Format('UI:Error:3ParametersMissing', 'filter', 'stimulus', 'state'));
 		}
 		$oFilter = DBObjectSearch::unserialize($sFilter);
-		$sClass = $oFilter->GetClass();	
+		$oFilter->UpdateContextFromUser();
+		$sClass = $oFilter->GetClass();
 		$aStimuli = MetaModel::EnumStimuli($sClass);
 		$sActionLabel = $aStimuli[$sStimulus]->GetLabel();
 		$sActionDetails = $aStimuli[$sStimulus]->GetDescription();
@@ -1106,7 +1193,9 @@ EOF
 			throw new ApplicationException(Dict::Format('UI:Error:3ParametersMissing', 'filter', 'stimulus', 'state'));
 		}
 		$oFilter = DBObjectSearch::unserialize($sFilter);
-		$sClass = $oFilter->GetClass();	
+		// Add user filter
+		$oFilter->UpdateContextFromUser();
+		$sClass = $oFilter->GetClass();
 		$aSelectObject = utils::ReadMultipleSelection($oFilter);
 		if (count($aSelectObject) == 0)
 		{
@@ -1120,18 +1209,19 @@ EOF
 			
 			$sActionLabel = $aStimuli[$sStimulus]->GetLabel();
 			$sActionDetails = $aStimuli[$sStimulus]->GetDescription();
-			$aTransition = $aTransitions[$sStimulus];
-			$sTargetState = $aTransition['target_state'];
+			$sTargetState = $aTransitions[$sStimulus]['target_state'];
 			$aStates = MetaModel::EnumStates($sClass);
 			$aTargetStateDef = $aStates[$sTargetState];
-			
+
 			$oP->set_title(Dict::Format('UI:StimulusModify_N_ObjectsOf_Class', $sActionLabel, count($aSelectObject), $sClass));
 			$oP->add('<div class="page_header">');
 			$oP->add('<h1>'.MetaModel::GetClassIcon($sClass).'&nbsp;'.Dict::Format('UI:StimulusModify_N_ObjectsOf_Class', $sActionLabel, count($aSelectObject), $sClass).'</h1>');
 			$oP->add('</div>');
 
-			$aExpectedAttributes = $aTargetStateDef['attribute_list'];
+			$aExpectedAttributes = MetaModel::GetTransitionAttributes($sClass, $sStimulus, $sState);
 			$aDetails = array();
+			$sFormId = 'apply_stimulus';
+			$sFormPrefix = $sFormId.'_';
 			$iFieldIndex = 0;
 			$aFieldsMap = array();
 			$aValues = array();
@@ -1147,6 +1237,7 @@ EOF
 			$sReadyScript = '';
 			foreach($aExpectedAttributes as $sAttCode => $iExpectCode)
 			{
+				$sFieldInputId = $sFormPrefix.$sAttCode;
 				// Prompt for an attribute if
 				// - the attribute must be changed or must be displayed to the user for confirmation
 				// - or the field is mandatory and currently empty
@@ -1159,19 +1250,19 @@ EOF
 					if (count($aPrerequisites) > 0)
 					{
 						// When 'enabling' a field, all its prerequisites must be enabled too
-						$sFieldList = "['".implode("','", $aPrerequisites)."']";
-						$oP->add_ready_script("$('#enable_{$sAttCode}').bind('change', function(evt, sFormId) { return PropagateCheckBox( this.checked, $sFieldList, true); } );\n");
+						$sFieldList = "['{$sFormPrefix}".implode("','{$sFormPrefix}", $aPrerequisites)."']";
+						$oP->add_ready_script("$('#enable_{$sFieldInputId}').bind('change', function(evt, sFormId) { return PropagateCheckBox( this.checked, $sFieldList, true); } );\n");
 					}
 					$aDependents = MetaModel::GetDependentAttributes($sClass, $sAttCode); // List of attributes that are needed for the current one
 					if (count($aDependents) > 0)
 					{
 						// When 'disabling' a field, all its dependent fields must be disabled too
-						$sFieldList = "['".implode("','", $aDependents)."']";
-						$oP->add_ready_script("$('#enable_{$sAttCode}').bind('change', function(evt, sFormId) { return PropagateCheckBox( this.checked, $sFieldList, false); } );\n");
+						$sFieldList = "['{$sFormPrefix}".implode("','{$sFormPrefix}", $aDependents)."']";
+						$oP->add_ready_script("$('#enable_{$sFieldInputId}').bind('change', function(evt, sFormId) { return PropagateCheckBox( this.checked, $sFieldList, false); } );\n");
 					}
 					$aArgs = array('this' => $oObj);
-					$sHTMLValue = cmdbAbstractObject::GetFormElementForField($oP, $sClass, $sAttCode, $oAttDef, $oObj->Get($sAttCode), $oObj->GetEditValue($sAttCode), $sAttCode, '', $iExpectCode, $aArgs);
-					$sComments = '<input type="checkbox" checked id="enable_'.$sAttCode.'"  onClick="ToogleField(this.checked, \''.$sAttCode.'\')"/>';
+					$sHTMLValue = cmdbAbstractObject::GetFormElementForField($oP, $sClass, $sAttCode, $oAttDef, $oObj->Get($sAttCode), $oObj->GetEditValue($sAttCode), $sFieldInputId, '', $iExpectCode, $aArgs);
+					$sComments = '<input type="checkbox" checked id="enable_'.$sFieldInputId.'"  onClick="ToggleField(this.checked, \''.$sFieldInputId.'\')"/>';
 					if (!isset($aValues[$sAttCode]))
 					{
 						$aValues[$sAttCode] = array();
@@ -1199,11 +1290,11 @@ EOF
 						}
 						$sTip .= "</ul></p>";
 						$sTip = addslashes($sTip);
-						$sReadyScript .= "$('#multi_values_$sAttCode').qtip( { content: '$sTip', show: 'mouseover', hide: 'mouseout', style: { name: 'dark', tip: 'leftTop' }, position: { corner: { target: 'rightMiddle', tooltip: 'leftTop' }} } );\n";
-						$sComments .= '<div class="multi_values" id="multi_values_'.$sAttCode.'">'.count($aValues[$sAttCode]).'</div>';
+						$sReadyScript .= "$('#multi_values_$sFieldInputId').qtip( { content: '$sTip', show: 'mouseover', hide: 'mouseout', style: { name: 'dark', tip: 'leftTop' }, position: { corner: { target: 'rightMiddle', tooltip: 'leftTop' }} } );\n";
+						$sComments .= '<div class="multi_values" id="multi_values_'.$sFieldInputId.'">'.count($aValues[$sAttCode]).'</div>';
 					}
-					$aDetails[] = array('label' => '<span>'.$oAttDef->GetLabel().'</span>', 'value' => "<span id=\"field_$sAttCode\">$sHTMLValue</span>", 'comments' => $sComments);
-					$aFieldsMap[$sAttCode] = $sAttCode;
+					$aDetails[] = array('label' => '<span>'.$oAttDef->GetLabel().'</span>', 'value' => "<span id=\"field_$sFieldInputId\">$sHTMLValue</span>", 'comments' => $sComments);
+					$aFieldsMap[$sAttCode] = $sFieldInputId;
 					$iFieldIndex++;
 				}
 			}
@@ -1216,14 +1307,14 @@ EOF
 				$oP->add('</div>');
 			}
 			$oP->add("<div class=\"wizContainer\">\n");
-			$oP->add("<form id=\"apply_stimulus\" method=\"post\" onSubmit=\"return OnSubmit('apply_stimulus');\">\n");
+			$oP->add("<form id=\"{$sFormId}\" method=\"post\" onSubmit=\"return OnSubmit('{$sFormId}');\">\n");
 			$oP->add("<table><tr><td>\n");
 			$oP->details($aDetails);
 			$oP->add("</td></tr></table>\n");
 			$oP->add("<input type=\"hidden\" name=\"class\" value=\"$sClass\">\n");
 			$oP->add("<input type=\"hidden\" name=\"operation\" value=\"bulk_apply_stimulus\">\n");
 			$oP->add("<input type=\"hidden\" name=\"preview_mode\" value=\"1\">\n");
-			$oP->add("<input type=\"hidden\" name=\"filter\" value=\"$sFilter\">\n");
+			$oP->add("<input type=\"hidden\" name=\"filter\" value=\"".utils::HtmlEntities($sFilter)."\">\n");
 			$oP->add("<input type=\"hidden\" name=\"stimulus\" value=\"$sStimulus\">\n");
 			$oP->add("<input type=\"hidden\" name=\"state\" value=\"$sState\">\n");
 			$oP->add("<input type=\"hidden\" name=\"transaction_id\" value=\"".utils::GetNewTransactionId()."\">\n");
@@ -1247,7 +1338,7 @@ EOF
 			$oP->add_script(
 <<<EOF
 			// Initializes the object once at the beginning of the page...
-			var oWizardHelper = new WizardHelper('$sClass', '', '$sTargetState');
+			var oWizardHelper = new WizardHelper('$sClass', '', '$sTargetState', '$sState', '$sStimulus');
 			oWizardHelper.SetFieldsMap($sJsonFieldsMap);
 			oWizardHelper.SetFieldsCount($iFieldsCount);
 EOF
@@ -1255,7 +1346,7 @@ EOF
 			$oP->add_ready_script(
 <<<EOF
 			// Starts the validation when the page is ready
-			CheckFields('apply_stimulus', false);
+			CheckFields('{$sFormId}', false);
 			$sReadyScript
 EOF
 );
@@ -1265,25 +1356,29 @@ EOF
 		case 'bulk_apply_stimulus':
 		$oP->DisableBreadCrumb();
 		$bPreviewMode = utils::ReadPostedParam('preview_mode', false);
-		$sFilter = utils::ReadPostedParam('filter', '', false, 'raw_data');
+		$sFilter = utils::ReadPostedParam('filter', '', 'raw_data');
 		$sStimulus = utils::ReadPostedParam('stimulus', '');
 		$sState = utils::ReadPostedParam('state', '');
-		$sSelectObject = utils::ReadPostedParam('selectObject', '', false, 'raw_data');
+		$sSelectObject = utils::ReadPostedParam('selectObject', '', 'raw_data');
 		$aSelectObject = explode(',', $sSelectObject);
 
 		if (empty($sFilter) || empty($sStimulus) || empty($sState))
 		{
 			throw new ApplicationException(Dict::Format('UI:Error:3ParametersMissing', 'filter', 'stimulus', 'state'));
 		}
-		$sTransactionId = utils::ReadPostedParam('transaction_id', '');
+			$sTransactionId = utils::ReadPostedParam('transaction_id', '', 'transaction_id');
 		if (!utils::IsTransactionValid($sTransactionId))
 		{
+			$sUser = UserRights::GetUser();
+			IssueLog::Error("UI.php '$operation' : invalid transaction_id ! data: user='$sUser'");
 			$oP->p(Dict::S('UI:Error:ObjectAlreadyUpdated'));
 		}
 		else
 		{
 			// For archiving the modification
 			$oFilter = DBObjectSearch::unserialize($sFilter);
+			// Add user filter
+			$oFilter->UpdateContextFromUser();
 			$sClass = $oFilter->GetClass();
 			$aObjects = array();
 			foreach($aSelectObject as $iId)
@@ -1326,16 +1421,13 @@ EOF
 					{
 						$sActionLabel = $aStimuli[$sStimulus]->GetLabel();
 						$sActionDetails = $aStimuli[$sStimulus]->GetDescription();
-						$aTransition = $aTransitions[$sStimulus];
-						$sTargetState = $aTransition['target_state'];
-						$aTargetStates = MetaModel::EnumStates($sClass);
-						$aTargetState = $aTargetStates[$sTargetState];
-						$aExpectedAttributes = $aTargetState['attribute_list'];
+						$sTargetState = $aTransitions[$sStimulus]['target_state'];
+						$aExpectedAttributes = $oObj->GetTransitionAttributes($sStimulus /* cureent state */);
 						$aDetails = array();
 						$aErrors = array();
 						foreach($aExpectedAttributes as $sAttCode => $iExpectCode)
 						{
-							$iFlags = $oObj->GetAttributeFlags($sAttCode);
+							$iFlags = $oObj->GetTransitionFlags($sAttCode, $sStimulus);
 							if (($iExpectCode & (OPT_ATT_MUSTCHANGE|OPT_ATT_MUSTPROMPT)) || ($oObj->Get($sAttCode) == '') ) 
 							{
 								$paramValue = utils::ReadPostedParam("attr_$sAttCode", '', 'raw_data');
@@ -1348,7 +1440,7 @@ EOF
 							}
 						}
 						
-						$oObj->UpdateObjectFromPostedForm('', array_keys($aExpectedAttributes), $sTargetState);
+						$oObj->UpdateObjectFromPostedForm('', array_keys($aExpectedAttributes), $aExpectedAttributes);
 						
 						if (count($aErrors) == 0)
 						{
@@ -1405,10 +1497,23 @@ EOF
 		{
 			throw new ApplicationException(Dict::Format('UI:Error:3ParametersMissing', 'class', 'id', 'stimulus'));
 		}
-		$oObj = MetaModel::GetObject($sClass, $id, false);
+		$aStimuli = MetaModel::EnumStimuli($sClass);
+		if ((get_class($aStimuli[$sStimulus]) !== 'StimulusUserAction') || (UserRights::IsStimulusAllowed($sClass, $sStimulus) === UR_ALLOWED_NO))
+		{
+			$sUser = UserRights::GetUser();
+			IssueLog::Error("UI.php '$operation' : Stimulus '$sStimulus' not allowed ! data: user='$sUser', class='$sClass'");
+			throw new ApplicationException(Dict::S('UI:Error:ActionNotAllowed'));
+		}
+
+			$oObj = MetaModel::GetObject($sClass, $id, false);
 		if ($oObj != null)
 		{
-			$oObj->DisplayStimulusForm($oP, $sStimulus);
+			$aPrefillFormParam = array( 'user' => $_SESSION["auth_user"],
+				'context' => $oAppContext->GetAsHash(),
+				'stimulus' => $sStimulus,
+				'origin' => 'console'
+			);
+			$oObj->DisplayStimulusForm($oP, $sStimulus, $aPrefillFormParam);
 		}
 		else
 		{
@@ -1423,7 +1528,7 @@ EOF
 		$oP->DisableBreadCrumb();
 		$sClass = utils::ReadPostedParam('class', '');
 		$id = utils::ReadPostedParam('id', '');
-		$sTransactionId = utils::ReadPostedParam('transaction_id', '');
+			$sTransactionId = utils::ReadPostedParam('transaction_id', '', 'transaction_id');
 		$sStimulus = utils::ReadPostedParam('stimulus', '');
 		if ( empty($sClass) || empty($id) ||  empty($sStimulus) ) // TO DO: check that the class name is valid !
 		{
@@ -1443,23 +1548,29 @@ EOF
 			}
 			if (!utils::IsTransactionValid($sTransactionId))
 			{
+				$sUser = UserRights::GetUser();
+				IssueLog::Error("UI.php '$operation' : invalid transaction_id ! data: user='$sUser', class='$sClass'");
 				$sMessage = Dict::S('UI:Error:ObjectAlreadyUpdated');
 				$sSeverity = 'info';
+			}
+			elseif ((get_class($aStimuli[$sStimulus]) !== 'StimulusUserAction') || (UserRights::IsStimulusAllowed($sClass, $sStimulus) === UR_ALLOWED_NO))
+			{
+				$sUser = UserRights::GetUser();
+				IssueLog::Error("UI.php '$operation' : Stimulus '$sStimulus' not allowed ! data: user='$sUser', class='$sClass'");
+				$sMessage = Dict::S('UI:Error:ActionNotAllowed');
+				$sSeverity = 'error';
 			}
 			else
 			{
 				$sActionLabel = $aStimuli[$sStimulus]->GetLabel();
 				$sActionDetails = $aStimuli[$sStimulus]->GetDescription();
-				$aTransition = $aTransitions[$sStimulus];
-				$sTargetState = $aTransition['target_state'];
-				$aTargetStates = MetaModel::EnumStates($sClass);
-				$aTargetState = $aTargetStates[$sTargetState];
-				$aExpectedAttributes = $aTargetState['attribute_list'];
+				$sTargetState = $aTransitions[$sStimulus]['target_state'];
+				$aExpectedAttributes = $oObj->GetTransitionAttributes($sStimulus /*, current state*/);
 				$aDetails = array();
 				$aErrors = array();
 				foreach($aExpectedAttributes as $sAttCode => $iExpectCode)
 				{
-					$iFlags = $oObj->GetAttributeFlags($sAttCode);
+					$iFlags = $oObj->GetTransitionFlags($sAttCode, $sStimulus);
 					if (($iExpectCode & (OPT_ATT_MUSTCHANGE|OPT_ATT_MUSTPROMPT)) || ($oObj->Get($sAttCode) == '') ) 
 					{
 						$paramValue = utils::ReadPostedParam("attr_$sAttCode", '', 'raw_data');
@@ -1472,7 +1583,7 @@ EOF
 					}
 				}
 				
-				$oObj->UpdateObjectFromPostedForm('', array_keys($aExpectedAttributes), $sTargetState);				
+				$oObj->UpdateObjectFromPostedForm('', array_keys($aExpectedAttributes), $aExpectedAttributes);
 				
 				if (count($aErrors) == 0)
 				{
@@ -1489,7 +1600,7 @@ EOF
 						{
 							// Rollback to the previous state... by reloading the object from the database and applying the modifications again
 							$oObj = MetaModel::GetObject(get_class($oObj), $oObj->GetKey());
-							$oObj->UpdateObjectFromPostedForm('', array_keys($aExpectedAttributes), $sTargetState);
+							$oObj->UpdateObjectFromPostedForm('', array_keys($aExpectedAttributes), $aExpectedAttributes);
 							$sIssues = $e->getMessage();
 						}
 					}
@@ -1501,12 +1612,18 @@ EOF
 					if (!$bApplyStimulus)
 					{
 						$sMessage = Dict::S('UI:FailedToApplyStimuli');
-						$sSeverity = 'error';								
+						$sSeverity = 'error';
+
+						$sOwnershipToken = utils::ReadPostedParam('ownership_token', null, 'raw_data');
+						if ($sOwnershipToken !== null)
+						{
+							// Release the concurrent lock, if any
+							iTopOwnershipLock::ReleaseLock(get_class($oObj), $oObj->GetKey(), $sOwnershipToken);
+						}
 					}
 					else if ($sIssues != '')
 					{
-						
-						$sOwnershipToken = utils::ReadPostedParam('ownership_token', null, false, 'raw_data');
+						$sOwnershipToken = utils::ReadPostedParam('ownership_token', null, 'raw_data');
 						if ($sOwnershipToken !== null)
 						{
 							// Release the concurrent lock, if any, a new lock will be re-acquired by DisplayStimulusForm below
@@ -1529,7 +1646,7 @@ EOF
 						if ($bLockEnabled)
 						{
 							// Release the concurrent lock, if any
-							$sOwnershipToken = utils::ReadPostedParam('ownership_token', null, false, 'raw_data');
+							$sOwnershipToken = utils::ReadPostedParam('ownership_token', null, 'raw_data');
 							if ($sOwnershipToken !== null)
 							{
 								// We're done, let's release the lock
@@ -1568,15 +1685,16 @@ EOF
 		$sDirection = utils::ReadParam('direction', 'down');
 		$iGroupingThreshold = utils::ReadParam('g', 5);
 
+		$bDirDown = ($sDirection === 'down');
 		$oObj = MetaModel::GetObject($sClass, $id);
-		$iMaxRecursionDepth = MetaModel::GetConfig()->Get('relations_max_depth', 20);
+		$iMaxRecursionDepth = MetaModel::GetConfig()->Get('relations_max_depth');
 		$aSourceObjects = array($oObj);
 
-		$oP->set_title(MetaModel::GetRelationDescription($sRelation).' '.$oObj->GetName());
+		$oP->set_title(MetaModel::GetRelationDescription($sRelation, $bDirDown).' '.$oObj->GetName());
 
 		$sPageId = "ui-relation-graph-".$sClass.'::'.$id;
-		$sLabel = $oObj->GetName().' '.MetaModel::GetRelationLabel($sRelation);
-		$sDescription = MetaModel::GetRelationDescription($sRelation).' '.$oObj->GetName();
+		$sLabel = $oObj->GetName().' '.MetaModel::GetRelationLabel($sRelation, $bDirDown);
+		$sDescription = MetaModel::GetRelationDescription($sRelation, $bDirDown).' '.$oObj->GetName();
 		$oP->SetBreadCrumbEntry($sPageId, $sLabel, $sDescription);
 
 			if ($sRelation == 'depends on')
@@ -1618,9 +1736,6 @@ EOF
 				}
 			}
 		}
-		$oP->add_linked_script(utils::GetAbsoluteUrlAppRoot().'js/tabularfieldsselector.js');
-		$oP->add_linked_script(utils::GetAbsoluteUrlAppRoot().'js/jquery.dragtable.js');
-		$oP->add_linked_stylesheet(utils::GetAbsoluteUrlAppRoot().'css/dragtable.css');
 		
 		// Display the tabs
 		if ($sFirstTab == 'list')
@@ -1753,4 +1868,3 @@ catch(Exception $e)
 		IssueLog::Error($e->getMessage());
 	}
 }
-?>

@@ -56,6 +56,8 @@
  *
  * @copyright   Copyright (C) 2010-2013 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
+ * @link https://www.itophub.io/wiki/page?id=2_5_0%3Aadvancedtopics%3Arest_json REST service documentation
+ * @example https://www.itophub.io/wiki/page?id=2_5_0%3Aadvancedtopics%3Arest_json_playground
  */
 
 if (!defined('__DIR__')) define('__DIR__', dirname(__FILE__));
@@ -81,8 +83,24 @@ class RestResultListOperations extends RestResult
 		$this->operations[] = array(
 			'verb' => $sVerb,
 			'description' => $sDescription,
-			'extension' => $sServiceProviderClass
+			'extension' => $sServiceProviderClass,
 		);
+	}
+}
+
+if (!function_exists('json_last_error_msg')) {
+	function json_last_error_msg() {
+		static $ERRORS = array(
+			JSON_ERROR_NONE => 'No error',
+			JSON_ERROR_DEPTH => 'Maximum stack depth exceeded',
+			JSON_ERROR_STATE_MISMATCH => 'State mismatch (invalid or malformed JSON)',
+			JSON_ERROR_CTRL_CHAR => 'Control character error, possibly incorrectly encoded',
+			JSON_ERROR_SYNTAX => 'Syntax error',
+			JSON_ERROR_UTF8 => 'Malformed UTF-8 characters, possibly incorrectly encoded',
+		);
+
+		$error = json_last_error();
+		return isset($ERRORS[$error]) ? $ERRORS[$error] : 'Unknown error';
 	}
 }
 
@@ -102,6 +120,15 @@ try
 	utils::UseParamFile();
 
 	$iRet = LoginWebPage::DoLogin(false, false, LoginWebPage::EXIT_RETURN); // Starting with iTop 2.2.0 portal users are no longer allowed to access the REST/JSON API
+	if ($iRet == LoginWebPage::EXIT_CODE_OK)
+	{
+		// Extra validation of the profile
+		if ((MetaModel::GetConfig()->Get('secure_rest_services') == true) && !UserRights::HasProfile('REST Services User'))
+		{
+			// Web services access is limited to the users with the profile REST Web Services
+			$iRet = LoginWebPage::EXIT_CODE_NOTAUTHORIZED;
+		}
+	}
 	if ($iRet != LoginWebPage::EXIT_CODE_OK)
 	{
 		switch($iRet)
@@ -121,7 +148,11 @@ try
 			case LoginWebPage::EXIT_CODE_PORTALUSERNOTAUTHORIZED:
 			throw new Exception("Portal user is not allowed", RestResult::UNAUTHORIZED);
 			break;
-			
+				
+			case LoginWebPage::EXIT_CODE_NOTAUTHORIZED:
+			throw new Exception("This user is not authorized to use the web services. (The profile REST Services User is required to access the REST web services)", RestResult::UNAUTHORIZED);
+			break;
+				
 			default:
 			throw new Exception("Unknown authentication error (retCode=$iRet)", RestResult::UNAUTHORIZED);
 		}
@@ -134,7 +165,7 @@ try
 	
 	if ($sJsonString == null)
 	{
-		throw new Exception("Missing parameter 'json_data", RestResult::MISSING_JSON);
+		throw new Exception("Missing parameter 'json_data'", RestResult::MISSING_JSON);
 	}
 	$aJsonData = @json_decode($sJsonString);
 	if ($aJsonData == null)
@@ -143,6 +174,7 @@ try
 	}
 
 
+	/** @var iRestServiceProvider[] $aProviders */
 	$aProviders = array();
 	foreach(get_declared_classes() as $sPHPClass)
 	{
@@ -154,6 +186,7 @@ try
 	}
 
 	$aOpToRestService = array(); // verb => $oRestServiceProvider
+	/** @var iRestServiceProvider $oRestSP */
 	foreach ($aProviders as $oRestSP)
 	{
 		$aOperations = $oRestSP->ListOperations($sVersion);
@@ -190,6 +223,7 @@ try
 		{
 			throw new Exception("Unknown verb '$sOperation' in version '$sVersion'", RestResult::UNKNOWN_OPERATION);
 		}
+		/** @var iRestServiceProvider $oRS */
 		$oRS = $aOpToRestService[$sOperation]['service_provider'];
 		$sProvider = get_class($oRS);
 	
@@ -214,6 +248,14 @@ catch(Exception $e)
 // Output the results
 //
 $sResponse = json_encode($oResult);
+
+if ($sResponse === false)
+{
+	$oJsonIssue = new RestResult();
+	$oJsonIssue->code = RestResult::INTERNAL_ERROR;
+	$oJsonIssue->message = 'json encoding failed with message: '.json_last_error_msg().'. Full response structure for debugging purposes (print_r+bin2hex): '.bin2hex(print_r($oResult, true));
+	$sResponse = json_encode($oJsonIssue);
+}
 
 $oP->add_header('Access-Control-Allow-Origin: *');
 

@@ -1,27 +1,24 @@
 <?php
-// Copyright (C) 2010-2012 Combodo SARL
-//
-//   This file is part of iTop.
-//
-//   iTop is free software; you can redistribute it and/or modify	
-//   it under the terms of the GNU Affero General Public License as published by
-//   the Free Software Foundation, either version 3 of the License, or
-//   (at your option) any later version.
-//
-//   iTop is distributed in the hope that it will be useful,
-//   but WITHOUT ANY WARRANTY; without even the implied warranty of
-//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//   GNU Affero General Public License for more details.
-//
-//   You should have received a copy of the GNU Affero General Public License
-//   along with iTop. If not, see <http://www.gnu.org/licenses/>
-
-
 /**
  * Localized data
  *
- * @copyright   Copyright (C) 2010-2012 Combodo SARL
- * @license     http://opensource.org/licenses/AGPL-3.0
+ * @copyright Copyright (C) 2010-2018 Combodo SARL
+ * @license	http://opensource.org/licenses/AGPL-3.0
+ *
+ * This file is part of iTop.
+ *
+ * iTop is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * iTop is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with iTop. If not, see <http://www.gnu.org/licenses/>
  */
 
 // Dictionnay conventions
@@ -147,8 +144,8 @@ Dict::Add('EN US', 'English', 'English', array(
 	'Class:Contract/Attribute:status/Value:obsolete+' => 'obsolete',
 	'Class:Contract/Attribute:status/Value:production' => 'production',
 	'Class:Contract/Attribute:status/Value:production+' => 'production',
-	'Class:Contract/Attribute:finalclass' => 'Contract type',
-	'Class:Contract/Attribute:finalclass+' => '',
+	'Class:Contract/Attribute:finalclass' => 'Contract sub-class',
+	'Class:Contract/Attribute:finalclass+' => 'Name of the final class',
 ));
 
 //
@@ -241,6 +238,8 @@ Dict::Add('EN US', 'English', 'English', array(
 	'Class:ServiceFamily+' => '',
 	'Class:ServiceFamily/Attribute:name' => 'Name',
 	'Class:ServiceFamily/Attribute:name+' => '',
+	'Class:ServiceFamily/Attribute:icon' => 'Icon',
+	'Class:ServiceFamily/Attribute:icon+' => '',
 	'Class:ServiceFamily/Attribute:services_list' => 'Services',
 	'Class:ServiceFamily/Attribute:services_list+' => 'All the services in this category',
 ));
@@ -272,6 +271,8 @@ Dict::Add('EN US', 'English', 'English', array(
 	'Class:Service/Attribute:status/Value:obsolete+' => '',
 	'Class:Service/Attribute:status/Value:production' => 'production',
 	'Class:Service/Attribute:status/Value:production+' => '',
+	'Class:Service/Attribute:icon' => 'Icon',
+	'Class:Service/Attribute:icon+' => '',
 	'Class:Service/Attribute:customercontracts_list' => 'Customer contracts',
 	'Class:Service/Attribute:customercontracts_list+' => 'All the customer contracts that have purchased this service',
 	'Class:Service/Attribute:servicesubcategories_list' => 'Service sub categories',
@@ -422,6 +423,16 @@ Dict::Add('EN US', 'English', 'English', array(
 	'Class:lnkSLAToSLT/Attribute:slt_id+' => '',
 	'Class:lnkSLAToSLT/Attribute:slt_name' => 'SLT Name',
 	'Class:lnkSLAToSLT/Attribute:slt_name+' => '',
+	'Class:lnkSLAToSLT/Attribute:slt_metric' => 'SLT metric',
+	'Class:lnkSLAToSLT/Attribute:slt_metric+' => '',
+	'Class:lnkSLAToSLT/Attribute:slt_request_type' => 'SLT request type',
+	'Class:lnkSLAToSLT/Attribute:slt_request_type+' => '',
+	'Class:lnkSLAToSLT/Attribute:slt_ticket_priority' => 'SLT ticket priority',
+	'Class:lnkSLAToSLT/Attribute:slt_ticket_priority+' => '',
+	'Class:lnkSLAToSLT/Attribute:slt_value' => 'SLT value',
+	'Class:lnkSLAToSLT/Attribute:slt_value+' => '',
+	'Class:lnkSLAToSLT/Attribute:slt_value_unit' => 'SLT value unit',
+	'Class:lnkSLAToSLT/Attribute:slt_value_unit+' => '',
 ));
 
 //
@@ -520,5 +531,3 @@ Dict::Add('EN US', 'English', 'English', array(
 	'Class:lnkDeliveryModelToContact/Attribute:role_name' => 'Role name',
 	'Class:lnkDeliveryModelToContact/Attribute:role_name+' => '',
 ));
-
-?>

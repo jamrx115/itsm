@@ -1,4 +1,4 @@
-// Copyright (C) 2010-2017 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -15,9 +15,10 @@
 //   You should have received a copy of the GNU Affero General Public License
 //   along with iTop. If not, see <http://www.gnu.org/licenses/>
 
-function ExtKeyWidget(id, sTargetClass, sFilter, sTitle, bSelectMode, oWizHelper, sAttCode, bSearchMode)
+function ExtKeyWidget(id, sTargetClass, sFilter, sTitle, bSelectMode, oWizHelper, sAttCode, bSearchMode, bDoSearch)
 {
 	this.id = id;
+	this.sOriginalTargetClass = sTargetClass;
 	this.sTargetClass = sTargetClass;
 	this.sFilter = sFilter;
 	this.sTitle = sTitle;
@@ -28,12 +29,13 @@ function ExtKeyWidget(id, sTargetClass, sFilter, sTitle, bSelectMode, oWizHelper
 	this.ajax_request = null;
 	this.bSelectMode = bSelectMode; // true if the edited field is a SELECT, false if it's an autocomplete
 	this.bSearchMode = bSearchMode; // true if selecting a value in the context of a search form
+	this.bDoSearch = bDoSearch; // false if the search is not launched
 	var me = this;
 	
 	this.Init = function()
 	{
 		// make sure that the form is clean
-		$('#'+this.id+'_btnRemove').attr('disabled','disabled');
+		$('#'+this.id+'_btnRemove').prop('disabled',true);
 		$('#'+this.id+'_linksToRemove').val('');
 	};
 	
@@ -48,7 +50,7 @@ function ExtKeyWidget(id, sTargetClass, sFilter, sTitle, bSelectMode, oWizHelper
 	
 	this.Search = function()
 	{
-		if($('#'+me.id).attr('disabled')) return; // Disabled, do nothing
+		if($('#'+me.id).prop('disabled')) return; // Disabled, do nothing
 		var value = $('#'+me.id).val(); // Current value
 		
 		// Query the server to get the form to search for target objects
@@ -93,8 +95,13 @@ function ExtKeyWidget(id, sTargetClass, sFilter, sTitle, bSelectMode, oWizHelper
 				me.UpdateSizes();
 				me.UpdateButtons();
 				me.ajax_request = null;
-				FixSearchFormsDisposition();
-				me.DoSearchObjects();
+				$('#count_'+me.id).change(function(){
+					me.UpdateButtons();
+				});
+				if (me.bDoSearch)
+				{
+					me.DoSearchObjects();
+				}
 			},
 			'html'
 		);
@@ -135,11 +142,11 @@ function ExtKeyWidget(id, sTargetClass, sFilter, sTitle, bSelectMode, oWizHelper
 		var okBtn = $('#btn_ok_'+me.id);
 		if ($('#count_'+me.id).val() > 0)
 		{
-			okBtn.removeAttr('disabled');
+			okBtn.prop('disabled', false);
 		}
 		else
 		{
-			okBtn.attr('disabled', 'disabled');
+			okBtn.prop('disabled', true);
 		}
 	};
 	
@@ -196,9 +203,6 @@ function ExtKeyWidget(id, sTargetClass, sFilter, sTitle, bSelectMode, oWizHelper
 				$('#fr_'+me.id+' input:radio').click(function() { me.UpdateButtons(); });
 				me.UpdateButtons();
 				me.ajax_request = null;
-				$('#count_'+me.id).change(function(){
-					me.UpdateButtons();
-				});
 				me.UpdateSizes();
 			},
 			'html'
@@ -275,10 +279,34 @@ function ExtKeyWidget(id, sTargetClass, sFilter, sTitle, bSelectMode, oWizHelper
 		$('#label_'+me.id).focus();
 		me.ajax_request = null;
 	};
-	
+
+	this.SelectObjectClass = function(oWizHelper)
+	{
+        // Resetting target class to its original value
+        // (If not done, closing the dialog and trying to create a object again
+        // will force it be of the same class as the previous call)
+        me.sTargetClass = me.sOriginalTargetClass;
+
+        me.CreateObject(oWizHelper);
+	};
+
+	this.DoSelectObjectClass = function()
+	{
+		// Retrieving selected value
+		var oSelectedClass = $('#ac_create_'+me.id+' select');
+		if(oSelectedClass.length !== 1) return;
+
+		// Setting new target class
+		me.sTargetClass = oSelectedClass.val();
+
+		// Opening real creation form
+        $('#ac_create_'+me.id).dialog('close');
+		me.CreateObject();
+	};
+
 	this.CreateObject = function(oWizHelper)
 	{
-		if($('#'+me.id).attr('disabled')) return; // Disabled, do nothing
+		if($('#'+me.id).prop('disabled')) return; // Disabled, do nothing
 		// Query the server to get the form to create a target object
 		if (me.bSelectMode)
 		{
@@ -428,10 +456,10 @@ function ExtKeyWidget(id, sTargetClass, sFilter, sTitle, bSelectMode, oWizHelper
 	
 	this.Update = function()
 	{
-		if ($('#'+me.id).attr('disabled'))
+		if ($('#'+me.id).prop('disabled'))
 		{
 			$('#v_'+me.id).html('');
-			$('#label_'+me.id).attr('disabled', 'disabled');
+			$('#label_'+me.id).prop('disabled', 'disabled');
 			$('#label_'+me.id).css({'background': 'transparent'});
 			$('#mini_add_'+me.id).hide();
 			$('#mini_tree_'+me.id).hide();
@@ -439,7 +467,7 @@ function ExtKeyWidget(id, sTargetClass, sFilter, sTitle, bSelectMode, oWizHelper
 		}
 		else
 		{
-			$('#label_'+me.id).removeAttr('disabled');
+			$('#label_'+me.id).prop('disabled', false);
 			$('#label_'+me.id).css({'background': '#fff url(../images/ac-background.gif) no-repeat right'});
 			$('#mini_add_'+me.id).show();
 			$('#mini_tree_'+me.id).show();
@@ -513,6 +541,7 @@ function ExtKeyWidget(id, sTargetClass, sFilter, sTitle, bSelectMode, oWizHelper
 	{
 		if (me.bSelectMode)
 		{
+            $('#fstatus_'+me.id).html('');
 		}
 		else
 		{

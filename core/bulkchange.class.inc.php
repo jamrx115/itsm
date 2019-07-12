@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2010-2015 Combodo SARL
+// Copyright (C) 2010-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -320,7 +320,7 @@ class BulkChange
 	// Returns true if the CSV data specifies that the external key must be left undefined
 	protected function IsNullExternalKeySpec($aRowData, $sAttCode)
 	{
-		$oExtKey = MetaModel::GetAttributeDef($this->m_sClass, $sAttCode);
+		//$oExtKey = MetaModel::GetAttributeDef($this->m_sClass, $sAttCode);
 		foreach ($this->m_aExtKeys[$sAttCode] as $sForeignAttCode => $iCol)
 		{
 			// The foreign attribute is one of our reconciliation key
@@ -332,6 +332,18 @@ class BulkChange
 		return true;
 	}
 
+	/**
+	 * @param \DBObject $oTargetObj
+	 * @param array $aRowData
+	 * @param array $aErrors
+	 *
+	 * @return array
+	 * @throws \CoreException
+	 * @throws \CoreUnexpectedValue
+	 * @throws \MissingQueryArgument
+	 * @throws \MySQLException
+	 * @throws \MySQLHasGoneAwayException
+	 */
 	protected function PrepareObject(&$oTargetObj, $aRowData, &$aErrors)
 	{
 		$aResults = array();
@@ -367,6 +379,7 @@ class BulkChange
 			else
 			{
 				$oReconFilter = new DBObjectSearch($oExtKey->GetTargetClass());
+
 				$aCacheKeys = array();
 				foreach ($aKeyConfig as $sForeignAttCode => $iCol)
 				{
@@ -385,7 +398,6 @@ class BulkChange
 					$aResults[$iCol] = new CellStatus_Void($aRowData[$iCol]);
 				}
 				$sCacheKey = implode('_|_', $aCacheKeys); // Unique key for this query...
-				$iCount = 0;
 				$iForeignKey = null;
 				$sOQL = '';
 				// TODO: check if *too long* keys can lead to collisions... and skip the cache in such a case...
@@ -472,8 +484,14 @@ class BulkChange
 			if ($sAttCode == 'id') continue;
 
 			$oAttDef = MetaModel::GetAttributeDef($this->m_sClass, $sAttCode);
+
+			// skip reconciliation keys
+			if (!$oAttDef->IsWritable() && in_array($sAttCode, $this->m_aReconcilKeys)){ continue; }
+
 			$aReasons = array();
-			$iFlags = $oTargetObj->GetAttributeFlags($sAttCode, $aReasons);
+			$iFlags = ($oTargetObj->IsNew())
+				? $oTargetObj->GetInitialStateAttributeFlags($sAttCode, $aReasons)
+				: $oTargetObj->GetAttributeFlags($sAttCode, $aReasons);
 			if ( (($iFlags & OPT_ATT_READONLY) == OPT_ATT_READONLY) && ( $oTargetObj->Get($sAttCode) != $aRowData[$iCol]) )
 			{
 					$aErrors[$sAttCode] = Dict::Format('UI:CSVReport-Value-Issue-Readonly', $sAttCode, $oTargetObj->Get($sAttCode), $aRowData[$iCol]);
@@ -528,13 +546,11 @@ class BulkChange
 				{
 					$sCurValue = $oTargetObj->GetAsHTML($sAttCode, $this->m_bLocalizedValues);
 					$sOrigValue = $oTargetObj->GetOriginalAsHTML($sAttCode, $this->m_bLocalizedValues);
-					$sInput = htmlentities($aRowData[$iCol], ENT_QUOTES, 'UTF-8');
 				}
 				else
 				{
 					$sCurValue = $oTargetObj->GetAsCSV($sAttCode, $this->m_sReportCsvSep, $this->m_sReportCsvDelimiter, $this->m_bLocalizedValues);
 					$sOrigValue = $oTargetObj->GetOriginalAsCSV($sAttCode, $this->m_sReportCsvSep, $this->m_sReportCsvDelimiter, $this->m_bLocalizedValues);
-					$sInput = $aRowData[$iCol];
 				}
 				if (isset($aErrors[$sAttCode]))
 				{
@@ -605,10 +621,6 @@ class BulkChange
 				throw new BulkChangeException('Invalid attribute code', array('class' => get_class($oTargetObj), 'attcode' => $sAttCode));
 			}
 			$oTargetObj->Set($sAttCode, $value);
-			if (!array_key_exists($sAttCode, $this->m_aAttList))
-			{
-				// #@# will be out of the reporting... (counted anyway)
-			}
 		}
 	
 		// Reporting on fields
@@ -646,6 +658,47 @@ class BulkChange
 	protected function CreateObject(&$aResult, $iRow, $aRowData, CMDBChange $oChange = null)
 	{
 		$oTargetObj = MetaModel::NewObject($this->m_sClass);
+
+		// Populate the cache for hierarchical keys (only if in verify mode)
+		if (is_null($oChange))
+		{
+			// 1. determine if a hierarchical key exists
+			foreach($this->m_aExtKeys as $sAttCode => $aKeyConfig)
+			{
+				$oExtKey = MetaModel::GetAttributeDef(get_class($oTargetObj), $sAttCode);
+				if (!$this->IsNullExternalKeySpec($aRowData, $sAttCode) && MetaModel::IsParentClass(get_class($oTargetObj), $this->m_sClass))
+				{
+					// 2. Populate the cache for further checks
+					$aCacheKeys = array();
+					foreach ($aKeyConfig as $sForeignAttCode => $iCol)
+					{
+						// The foreign attribute is one of our reconciliation key
+						if ($sForeignAttCode == 'id')
+						{
+							$value = $aRowData[$iCol];
+						}
+						else
+						{
+							if (!isset($this->m_aAttList[$sForeignAttCode]) || !isset($aRowData[$this->m_aAttList[$sForeignAttCode]]))
+							{
+								// the key is not in the import
+								break 2;
+							}
+							$value = $aRowData[$this->m_aAttList[$sForeignAttCode]];
+						}
+						$aCacheKeys[] = $value;
+					}
+					$sCacheKey = implode('_|_', $aCacheKeys); // Unique key for this query...
+					$this->m_aExtKeysMappingCache[$sAttCode][$sCacheKey] = array(
+						'c' => 1,
+						'k' => -1,
+						'oql' => '',
+						'h' => 0, // number of hits on this cache entry
+					);
+				}
+			}
+		}
+
 		$aResult[$iRow] = $this->PrepareObject($oTargetObj, $aRowData, $aErrors);
 	
 		if (count($aErrors) > 0)
@@ -679,7 +732,7 @@ class BulkChange
 		if ($oChange)
 		{
 			$newID = $oTargetObj->DBInsertTrackedNoReload($oChange);
-			$aResult[$iRow]["__STATUS__"] = new RowStatus_NewObj($this->m_sClass, $newID);
+			$aResult[$iRow]["__STATUS__"] = new RowStatus_NewObj();
 			$aResult[$iRow]["finalclass"] = get_class($oTargetObj);
 			$aResult[$iRow]["id"] = new CellStatus_Void($newID);
 		}
@@ -1171,6 +1224,9 @@ EOF
 
 	/**
 	 * Display the details of an import
+	 * @param iTopWebPage $oPage
+	 * @param $iChange
+	 * @throws Exception
 	 */
 	static function DisplayImportHistoryDetails(iTopWebPage $oPage, $iChange)
 	{
@@ -1306,5 +1362,3 @@ EOF
 	}	
 }
 
-
-?>

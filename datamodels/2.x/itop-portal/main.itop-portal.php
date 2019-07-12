@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (C) 2016 Combodo SARL
+// Copyright (C) 2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -24,62 +24,122 @@
  */
 class iTopPortalEditUrlMaker implements iDBObjectURLMaker
 {
-	/**
-	 * Generate an (absolute) URL to an object, either in view or edit mode
-	 * @param string $sClass The class of the object
-	 * @param int $iId The identifier of the object
-	 * @param string $sMode edit|view
-	 * @return string
-	 */
+    /**
+     * Generate an (absolute) URL to an object, either in view or edit mode.
+     * Returns null if the current user is not allowed to view / edit object.
+     *
+     * @param string $sClass The class of the object
+     * @param int $iId The identifier of the object
+     * @param string $sMode edit|view
+     *
+     * @return string | null
+     *
+     * @throws Exception
+     * @throws CoreException
+     */
 	public static function PrepareObjectURL($sClass, $iId, $sMode)
 	{
 		require_once APPROOT . '/lib/silex/vendor/autoload.php';
 		require_once APPROOT . '/env-' . utils::GetCurrentEnvironment() . '/itop-portal-base/portal/src/providers/urlgeneratorserviceprovider.class.inc.php';
 		require_once APPROOT . '/env-' . utils::GetCurrentEnvironment() . '/itop-portal-base/portal/src/helpers/urlgeneratorhelper.class.inc.php';
+		require_once APPROOT . '/env-' . utils::GetCurrentEnvironment() . '/itop-portal-base/portal/src/providers/scopevalidatorserviceprovider.class.inc.php';
+		require_once APPROOT . '/env-' . utils::GetCurrentEnvironment() . '/itop-portal-base/portal/src/helpers/scopevalidatorhelper.class.inc.php';
+		require_once APPROOT . '/env-' . utils::GetCurrentEnvironment() . '/itop-portal-base/portal/src/helpers/securityhelper.class.inc.php';
 		require_once APPROOT . '/env-' . utils::GetCurrentEnvironment() . '/itop-portal-base/portal/src/helpers/applicationhelper.class.inc.php';
 	
 		// Using a static var allows to preserve the object through function calls
 		static $oApp = null;
 		static $sPortalId = null;
 	
-		// Initializing Silex app
+		// Initializing Silex app (partially for faster execution)
+		// TODO: This should be factorised with itop-portal-base/portal/web/index.php into the ApplicationHelper class.
 		if ($oApp === null)
 		{
+			// Retrieving portal id
+			$sPortalId = basename(__DIR__);
+
 			// Initializing Silex framework
 			$oApp = new Silex\Application();
 			// Registering optional silex components
 			$oApp->register(new Combodo\iTop\Portal\Provider\UrlGeneratorServiceProvider());
-			// Registering routes
+			$oApp->register(new Combodo\iTop\Portal\Provider\ScopeValidatorServiceProvider(), array(
+				'scope_validator.scopes_path' => utils::GetCachePath(),
+				'scope_validator.scopes_filename' => $sPortalId . '.scopes.php',
+				'scope_validator.instance_name' => $sPortalId
+			));
+
+			// Preparing portal foundations (partially)
+			// ...
 			Combodo\iTop\Portal\Helper\ApplicationHelper::LoadRouters();
 			Combodo\iTop\Portal\Helper\ApplicationHelper::RegisterRoutes($oApp);
-			// Retrieving portal id
-			$sPortalId = basename(__DIR__);
+			// ...
+
+			// Loading portal scopes from the module design
+			Combodo\iTop\Portal\Helper\ApplicationHelper::LoadScopesConfiguration($oApp, new ModuleDesign($sPortalId));
 		}
+
+		/** @var \Combodo\iTop\Portal\Helper\UrlGenerator $oUrlGenerator */
+		$oUrlGenerator = $oApp['url_generator'];
+
 		// The object is reachable in the specified mode (edit/view)
+		//
+		// Note: Scopes only apply when URL check is triggered from the portal GUI.
+        $sObjectQueryString = null;
 		switch($sMode)
 		{
 			case 'view':
-			$sObjectQueryString = $oApp['url_generator']->generate('p_object_view', array('sObjectClass' => $sClass, 'sObjectId' => $iId));
+				if(!ContextTag::Check('GUI:Portal') || Combodo\iTop\Portal\Helper\SecurityHelper::IsActionAllowed($oApp, UR_ACTION_READ, $sClass, $iId))
+				{
+					$sObjectQueryString = $oUrlGenerator->generate('p_object_view', array('sObjectClass' => $sClass, 'sObjectId' => $iId));
+				}
 			break;
 					
 			case 'edit':
 			default:
-			$sObjectQueryString = $oApp['url_generator']->generate('p_object_edit', array('sObjectClass' => $sClass, 'sObjectId' => $iId));
+				// Checking if user is allowed to edit object, if not we check if it can at least view it.
+				if(!ContextTag::Check('GUI:Portal') || Combodo\iTop\Portal\Helper\SecurityHelper::IsActionAllowed($oApp, UR_ACTION_MODIFY, $sClass, $iId))
+				{
+					$sObjectQueryString = $oUrlGenerator->generate('p_object_edit', array('sObjectClass' => $sClass, 'sObjectId' => $iId));
+				}
+				elseif(!ContextTag::Check('GUI:Portal') || Combodo\iTop\Portal\Helper\SecurityHelper::IsActionAllowed($oApp, UR_ACTION_READ, $sClass, $iId))
+				{
+					$sObjectQueryString = $oUrlGenerator->generate('p_object_view', array('sObjectClass' => $sClass, 'sObjectId' => $iId));
+				}
+			break;
 		}
 		
 		$sPortalAbsoluteUrl = utils::GetAbsoluteUrlModulePage($sPortalId, 'index.php');
-		if (strpos($sPortalAbsoluteUrl, '?') !== false)
+		if($sObjectQueryString === null)
 		{
-			$sUrl = substr($sPortalAbsoluteUrl, 0, strpos($sPortalAbsoluteUrl, '?')).$sObjectQueryString.substr($sPortalAbsoluteUrl, strpos($sPortalAbsoluteUrl, '?'));
+			$sUrl = null;
+		}
+        elseif (strpos($sPortalAbsoluteUrl, '?') !== false)
+		{
+		    // Removing generated url query parameters so it can be replaced with those from the absolute url
+            // Mostly necessary when iTop instance has multiple portals
+		    if(strpos($sObjectQueryString, '?') !== false)
+            {
+                $sObjectQueryString = substr($sObjectQueryString, 0, strpos($sObjectQueryString, '?'));
+            }
+
+            $sUrl = substr($sPortalAbsoluteUrl, 0, strpos($sPortalAbsoluteUrl, '?')).$sObjectQueryString.substr($sPortalAbsoluteUrl, strpos($sPortalAbsoluteUrl, '?'));
 		}
 		else
 		{
-			$sUrl = $sPortalAbsoluteUrl.$sObjectQueryString;
+            $sUrl = $sPortalAbsoluteUrl.$sObjectQueryString;
 		}
 
 		return $sUrl;
 	}
-	
+
+    /**
+     * @param $sClass
+     * @param $iId
+     *
+     * @return null|string
+     *
+     * @throws CoreException
+     */
 	public static function MakeObjectURL($sClass, $iId)
 	{	
 		return static::PrepareObjectURL($sClass, $iId, 'edit');
@@ -102,4 +162,7 @@ class iTopPortalViewUrlMaker extends iTopPortalEditUrlMaker
 
 // Default portal hyperlink (for notifications) is the edit hyperlink
 DBObject::RegisterURLMakerClass('portal', 'iTopPortalEditUrlMaker');
+DBObject::RegisterURLMakerClass('itop-portal', 'iTopPortalEditUrlMaker');
+DBObject::RegisterURLMakerClass('itop-portal-edit', 'iTopPortalEditUrlMaker');
+DBObject::RegisterURLMakerClass('itop-portal-view', 'iTopPortalViewUrlMaker');
 

@@ -36,7 +36,8 @@
 
 class SQLObjectQuery extends SQLQuery
 {
-	private $m_SourceOQL = '';
+	public $m_aContextData = null;
+	public $m_iOriginalTableCount = 0;
 	private $m_sTable = '';
 	private $m_sTableAlias = '';
 	private $m_aFields = array();
@@ -46,7 +47,7 @@ class SQLObjectQuery extends SQLQuery
 	private $m_aValues = array(); // Values to set in case of an update query
 	private $m_oSelectedIdField = null;
 	private $m_aJoinSelects = array();
-	private $m_bBeautifulQuery = false;
+	protected $m_bBeautifulQuery = false;
 
 	// Data set by PrepareRendering()
 	private $__aFrom;
@@ -94,7 +95,7 @@ class SQLObjectQuery extends SQLQuery
 			$aFieldDesc = array();
 			foreach ($this->m_aFields as $sAlias => $oExpression)
 			{
-				$aFieldDesc[] = $oExpression->Render()." as <em>$sAlias</em>";
+				$aFieldDesc[] = $oExpression->RenderExpression(false)." as <em>$sAlias</em>";
 			}
 			$sFields = " =&gt; ".implode(', ', $aFieldDesc);
 		}
@@ -111,7 +112,7 @@ class SQLObjectQuery extends SQLQuery
 				$oSQLQuery = $aJoinInfo["select"];
 				if (isset($aJoinInfo["on_expression"]))
 				{
-					$sOnCondition = $aJoinInfo["on_expression"]->Render();
+					$sOnCondition = $aJoinInfo["on_expression"]->RenderExpression(false);
 
 					echo "<li>Join '$sJoinType', ON ($sOnCondition)".$oSQLQuery->DisplayHtml()."</li>\n";
 				}
@@ -166,7 +167,7 @@ class SQLObjectQuery extends SQLQuery
 		}
 		else
 		{
-			$this->m_oConditionExpr->LogAnd($oConditionExpr);
+			$this->m_oConditionExpr = $this->m_oConditionExpr->LogAnd($oConditionExpr);
 		}
 	}
 
@@ -244,6 +245,12 @@ class SQLObjectQuery extends SQLQuery
 	}
 	
 	// Interface, build the SQL query
+
+	/**
+	 * @param array $aArgs
+	 * @return string
+	 * @throws CoreException
+	 */
 	public function RenderDelete($aArgs = array())
 	{
 		$this->PrepareRendering();
@@ -269,6 +276,7 @@ class SQLObjectQuery extends SQLQuery
 			$sWhere  = self::ClauseWhere($this->m_oConditionExpr, $aArgs);
 			return "DELETE $sDelete FROM $sFrom WHERE $sWhere";
 		}
+		return '';
 	}
 
 	/**
@@ -282,16 +290,25 @@ class SQLObjectQuery extends SQLQuery
 	}
 
 	/**
-	 *	Needed for the unions
+	 *    Needed for the unions
+	 * @param $aOrderBy
+	 * @return string
+	 * @throws CoreException
 	 */
 	public function RenderOrderByClause($aOrderBy)
 	{
 		$this->PrepareRendering();
-		$sOrderBy = self::ClauseOrderBy($aOrderBy);
+		$sOrderBy = self::ClauseOrderBy($aOrderBy, $this->__aFields);
 		return $sOrderBy;
 	}
 
 	// Interface, build the SQL query
+
+	/**
+	 * @param array $aArgs
+	 * @return string
+	 * @throws CoreException
+	 */
 	public function RenderUpdate($aArgs = array())
 	{
 		$this->PrepareRendering();
@@ -302,6 +319,17 @@ class SQLObjectQuery extends SQLQuery
 	}
 
 	// Interface, build the SQL query
+
+	/**
+	 * @param array $aOrderBy
+	 * @param array $aArgs
+	 * @param int $iLimitCount
+	 * @param int $iLimitStart
+	 * @param bool $bGetCount
+	 * @param bool $bBeautifulQuery
+	 * @return string
+	 * @throws CoreException
+	 */
 	public function RenderSelect($aOrderBy = array(), $aArgs = array(), $iLimitCount = 0, $iLimitStart = 0, $bGetCount = false, $bBeautifulQuery = false)
 	{
 		$this->m_bBeautifulQuery = $bBeautifulQuery;
@@ -311,6 +339,18 @@ class SQLObjectQuery extends SQLQuery
 		$this->PrepareRendering();
 		$sFrom   = self::ClauseFrom($this->__aFrom, $sIndent);
 		$sWhere  = self::ClauseWhere($this->m_oConditionExpr, $aArgs);
+		// Sanity
+		$iLimitCount = (int)$iLimitCount;
+		if ($iLimitCount > 0)
+		{
+			// Sanity
+			$iLimitStart = (int)$iLimitStart;
+			$sLimit = 'LIMIT '.$iLimitStart.', '.$iLimitCount;
+		}
+		else
+		{
+			$sLimit = '';
+		}
 		if ($bGetCount)
 		{
 			if (count($this->__aSelectedIdFields) > 0)
@@ -321,47 +361,70 @@ class SQLObjectQuery extends SQLQuery
 					$aCountFields[] = "COALESCE($sFieldExpr, 0)"; // Null values are excluded from the count
 				}
 				$sCountFields = implode(', ', $aCountFields);
-				$sSQL = "SELECT$sLineSep COUNT(DISTINCT $sCountFields) AS COUNT$sLineSep FROM $sFrom$sLineSep WHERE $sWhere";
+				// Count can be limited for performance reason, in this case the total amount is not important,
+				// we only need to know if the number of entries is greater than a certain amount.
+				$sSQL = "SELECT COUNT(*) AS COUNT FROM (SELECT$sLineSep DISTINCT $sCountFields $sLineSep FROM $sFrom$sLineSep WHERE $sWhere $sLimit) AS _tatooine_";
 			}
 			else
 			{
-				$sSQL = "SELECT$sLineSep COUNT(*) AS COUNT$sLineSep FROM $sFrom$sLineSep WHERE $sWhere";
+				$sSQL = "SELECT COUNT(*) AS COUNT FROM (SELECT$sLineSep 1 $sLineSep FROM $sFrom$sLineSep WHERE $sWhere $sLimit) AS _tatooine_";
 			}
 		}
 		else
 		{
-			$sSelect = self::ClauseSelect($this->__aFields);
-			$sOrderBy = self::ClauseOrderBy($aOrderBy);
+			$sSelect = self::ClauseSelect($this->__aFields, $sLineSep);
+			$sOrderBy = self::ClauseOrderBy($aOrderBy, $this->__aFields);
 			if (!empty($sOrderBy))
 			{
 				$sOrderBy = "ORDER BY $sOrderBy$sLineSep";
 			}
-			if ($iLimitCount > 0)
-			{
-				$sLimit = 'LIMIT '.$iLimitStart.', '.$iLimitCount;
-			}
-			else
-			{
-				$sLimit = '';
-			}
+
 			$sSQL = "SELECT$sLineSep DISTINCT $sSelect$sLineSep FROM $sFrom$sLineSep WHERE $sWhere$sLineSep $sOrderBy $sLimit";
 		}
 		return $sSQL;
 	}
 
 	// Interface, build the SQL query
-	public function RenderGroupBy($aArgs = array(), $bBeautifulQuery = false)
+
+	/**
+	 * @param array $aArgs
+	 * @param bool $bBeautifulQuery
+	 * @param array $aOrderBy
+	 * @param int $iLimitCount
+	 * @param int $iLimitStart
+	 * @return string
+	 * @throws CoreException
+	 */
+	public function RenderGroupBy($aArgs = array(), $bBeautifulQuery = false, $aOrderBy = array(), $iLimitCount = 0, $iLimitStart = 0)
 	{
 		$this->m_bBeautifulQuery = $bBeautifulQuery;
 		$sLineSep = $this->m_bBeautifulQuery ? "\n" : '';
 		$sIndent = $this->m_bBeautifulQuery ? "   " : null;
 
 		$this->PrepareRendering();
+
 		$sSelect = self::ClauseSelect($this->__aFields);
 		$sFrom   = self::ClauseFrom($this->__aFrom, $sIndent);
 		$sWhere  = self::ClauseWhere($this->m_oConditionExpr, $aArgs);
 		$sGroupBy = self::ClauseGroupBy($this->__aGroupBy);
-		$sSQL = "SELECT $sSelect,$sLineSep COUNT(*) AS _itop_count_$sLineSep FROM $sFrom$sLineSep WHERE $sWhere$sLineSep GROUP BY $sGroupBy";
+		$sOrderBy = self::ClauseOrderBy($aOrderBy, $this->__aFields);
+		if (!empty($sGroupBy))
+		{
+			$sGroupBy = "GROUP BY $sGroupBy$sLineSep";
+		}
+		if (!empty($sOrderBy))
+		{
+			$sOrderBy = "ORDER BY $sOrderBy$sLineSep";
+		}
+		if ($iLimitCount > 0)
+		{
+			$sLimit = 'LIMIT '.$iLimitStart.', '.$iLimitCount;
+		}
+		else
+		{
+			$sLimit = '';
+		}
+		$sSQL = "SELECT $sSelect,$sLineSep COUNT(*) AS _itop_count_$sLineSep FROM $sFrom$sLineSep WHERE $sWhere$sLineSep $sGroupBy $sOrderBy$sLineSep $sLimit";
 		return $sSQL;
 	}
 
@@ -384,6 +447,7 @@ class SQLObjectQuery extends SQLQuery
 	private function PrepareSingleTable(SQLObjectQuery $oRootQuery, &$aFrom, $sCallerAlias = '', $aJoinData)
 	{
 		$aTranslationTable[$this->m_sTable]['*'] = $this->m_sTableAlias;
+		$sJoinCond = '';
 
 		// Handle the various kinds of join (or first table in the list)
 		//
@@ -404,7 +468,7 @@ class SQLObjectQuery extends SQLQuery
 			case "left":
 				if (isset($aJoinData["on_expression"]))
 				{
-					$sJoinCond = $aJoinData["on_expression"]->Render();
+					$sJoinCond = $aJoinData["on_expression"]->RenderExpression(true);
 				}
 				else
 				{
@@ -471,13 +535,13 @@ class SQLObjectQuery extends SQLQuery
 		//
 		foreach($this->m_aFields as $sAlias => $oExpression)
 		{
-			$oRootQuery->__aFields["`$sAlias`"] = $oExpression->Render();
+			$oRootQuery->__aFields["`$sAlias`"] = $oExpression->RenderExpression(true);
 		}
 		if ($this->m_aGroupBy)
 		{
 			foreach($this->m_aGroupBy as $sAlias => $oExpression)
 			{
-				$oRootQuery->__aGroupBy["`$sAlias`"] = $oExpression->Render();
+				$oRootQuery->__aGroupBy["`$sAlias`"] = $oExpression->RenderExpression(true);
 			}
 		}
 		if ($this->m_bToDelete)
@@ -491,7 +555,7 @@ class SQLObjectQuery extends SQLQuery
 
   		if (!is_null($this->m_oSelectedIdField))
   		{
-  			$oRootQuery->__aSelectedIdFields[] = $this->m_oSelectedIdField->Render();
+		    $oRootQuery->__aSelectedIdFields[] = $this->m_oSelectedIdField->RenderExpression(true);
 		}
 
 		// loop on joins, to complete the list of tables/fields/conditions
@@ -501,7 +565,7 @@ class SQLObjectQuery extends SQLQuery
 		{
 			$oRightSelect = $aJoinData["select"];
 
-			$sJoinTableAlias = $oRightSelect->PrepareSingleTable($oRootQuery, $aTempFrom, $this->m_sTableAlias, $aJoinData);
+			$oRightSelect->PrepareSingleTable($oRootQuery, $aTempFrom, $this->m_sTableAlias, $aJoinData);
 		}
 		$aFrom[$this->m_sTableAlias]['subfrom'] = $aTempFrom;
 
@@ -510,6 +574,7 @@ class SQLObjectQuery extends SQLQuery
 
 	public function OptimizeJoins($aUsedTables, $bTopCall = true)
 	{
+		$this->m_iOriginalTableCount = $this->CountTables();
 		if ($bTopCall)
 		{
 			// Top call: complete the list of tables absolutely required to perform the right query
@@ -534,7 +599,18 @@ class SQLObjectQuery extends SQLQuery
 		return (count($this->m_aJoinSelects) == 0);
 	}
 
-	protected function CollectUsedTables(&$aTables)
+	public function CountTables()
+	{
+		$iRet = 1;
+		foreach ($this->m_aJoinSelects as $i => $aJoinInfo)
+		{
+			$oSQLQuery = $aJoinInfo["select"];
+			$iRet += $oSQLQuery->CountTables();
+		}
+		return $iRet;
+	}
+
+	public function CollectUsedTables(&$aTables)
 	{
 		$this->m_oConditionExpr->CollectUsedParents($aTables);
 		foreach($this->m_aFields as $sFieldAlias => $oField)
@@ -565,7 +641,7 @@ class SQLObjectQuery extends SQLQuery
 				}
 				if (isset($aJoinInfo["on_expression"]))
 				{
-					$sJoinCond = $aJoinInfo["on_expression"]->CollectUsedParents($aTables);
+					$aJoinInfo["on_expression"]->CollectUsedParents($aTables);
 				}
 			}
 		}
@@ -593,7 +669,7 @@ class SQLObjectQuery extends SQLQuery
 				}
 				if (isset($aJoinInfo["on_expression"]))
 				{
-					$sJoinCond = $aJoinInfo["on_expression"]->CollectUsedParents($aTables);
+					$aJoinInfo["on_expression"]->CollectUsedParents($aTables);
 				}
 				$bResult = true;
 			}
@@ -601,4 +677,5 @@ class SQLObjectQuery extends SQLQuery
 		// None of the tables is in the list of required tables
 		return $bResult;
 	}
+
 }

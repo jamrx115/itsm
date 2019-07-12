@@ -31,7 +31,7 @@
 	// Used for ajax throttling
 	var iSearchThrottle = 600;
 	var oKeyTimeout;
-	var aKeyTimeoutFilteredKeys = [16, 17, 18, 19, 27, 33, 34, 35, 36, 37, 38, 39, 40]; // Shift, Ctrl, Alt, Pause, Esc, Page Up/Down, Home, End, Left/Up/Right/Down arrows
+	var aKeyTimeoutFilteredKeys = [9, 16, 17, 18, 19, 27, 33, 34, 35, 36, 37, 38, 39, 40]; // Tab, Shift, Ctrl, Alt, Pause, Esc, Page Up/Down, Home, End, Left/Up/Right/Down arrows
 	// Used for form
 	var oSelectedItems = {};
 
@@ -117,7 +117,7 @@
 				}
 			},
 			"lengthMenu": [[10, 20, 50, -1], [10, 20, 50, "{{ 'Portal:Datatables:Language:DisplayLength:All'|dict_s }}"]],
-			"displayLength": {{ constant('Combodo\\iTop\\Portal\\Controller\\ObjectController::DEFAULT_COUNT_PER_PAGE_LIST') }},
+			"displayLength": {{ constant('Combodo\\iTop\\Portal\\Controller\\ObjectController::DEFAULT_LIST_LENGTH') }},
 			"order": [[1, "asc"]],
 			"dom": '<"row"<"col-sm-6"l><"col-sm-6"<f><"visible-xs"p>>>t<"row"<"col-sm-6"i><"col-sm-6"p>>',
 			"columns": getColumnsDefinition(),
@@ -134,6 +134,32 @@
 					$(oRow).addClass('selected');
 					$(oRow).find('td:first-child input').prop('checked', true);
 				}
+
+				// Opening in a new modal on click
+				$(oRow).find('a').off('click').on('click', function(oEvent){
+					// Prevents link opening.
+					oEvent.preventDefault();
+					// Prevents row selection
+					oEvent.stopPropagation();
+
+					// Note : This could be better if we check for an existing modal first instead of always creating a new one
+					var oModalElem = $('#modal-for-all').clone();
+					oModalElem.attr('id', '').appendTo('body');
+					// Loading content
+					oModalElem.find('.modal-content').html($('#page_overlay .overlay_content').html());
+					oModalElem.find('.modal-content').load(
+						$(this).attr('href'),
+						{},
+						function(sResponseText, sStatus, oXHR){
+							// Hiding modal in case of error as the general AJAX error handler will display a message
+							if(sStatus === 'error')
+							{
+								oModalElem.modal('hide');
+							}
+						}
+					);
+					oModalElem.modal('show');
+				});
 			},
 			"drawCallback": function(settings){
 				// Hiding pagination if only one page
@@ -156,7 +182,7 @@
 					d.sFieldId = '{{ aSource.sFieldId }}';
 					d.aObjectIdsToIgnore = {{ aSource.aObjectIdsToIgnore|json_encode()|raw }};
 					d.iPageNumber = Math.floor(d.start/d.length) + 1;
-					d.iCountPerPage = d.length;
+					d.iListLength = d.length;
 					d.columns = null;
 					d.orders = null;
 					if(d.search.value)
@@ -172,21 +198,26 @@
 					{% endif %}
 				},
 				"error": function(oData, sError, sThrow){
+				    // Error returned by the framework
 					if(oData.responseJSON !== undefined && oData.responseJSON !== null)
 					{
 						var oResponse = oData.responseJSON;
 						// If we encounter an error
 						if(oResponse.exception !== undefined)
 						{
-							// Note : This could be refactored for a global use
-							$('#{{ sTableId }}').closest('.modal').html( $('#modal-for-alert').html() );
-							var oModalElem = $('#{{ sTableId }}').closest('.modal');
-							oModalElem.find('.modal-title').html(oResponse.error_title);
-							oModalElem.find('.modal-body .alert').html(oResponse.error_message)
-									.removeClass('alert-success alert-info alert-warning alert-danger')
-									.addClass('alert-danger');
-							oModalElem.modal('show');
+							{# Hiding modal in case of error as the general AJAX error handler will display a message #}
+                            {% if tIsModal is defined and tIsModal == true %}
+                            	$('#{{ sFormId }}').closest('.modal').modal('hide');
+                            {% endif %}
 						}
+					}
+					// Global failure
+					else
+					{
+						{# Hiding modal in case of error as the general AJAX error handler will display a message #}
+                        {% if tIsModal is defined and tIsModal == true %}
+                        	$('#{{ sFormId }}').closest('.modal').modal('hide');
+                        {% endif %}
 					}
 				}
 			}
@@ -204,7 +235,7 @@
 				var iItemId = aData[i].id;
 				if(!(iItemId in oSelectedItems))
 				{
-					oSelectedItems[iItemId] = $('<textarea />').html(aData[i].name).text();
+					oSelectedItems[iItemId] = $('<textarea></textarea>').html(aData[i].name).text();
 				}
 			}
 		});

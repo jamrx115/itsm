@@ -11,6 +11,7 @@ $(function()
 			input_name: '',
 			class_name: '',
 			att_code: '',
+			do_search: true,
 			submit_to: '../pages/ajax.render.php',
 			submit_parameters: {},
 			labels: { 'delete': 'Delete',
@@ -114,21 +115,21 @@ $(function()
 			switch(oChecked.length)
 			{
 				case 0:
-					this.oButtons['delete'].attr('disabled', 'disabled');
-					this.oButtons['remove'].attr('disabled', 'disabled');
-					this.oButtons['modify'].attr('disabled', 'disabled');
+					this.oButtons['delete'].prop('disabled', true);
+					this.oButtons['remove'].prop('disabled', true);
+					this.oButtons['modify'].prop('disabled', true);
 				break;
 			
 				case 1:
-					this.oButtons['delete'].removeAttr('disabled');
-					this.oButtons['remove'].removeAttr('disabled');
-					this.oButtons['modify'].removeAttr('disabled');
+					this.oButtons['delete'].prop('disabled', false);
+					this.oButtons['remove'].prop('disabled', false);
+					this.oButtons['modify'].prop('disabled', false);
 				break;
 				
 				default:
-					this.oButtons['delete'].removeAttr('disabled');
-					this.oButtons['remove'].removeAttr('disabled');
-					this.oButtons['modify'].attr('disabled', 'disabled');
+					this.oButtons['delete'].prop('disabled', false);
+					this.oButtons['remove'].prop('disabled', false);
+					this.oButtons['modify'].prop('disabled', true);
 				break;
 			}
 		},
@@ -145,7 +146,7 @@ $(function()
 		},
 		_createRow: function()
 		{
-			this.oButtons['create'].attr('disabled', 'disabled');
+			this.oButtons['create'].prop('disabled', true);
 			this.indicator.html('<img src="../images/indicator.gif">');
 			oParams = this.options.submit_parameters;
 			oParams.operation = 'createObject';
@@ -154,6 +155,11 @@ $(function()
 			oParams.att_code = this.options.att_code;
 			oParams.iInputId = this.id;
 			var me = this;
+			if (this.options.oWizardHelper)
+			{
+				this.options.oWizardHelper.UpdateWizard();
+				oParams.json = this.options.oWizardHelper.ToJSON();
+			}
 			$.post(this.options.submit_to, oParams, function(data){
 				me.oDlg = $('<div></div>');
 				$('body').append(me.oDlg);
@@ -170,13 +176,13 @@ $(function()
 					close: function() { me._onDlgClose(); }
 				});
 				me.indicator.html('');
-				me.oButtons['create'].removeAttr('disabled');
+				me.oButtons['create'].prop('disabled', false);
 				me._updateDlgPosition();
 			});
 		},
 		_selectToAdd: function()
 		{
-			this.oButtons['add'].attr('disabled', 'disabled');
+			this.oButtons['add'].prop('disabled', true);
 			this.indicator.html('<img src="../images/indicator.gif">');
 			oParams = this.options.submit_parameters;
 			oParams.operation = 'selectObjectsToAdd';
@@ -184,6 +190,15 @@ $(function()
 			oParams.real_class = '';
 			oParams.att_code = this.options.att_code;
 			oParams.iInputId = this.id;
+
+			// Gather the already linked target objects
+			oParams.aAlreadyLinked = new Array();
+			$('#'+this.id+' .listResults td input:checkbox').each(function () {
+					iKey = parseInt(this.value, 10); // Numbers are in base 10
+					oParams.aAlreadyLinked.push(iKey);
+				}
+			);
+
 			if (this.options.oWizardHelper)
 			{
 				this.options.oWizardHelper.UpdateWizard();
@@ -210,8 +225,18 @@ $(function()
 					resizeStop: function() { me._onSearchDlgUpdateSize(); }
 				});
 				me.indicator.html('');
-				me.oButtons['add'].removeAttr('disabled');
-				me._onSearchToAdd();
+				me.oButtons['add'].prop('disabled', false);
+				if (me.options.do_search)
+				{
+					me._onSearchToAdd();
+				}
+				else
+				{
+					$('#count_'+me.id).change(function() {
+						var c = this.value;
+						me._onUpdateDlgButtons(c);
+					});
+				}
 				me._updateDlgPosition();
 				me._onSearchDlgUpdateSize();
 			});
@@ -261,7 +286,6 @@ $(function()
 					var c = this.value;
 					me._onUpdateDlgButtons(c);
 				});
-				FixSearchFormsDisposition();
 				$('#SearchResultsToAdd_'+me.id).unblock();
 				me._onSearchDlgUpdateSize();
 			});
@@ -325,11 +349,11 @@ $(function()
 		{
 			if (iCount > 0)
 			{
-				this.oDlg.find('button.ok').removeAttr('disabled');
+				this.oDlg.find('button.ok').prop('disabled', false);
 			}
 			else
 			{
-				this.oDlg.find('button.ok').attr('disabled', 'disabled');				
+				this.oDlg.find('button.ok').prop('disabled', true);
 			}
 		},
 		_onDoAdd:function()
@@ -362,7 +386,7 @@ $(function()
 				me.datatable.find('tbody').append(data);
 				me._updateTable();
 				me.indicator.html('');
-				me.oButtons['add'].removeAttr('disabled');
+				me.oButtons['add'].prop('disabled', false);
 			});
 		},
 		subclassSelected: function()
@@ -375,7 +399,7 @@ $(function()
 			oParams.att_code = this.options.att_code;
 			oParams.iInputId = this.id;
 			var me = this;
-			me.oDlg.find('button').attr('disabled', 'disabled');
+			me.oDlg.find('button').prop('disabled', true);
 			me.oDlg.find('span.indicator').html('<img src="../images/indicator.gif">');
 			$.post(this.options.submit_to, oParams, function(data){
 				me.oDlg.html(data);
@@ -418,14 +442,14 @@ $(function()
 				oParams.tempId = nextIdx;
 				var me = this;
 
-				this.oButtons['create'].attr('disabled', 'disabled');
+				this.oButtons['create'].prop('disabled', true);
 				this.indicator.html('<img src="../images/indicator.gif">');
 
 				$.post(this.options.submit_to, oParams, function(data){
 					me.datatable.find('tbody').append(data);
 					me._updateTable();
 					me.indicator.html('');
-					me.oButtons['create'].removeAttr('disabled');
+					me.oButtons['create'].prop('disabled', false);
 				});
 			}
 		},

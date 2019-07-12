@@ -16,6 +16,8 @@
 //   You should have received a copy of the GNU Affero General Public License
 //   along with iTop. If not, see <http://www.gnu.org/licenses/>
 
+require_once(APPROOT.'application/newsroomprovider.class.inc.php');
+
 /**
  * Management of application plugins
  * 
@@ -122,7 +124,8 @@ interface iApplicationUIExtension
 	 * Sorry, the verb has been reserved. You must implement it, but it is not called as of now.
 	 * 
 	 * @param DBObject $oObject The object being displayed
-	 * @return type desc
+	 *
+	 * @return string[] desc
 	 */	
 	public function EnumUsedAttributes($oObject); // Not yet implemented
 
@@ -308,6 +311,43 @@ interface iPopupMenuExtension
 	 * $param is null
 	 */
 	const MENU_USER_ACTIONS = 5;
+    /**
+     * Insert an item into the Action menu on an object item in an objects list in the portal
+     *
+     * $param is an array('portal_id' => $sPortalId, 'object' => $oObject) containing the portal id and a DBObject instance (the object on the current line)
+     */
+    const PORTAL_OBJLISTITEM_ACTIONS = 7;
+    /**
+     * Insert an item into the Action menu on an object details page in the portal
+     *
+     * $param is an array('portal_id' => $sPortalId, 'object' => $oObject) containing the portal id and a DBObject instance (the object currently displayed)
+     */
+	const PORTAL_OBJDETAILS_ACTIONS = 8;
+
+    /**
+     * Insert an item into the Actions menu of a list in the portal
+     * Note: This is not implemented yet !
+     *
+     * $param is an array('portal_id' => $sPortalId, 'object_set' => $oSet) containing DBObjectSet containing the list of objects
+     * @todo
+     */
+    const PORTAL_OBJLIST_ACTIONS = 6;
+    /**
+     * Insert an item into the user menu of the portal
+     * Note: This is not implemented yet !
+     *
+     * $param is the portal id
+     * @todo
+     */
+    const PORTAL_USER_ACTIONS = 9;
+    /**
+     * Insert an item into the navigation menu of the portal
+     * Note: This is not implemented yet !
+     *
+     * $param is the portal id
+     * @todo
+     */
+    const PORTAL_MENU_ACTIONS = 10;
 
 	/**
 	 * Get the list of items to be added to a menu.
@@ -334,17 +374,21 @@ abstract class ApplicationPopupMenuItem
 	protected $sUID;
 	/** @ignore */
 	protected $sLabel;
+	/** @ignore */
+	protected $aCssClasses;
 	
 	/**
 	 *	Constructor
 	 *	
 	 * @param string $sUID The unique identifier of this menu in iTop... make sure you pass something unique enough
-	 * @param string $sLabel The display label of the menu (must be localized)
-	 */	
+     * @param string $sLabel The display label of the menu (must be localized)
+     * @param array $aCssClasses The CSS classes to add to the menu
+	 */
 	public function __construct($sUID, $sLabel)
 	{
 		$this->sUID = $sUID;
 		$this->sLabel = $sLabel;
+		$this->aCssClasses = array();
 	}
 	
 	/**
@@ -368,11 +412,41 @@ abstract class ApplicationPopupMenuItem
 	{
 		return $this->sLabel;
 	}
+
+    /**
+     * Get the CSS classes
+     *
+     * @return array
+     * @ignore
+     */
+	public function GetCssClasses()
+    {
+        return $this->aCssClasses;
+    }
+
+    /**
+     * @param $aCssClasses
+     */
+    public function SetCssClasses($aCssClasses)
+    {
+        $this->aCssClasses = $aCssClasses;
+    }
+
+    /**
+     * Adds a CSS class to the CSS classes that will be put on the menu item
+     *
+     * @param $sCssClass
+     */
+	public function AddCssClass($sCssClass)
+    {
+        $this->aCssClasses[] = $sCssClass;
+    }
 	
 	/**
 	 * Returns the components to create a popup menu item in HTML
-	 * @return Hash A hash array: array('label' => , 'url' => , 'target' => , 'onclick' => )
-	 * @ignore	 	 
+	 *
+	 * @return array A hash array: array('label' => , 'url' => , 'target' => , 'onclick' => )
+	 * @ignore
 	 */
 	abstract public function GetMenuItem();
 
@@ -415,7 +489,7 @@ class URLPopupMenuItem extends ApplicationPopupMenuItem
 	/** @ignore */
 	public function GetMenuItem()
 	{
-		return array ('label' => $this->GetLabel(), 'url' => $this->sURL, 'target' => $this->sTarget);	
+		return array ('label' => $this->GetLabel(), 'url' => $this->sURL, 'target' => $this->sTarget, 'css_classes' => $this->aCssClasses);
 	}
 }
 
@@ -451,7 +525,7 @@ class JSPopupMenuItem extends ApplicationPopupMenuItem
 	public function GetMenuItem()
 	{
 		// Note: the semicolumn is a must here!
-		return array ('label' => $this->GetLabel(), 'onclick' => $this->sJSCode.'; return false;', 'url' => '#');
+		return array ('label' => $this->GetLabel(), 'onclick' => $this->sJSCode.'; return false;', 'url' => '#', 'css_classes' => $this->aCssClasses);
 	}
 	
 	/** @ignore */
@@ -483,8 +557,32 @@ class SeparatorPopupMenuItem extends ApplicationPopupMenuItem
 	/** @ignore */
 	public function GetMenuItem()
 	{
-		return array ('label' => '<hr class="menu-separator">', 'url' => '');
+		return array ('label' => '<hr class="menu-separator">', 'url' => '', 'css_classes' => $this->aCssClasses);
 	}
+}
+
+/**
+ * Class for adding an item as a button that browses to the given URL
+ *
+ * @package     Extensibility
+ * @api
+ * @since 2.0
+ */
+class URLButtonItem extends URLPopupMenuItem
+{
+
+}
+
+/**
+ * Class for adding an item as a button that runs some JS code
+ *
+ * @package     Extensibility
+ * @api
+ * @since 2.0
+ */
+class JSButtonItem extends JSPopupMenuItem
+{
+
 }
 
 /**
@@ -529,6 +627,128 @@ interface iPageUIExtension
 }
 
 /**
+ * Implement this interface to add content to any enhanced portal page
+ *
+ * IMPORTANT! Experimental API, may be removed at anytime, we don't recommend to use it just now!
+ *
+ * @package     Extensibility
+ * @api
+ * @since 2.4
+ */
+interface iPortalUIExtension
+{
+    const ENUM_PORTAL_EXT_UI_BODY = 'Body';
+    const ENUM_PORTAL_EXT_UI_NAVIGATION_MENU = 'NavigationMenu';
+    const ENUM_PORTAL_EXT_UI_MAIN_CONTENT = 'MainContent';
+
+    /**
+     * Returns an array of CSS file urls
+     *
+     * @param \Silex\Application $oApp
+     * @return array
+     */
+    public function GetCSSFiles(\Silex\Application $oApp);
+    /**
+     * Returns inline (raw) CSS
+     *
+     * @param \Silex\Application $oApp
+     * @return string
+     */
+    public function GetCSSInline(\Silex\Application $oApp);
+    /**
+     * Returns an array of JS file urls
+     *
+     * @param \Silex\Application $oApp
+     * @return array
+     */
+    public function GetJSFiles(\Silex\Application $oApp);
+    /**
+     * Returns raw JS code
+     *
+     * @param \Silex\Application $oApp
+     * @return string
+     */
+    public function GetJSInline(\Silex\Application $oApp);
+    /**
+     * Returns raw HTML code to put at the end of the <body> tag
+     *
+     * @param \Silex\Application $oApp
+     * @return string
+     */
+    public function GetBodyHTML(\Silex\Application $oApp);
+    /**
+     * Returns raw HTML code to put at the end of the #main-wrapper element
+     *
+     * @param \Silex\Application $oApp
+     * @return string
+     */
+    public function GetMainContentHTML(\Silex\Application $oApp);
+    /**
+     * Returns raw HTML code to put at the end of the #topbar and #sidebar elements
+     *
+     * @param \Silex\Application $oApp
+     * @return string
+     */
+    public function GetNavigationMenuHTML(\Silex\Application $oApp);
+}
+
+/**
+ * IMPORTANT! Experimental API, may be removed at anytime, we don't recommend to use it just now!
+ */
+abstract class AbstractPortalUIExtension implements iPortalUIExtension
+{
+    /**
+     * @inheritDoc
+     */
+    public function GetCSSFiles(\Silex\Application $oApp)
+    {
+        return array();
+    }
+    /**
+     * @inheritDoc
+     */
+    public function GetCSSInline(\Silex\Application $oApp)
+    {
+        return null;
+    }
+    /**
+     * @inheritDoc
+     */
+    public function GetJSFiles(\Silex\Application $oApp)
+    {
+        return array();
+    }
+    /**
+     * @inheritDoc
+     */
+    public function GetJSInline(\Silex\Application $oApp)
+    {
+        return null;
+    }
+    /**
+     * @inheritDoc
+     */
+    public function GetBodyHTML(\Silex\Application $oApp)
+    {
+        return null;
+    }
+    /**
+     * @inheritDoc
+     */
+    public function GetMainContentHTML(\Silex\Application $oApp)
+    {
+        return null;
+    }
+    /**
+     * @inheritDoc
+     */
+    public function GetNavigationMenuHTML(\Silex\Application $oApp)
+    {
+        return null;
+    }
+}
+
+/**
  * Implement this interface to add new operations to the REST/JSON web service
  *  
  * @package     Extensibility
@@ -543,11 +763,15 @@ interface iRestServiceProvider
 	 * @return array An array of hash 'verb' => verb, 'description' => description
 	 */
 	public function ListOperations($sVersion);
+
 	/**
 	 * Enumerate services delivered by this class
+	 *
 	 * @param string $sVersion The version (e.g. 1.0) supported by the services
+	 * @param string $sVerb
+	 * @param array $aParams
+	 *
 	 * @return RestResult The standardized result structure (at least a message)
-	 * @throws Exception in case of internal failure.	 
 	 */
 	public function ExecOperation($sVersion, $sVerb, $aParams);
 }
@@ -602,6 +826,10 @@ class RestResult
 	 */
 	const UNSAFE = 12;
 	/**
+	 * Result: the request page number is not valid. It must be an integer greater than 0
+	 */
+	const INVALID_PAGE = 13;
+	/**
 	 * Result: the operation could not be performed, see the message for troubleshooting
 	 */
 	const INTERNAL_ERROR = 100;
@@ -649,7 +877,8 @@ class RestUtils
 	 * 	 
 	 * @param StdClass $oData Structured input data. Must contain the entry defined by sParamName.
 	 * @param string $sParamName Name of the parameter to fetch from the input data
-	 * @return void
+	 *
+	 * @return mixed parameter value if present
 	 * @throws Exception If the parameter is missing
 	 * @api
 	 */
@@ -672,7 +901,8 @@ class RestUtils
 	 * @param StdClass $oData Structured input data.
 	 * @param string $sParamName Name of the parameter to fetch from the input data
 	 * @param mixed $default Default value if the parameter is not found in the input data
-	 * @return void
+	 *
+	 * @return mixed
 	 * @throws Exception
 	 * @api
 	 */
@@ -694,7 +924,8 @@ class RestUtils
 	 *
 	 * @param StdClass $oData Structured input data. Must contain the entry defined by sParamName.
 	 * @param string $sParamName Name of the parameter to fetch from the input data
-	 * @return void
+	 *
+	 * @return string
 	 * @throws Exception If the parameter is missing or the class is unknown
 	 * @api
 	 */
@@ -715,7 +946,8 @@ class RestUtils
 	 * @param string $sClass Name of the class
 	 * @param StdClass $oData Structured input data.
 	 * @param string $sParamName Name of the parameter to fetch from the input data
-	 * @return An array of class => list of attributes (see RestResultWithObjects::AddObject that uses it)
+	 *
+	 * @return array of class => list of attributes (see RestResultWithObjects::AddObject that uses it)
 	 * @throws Exception
 	 * @api
 	 */
@@ -863,10 +1095,13 @@ class RestUtils
 	 * 	 
 	 * @param string $sClass Name of the class
 	 * @param mixed $key Either search criteria (substructure), or an object or an OQL string.
+	 * @param int $iLimit The limit of results to return
+	 * @param int $iOffset The offset of results to return
+	 *
 	 * @return DBObjectSet The search result set
 	 * @throws Exception If the input structure is not valid
 	 */
-	public static function GetObjectSetFromKey($sClass, $key)
+	public static function GetObjectSetFromKey($sClass, $key, $iLimit = 0, $iOffset = 0)
 	{
 		if (is_object($key))
 		{
@@ -895,13 +1130,12 @@ class RestUtils
 		{
 			// OQL
 			$oSearch = DBObjectSearch::FromOQL($key);
-			$oObjectSet = new DBObjectSet($oSearch);
 		}
 		else
 		{
 			throw new Exception("Wrong format for key");
 		}
-		$oObjectSet = new DBObjectSet($oSearch);
+		$oObjectSet = new DBObjectSet($oSearch, array(), array(), null, $iLimit, $iOffset);
 		return $oObjectSet;
 	}
 
@@ -944,6 +1178,14 @@ class RestUtils
 				}
 				$value = DBObjectSet::FromArray($sLnkClass, $aLinks);
 			}
+            elseif ($oAttDef instanceof AttributeTagSet)
+            {
+                if (!is_array($value))
+                {
+                    throw new Exception("A tag set must be defined by an array of tag codes");
+                }
+                $value = $oAttDef->FromJSONToValue($value);
+            }
 			else
 			{
 				$value = $oAttDef->FromJSONToValue($value);

@@ -59,6 +59,7 @@ abstract class DashboardLayoutMultiCol extends DashboardLayout
 		$bNoVisibleFound = true;
 		while($idx < count($aKeys) && $bNoVisibleFound)
 		{
+			/** @var \Dashlet $oDashlet */
 			$oDashlet = $aDashlets[$aKeys[$idx]];
 			if ($oDashlet->IsVisible())
 			{
@@ -98,13 +99,19 @@ abstract class DashboardLayoutMultiCol extends DashboardLayout
 		return $aCells;		
 		
 	}
-	
+
+	/**
+	 * @param \WebPage $oPage
+	 * @param $aCells
+	 * @param bool $bEditMode
+	 * @param array $aExtraParams
+	 */
 	public function Render($oPage, $aCells, $bEditMode = false, $aExtraParams = array())
 	{
 		// Trim the list of cells to remove the invisible/empty ones at the end of the array
 		$aCells = $this->TrimCellsArray($aCells);
 		
-		$oPage->add('<table style="width:100%"><tbody>');
+		$oPage->add('<table style="width:100%;table-layout:fixed;"><tbody>');
 		$iCellIdx = 0;
 		$fColSize = 100 / $this->iNbCols;
 		$sStyle = $bEditMode ? 'border: 1px #ccc dashed; width:'.$fColSize.'%;' : 'width: '.$fColSize.'%;';
@@ -122,6 +129,7 @@ abstract class DashboardLayoutMultiCol extends DashboardLayout
 					$aDashlets = $aCells[$iCellIdx];
 					if (count($aDashlets) > 0)
 					{
+						/** @var \Dashlet $oDashlet */
 						foreach($aDashlets as $oDashlet)
 						{
 							if ($oDashlet->IsVisible())

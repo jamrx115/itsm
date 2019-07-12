@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2015 Combodo SARL
+// Copyright (C) 2015-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,7 +19,7 @@
 /**
  * Bulk export: XML export
  *
- * @copyright   Copyright (C) 2015 Combodo SARL
+ * @copyright   Copyright (C) 2015-2017 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 
@@ -108,7 +108,7 @@ class XMLBulkExport extends BulkExport
 		$aClass2Attributes = array();
 		foreach($aClasses as $sAlias => $sClassName)
 		{
-			if (UserRights::IsActionAllowed($sClassName, UR_ACTION_BULK_READ, $oSet) && (UR_ALLOWED_YES || UR_ALLOWED_DEPENDS))
+			if (UserRights::IsActionAllowed($sClassName, UR_ACTION_BULK_READ, $oSet) != UR_ALLOWED_NO)
 			{
 				$aAuthorizedClasses[$sAlias] = $sClassName;
 				$aAttributes = array();
@@ -118,7 +118,7 @@ class XMLBulkExport extends BulkExport
 					{
 						continue;
 					}
-					if (!$oAttDef->IsWritable())
+					if ($oAttDef->IsExternalField())
 					{
 						continue;
 					}
@@ -138,7 +138,7 @@ class XMLBulkExport extends BulkExport
 				$aClass2Attributes[$sAlias] = $aAttributes;
 			}
 		}
-		
+
 		$iPreviousTimeLimit = ini_get('max_execution_time');
 		$iLoopTimeLimit = MetaModel::GetConfig()->Get('max_execution_time_per_loop');
 		

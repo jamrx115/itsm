@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2010-2012 Combodo SARL
+// Copyright (C) 2010-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -20,7 +20,7 @@
  * User preferences page
  * Displays / edit some user preferences
  *
- * @copyright   Copyright (C) 2010-2012 Combodo SARL
+ * @copyright   Copyright (C) 2010-2017 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 require_once('../approot.inc.php');
@@ -86,8 +86,19 @@ function DisplayPreferences($oP)
 	
 	$oP->add('<fieldset><legend>'.Dict::S('UI:FavoriteOtherSettings').'</legend>');
 	$oP->add('<form method="post" onsubmit="return ValidateOtherSettings()">');
+
 	$iDefaultPageSize = appUserPreferences::GetPref('default_page_size', MetaModel::GetConfig()->GetMinDisplayLimit());
 	$oP->add('<p>'.Dict::Format('UI:Favorites:Default_X_ItemsPerPage', '<input id="default_page_size" name="default_page_size" type="text" size="3" value="'.$iDefaultPageSize.'"/><span id="v_default_page_size"></span>').'</p>');
+
+	$bShow = utils::IsArchiveMode() || appUserPreferences::GetPref('show_obsolete_data', MetaModel::GetConfig()->Get('obsolescence.show_obsolete_data'));
+	$sSelected = $bShow ? ' checked="checked"' : '';
+	$sDisabled = utils::IsArchiveMode() ? 'disabled="disabled"' : '';
+	$oP->add(
+		'<p>'
+		.'<input type="checkbox" id="show_obsolete_data" name="show_obsolete_data" value="1"'.$sSelected.$sDisabled.'>'
+		.'<label for="show_obsolete_data" title="'.Dict::S('UI:Favorites:ShowObsoleteData+').'">'.Dict::S('UI:Favorites:ShowObsoleteData').'</label>'
+		.'</p>');
+
 	$oP->add('<input type="hidden" name="operation" value="apply_others"/>');
 	$oP->add($oAppContext->GetForForm());
 	$oP->add('<p><input type="button" onClick="window.location.href=\''.$sURL.'\'" value="'.Dict::S('UI:Button:Cancel').'"/>');
@@ -105,13 +116,13 @@ function ValidateOtherSettings()
 	if (/^[0-9]+$/.test(sPageLength) && (iPageLength > 0))
 	{
 		$('#v_default_page_size').html('');
-		$('#other_submit').removeAttr('disabled');
+		$('#other_submit').prop('disabled', false);
 		return true;
 	}
 	else
 	{
 		$('#v_default_page_size').html('<img src="../images/validation_error.png"/>');
-		$('#other_submit').attr('disabled', 'disabled');
+		$('#other_submit').prop('disabled', true);
 		return false;
 	}
 }
@@ -185,7 +196,7 @@ EOF
 			{
 				if ($.inArray($(this).val(), aChecked) > -1)
 				{
-					$(this).attr('checked', true);
+					$(this).prop('checked', true);
 					$(this).trigger('change');
 				}
 			});
@@ -258,18 +269,18 @@ function OnSelectionCountChange()
 	var iCountSelected = $("#shortcut_selection_count").val();
 	if (iCountSelected == 0)
 	{
-		$('#shortcut_btn_rename').attr('disabled', 'disabled');
-		$('#shortcut_btn_delete').attr('disabled', 'disabled');
+		$('#shortcut_btn_rename').prop('disabled', true);
+		$('#shortcut_btn_delete').prop('disabled', true);
 	}
 	else if (iCountSelected == 1)
 	{
-		$('#shortcut_btn_rename').removeAttr('disabled');
-		$('#shortcut_btn_delete').removeAttr('disabled');
+		$('#shortcut_btn_rename').prop('disabled', false);
+		$('#shortcut_btn_delete').prop('disabled', false);
 	}
 	else
 	{
-		$('#shortcut_btn_rename').attr('disabled', 'disabled');
-		$('#shortcut_btn_delete').removeAttr('disabled');
+		$('#shortcut_btn_rename').prop('disabled', true);
+		$('#shortcut_btn_delete').prop('disabled', false);
 	}
 }
 
@@ -285,6 +296,79 @@ EOF
 		);
 	} // if count > 0
 
+	$oP->add('</fieldset>');
+	
+	//////////////////////////////////////////////////////////////////////////
+	//
+	// Newsroom
+	//
+	//////////////////////////////////////////////////////////////////////////
+	
+	$iCountProviders = 0;
+	$oUser = UserRights::GetUserObject();
+	$aProviders = MetaModel::EnumPlugins('iNewsroomProvider');
+	foreach($aProviders as $oProvider)
+	{
+		if ($oProvider->IsApplicable($oUser))
+		{
+			$iCountProviders++;
+		}
+	}
+	
+	$bNewsroomEnabled = (MetaModel::GetConfig()->Get('newsroom_enabled') !== false);
+	if ($bNewsroomEnabled && ($iCountProviders > 0))
+	{
+		$oP->add('<fieldset><legend>'.Dict::S('UI:Newsroom:Preferences').'</legend>');
+		
+		$oP->add('<form method="post">');
+		$iNewsroomDisplaySize = (int)appUserPreferences::GetPref('newsroom_display_size', 7);
+		
+		if ($iNewsroomDisplaySize < 1) $iNewsroomDisplaySize = 1;
+		if ($iNewsroomDisplaySize > 20) $iNewsroomDisplaySize = 20;
+		$sInput = '<input min="1" max="20" id="newsroom_display_size" type="number" size="2" name="newsroom_display_size" value="'.$iNewsroomDisplaySize.'">';
+		$sIcon = '<img src="../images/newsroom_menu.png" style="vertical-align:middle">';
+		$oP->p(Dict::Format('UI:Newsroom:DisplayAtMost_X_Messages', $sInput, $sIcon));
+		
+		/**
+		 * @var iNewsroomProvider[] $aProviders
+		 */
+		$aProviderParams = array();
+		$iCountProviders = 0;
+		$sAppRootUrl = utils::GetAbsoluteUrlAppRoot();
+		foreach($aProviders as $oProvider)
+		{
+			if ($oProvider->IsApplicable($oUser))
+			{
+				$sUrl = $oProvider->GetPreferencesUrl();
+				$sProviderClass = get_class($oProvider);
+				$sPreferencesLink = '';
+				if ($sUrl !== null)
+				{
+					if(substr($sUrl, 0, strlen($sAppRootUrl)) === $sAppRootUrl)
+					{
+						$sTarget = ''; // Internal link, open in the same window
+					}
+					else
+					{
+						$sTarget = ' target="_blank"'; // External link, open in new window
+					}
+					$sPreferencesLink = ' - <a class=".newsroom-configuration-link" href="'.$sUrl.'"'.$sTarget.'>'.Dict::S('UI:Newsroom:ConfigurationLink').'</a>';
+				}
+				$sChecked = appUserPreferences::GetPref('newsroom_provider_'.$sProviderClass, true) ? ' checked="" ' : '';
+				$oP->p('<input type="checkbox" id="newsroom_provider_'.$sProviderClass.'" value="on"'.$sChecked.'name="newsroom_provider_'.$sProviderClass.'"><label for="newsroom_provider_'.$sProviderClass.'">&nbsp;'.Dict::Format('UI:Newsroom:DisplayMessagesFor_Provider', $oProvider->GetLabel()).'</label> '.$sPreferencesLink);
+			}
+		}
+		
+		$oP->p('<button style="float:right" onclick="$(\'.itop-newsroom_menu\').newsroom_menu(\'clearCache\');">'.htmlentities(Dict::S('UI:Newsroom:ResetCache')).'</button>');
+		$oP->add('<input type="hidden" name="operation" value="apply_newsroom_preferences"/>');
+		$oP->add($oAppContext->GetForForm());
+		$oP->add('<p><input type="button" onClick="window.location.href=\''.$sURL.'\'" value="'.Dict::S('UI:Button:Cancel').'"/>');
+		$oP->add('&nbsp;&nbsp;');
+		$oP->add('<input type="submit" value="'.Dict::S('UI:Button:Apply').'"/></p>');
+		$oP->add('</form>');
+		$oP->add('</fieldset>');
+	}
+	
 	//////////////////////////////////////////////////////////////////////////
 	//
 	// Footer
@@ -334,7 +418,10 @@ try
 		$sLangCode = utils::ReadParam('language', 'EN US');
 		$oUser = UserRights::GetUserObject();
 		$oUser->Set('language', $sLangCode);
+		utils::PushArchiveMode(false);
+		$oUser->AllowWrite(true);
 		$oUser->DBUpdate();
+		utils::PopArchiveMode();
 		// Redirect to force a reload/display of the page with the new language
 		$oAppContext = new ApplicationContext();
 		$sURL = utils::GetAbsoluteUrlAppRoot().'pages/preferences.php?'.$oAppContext->GetForLink();
@@ -345,6 +432,55 @@ try
 		if ($iDefaultPageSize > 0)
 		{
 			appUserPreferences::SetPref('default_page_size', $iDefaultPageSize);
+		}
+		$bShowObsoleteData = (bool)utils::ReadParam('show_obsolete_data', 0);
+		appUserPreferences::SetPref('show_obsolete_data', $bShowObsoleteData);
+		DisplayPreferences($oPage);
+		break;
+		
+		case 'apply_newsroom_preferences':
+		$iCountProviders = 0;
+		$oUser = UserRights::GetUserObject();
+		$aProviders = MetaModel::EnumPlugins('iNewsroomProvider');
+		foreach($aProviders as $oProvider)
+		{
+			if ($oProvider->IsApplicable($oUser))
+			{
+				$iCountProviders++;
+			}
+		}
+		$bNewsroomEnabled = (MetaModel::GetConfig()->Get('newsroom_enabled') !== false);
+		if ($bNewsroomEnabled && ($iCountProviders > 0))
+		{
+			$iNewsroomDisplaySize = (int)utils::ReadParam('newsroom_display_size', 7);
+			if ($iNewsroomDisplaySize < 1) $iNewsroomDisplaySize = 1;
+			if ($iNewsroomDisplaySize > 20) $iNewsroomDisplaySize = 20;
+			$iCurrentDisplaySize = (int)appUserPreferences::GetPref('newsroom_display_size', $iNewsroomDisplaySize);
+			if ($iCurrentDisplaySize != $iNewsroomDisplaySize)
+			{
+				// Save the preference only if it differs from the current (or default) value
+				appUserPreferences::SetPref('newsroom_display_size', $iNewsroomDisplaySize);
+			}
+		}
+		$bProvidersModified = false;
+		foreach($aProviders as $oProvider)
+		{
+			if ($oProvider->IsApplicable($oUser))
+			{
+				$sProviderClass = get_class($oProvider);
+				$bProviderEnabled = (utils::ReadParam('newsroom_provider_'.$sProviderClass, 'off') == 'on');
+				$bCurrentValue = appUserPreferences::GetPref('newsroom_provider_'.$sProviderClass, true);
+				if ($bCurrentValue != $bProviderEnabled)
+				{
+					// Save the preference only if it differs from the current value
+					$bProvidersModified = true;
+					appUserPreferences::SetPref('newsroom_provider_'.$sProviderClass, $bProviderEnabled);
+				}
+			}
+		}
+		if ($bProvidersModified)
+		{
+			$oPage->add_ready_script('$(".itop-newsroom_menu").newsroom_menu("clearCache");');
 		}
 		DisplayPreferences($oPage);
 		break;
@@ -411,4 +547,3 @@ catch(Exception $e)
 		IssueLog::Error($e->getMessage());
 	}
 }
-?>

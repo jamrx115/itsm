@@ -20,6 +20,13 @@ body.printable-version {
 .ui-layout-content {
   padding-left: 10px;
 }
+.ui-layout-content .ui-tabs-nav li {
+  /* Overriding jQuery UI theme to see active tab better */
+  margin-bottom: 2px;
+}
+.ui-layout-content .ui-tabs-nav li.ui-tabs-active {
+  padding-bottom: 3px;
+}
 .raw_output {
   font-family: Courier-New, Courier, Arial, Helvetica;
   font-size: 8pt;
@@ -47,8 +54,11 @@ h3 {
   font-weight: normal;
   font-size: 10pt;
 }
+label {
+  cursor: pointer;
+}
 .hilite, .hilite a, .hilite a:visited {
-  color: #e87c1e;
+  color: #ea7d1e;
   text-decoration: none;
 }
 table.datatable {
@@ -61,10 +71,10 @@ td.menucontainer {
 }
 table.listResults {
   padding: 0px;
-  border-top: 3px solid #044967;
-  border-left: 3px solid #044967;
-  border-bottom: 3px solid #044967;
-  border-right: 3px solid #044967;
+  border-top: 3px solid #f1f1f1;
+  border-left: 3px solid #f1f1f1;
+  border-bottom: 3px solid #e6e6e1;
+  border-right: 3px solid #e6e6e1;
   width: 100%;
   background-color: #fff;
 }
@@ -82,8 +92,27 @@ table.listResults td .view-image img {
   margin-left: auto;
   margin-right: auto;
 }
+table.listResults > tbody > tr > * {
+  transition: background-color 400ms linear;
+}
+table.listResults > tbody > tr:hover > * {
+  cursor: pointer;
+}
+table.listResults > tbody > tr.selected:hover > * {
+  /* hover on lines is currently done toggling td.hover, and having a rule for links */
+  background-color: #f3b37b;
+  color: #000;
+}
+table.listResults > tbody > tr:hover > * {
+  /* hover on lines is currently done toggling td.hover, and having a rule for links */
+  background-color: #fdf5d0;
+  color: #000;
+}
 .edit-image .view-image {
   display: inline-block;
+}
+.edit-image .view-image img[src=""], .edit-image .view-image img[src="null"] {
+  visibility: hidden;
 }
 .edit-image .view-image.dirty.compat {
   background-image: url("ui-lightness/images/ui-bg_diagonals-thick_20_666666_40x40.png");
@@ -101,7 +130,7 @@ table.listResults td .view-image img {
   cursor: pointer;
   margin-bottom: 3px;
   padding: 2px;
-  background-color: #e87c1e;
+  background-color: #ea7d1e;
 }
 .edit-image .edit-buttons .button.disabled {
   cursor: default;
@@ -124,6 +153,9 @@ table.listResults td .view-image img {
 .details .view-image img {
   display: inline-block;
   vertical-align: middle;
+  max-width: 90% !important;
+  max-height: 90% !important;
+  cursor: zoom-in;
 }
 .details .view-image .helper-middle {
   display: inline-block;
@@ -164,7 +196,6 @@ tr.green td, .wizContainer tr.green td {
   background-color: #b3e5b4;
 }
 tr td.hover, tr.even td.hover, .hover a, .hover a:visited, .hover a:hover, .wizContainer tr.even td.hover, .wizContainer tr td.hover {
-  background-color: #fdf5d0;
   color: #000;
 }
 th {
@@ -253,8 +284,6 @@ legend.transparent {
 .ui-widget-content td a, p a, p a:visited, td a, td a:visited {
   text-decoration: none;
   color: #1c94c4;
-  padding-left: 14px;
-  background: url(../images/mini-arrow-orange.gif) no-repeat left;
 }
 .ui-widget-content td a.cke_button, .ui-widget-content td a.cke_toolbox_collapser, .ui-widget-content td a.cke_combo_button, cke_dialog a {
   padding-left: 0;
@@ -262,7 +291,7 @@ legend.transparent {
 }
 .ui-widget-content td a:hover, p a:hover, td a:hover {
   text-decoration: underline;
-  color: #e87c1e;
+  color: #ea7d1e;
 }
 .cke_reset_all *:hover {
   text-decoration: none;
@@ -270,8 +299,8 @@ legend.transparent {
 }
 table.cke_dialog_contents a.cke_dialog_ui_button_ok {
   color: #000;
-  border-color: #e87c1e;
-  background: #e87c1e;
+  border-color: #ea7d1e;
+  background: #ea7d1e;
 }
 .cke_notifications_area {
   display: none;
@@ -288,17 +317,15 @@ td a.no-arrow:hover {
   padding-left: 0px;
   background: inherit;
 }
-td a.mailto, td a.mailto:visited {
-  text-decoration: none;
-  color: #000;
-  padding-left: 20px;
-  background: url(../images/mail.png?v=v2.3.0) no-repeat left;
+td a:hover .text_decoration, td a:visited:hover .text_decoration {
+  color: #d56e14;
 }
-td a.mailto:hover {
-  text-decoration: underline;
-  color: #e87c1e;
-  padding-left: 20px;
-  background: url(../images/mail.png?v=v2.3.0) no-repeat left;
+td a .text_decoration, td a:visited .text_decoration {
+  vertical-align: baseline;
+  text-decoration: none;
+  color: #ea7d1e;
+  margin-right: 8px;
+  transition: color 0.2s ease-in-out;
 }
 a.small_action {
   font-family: Tahoma, Verdana, Arial, Helvetica;
@@ -316,10 +343,10 @@ a.small_action {
   padding-left: 5px;
   padding-top: 2px;
   padding-bottom: 2px;
-  background: #e87c1e url(../images/actions_left.png?v=v2.3.0) no-repeat left;
+  background: #ea7d1e url(../images/actions_left.png?v=v2.6.1) no-repeat left;
 }
 .actions_details span {
-  background: url(../images/actions_right.png?v=v2.3.0) no-repeat right;
+  background: url(../images/actions_right.png?v=v2.6.1) no-repeat right;
   color: #fff;
   font-weight: bold;
   padding-top: 2px;
@@ -379,7 +406,7 @@ input.textSearch {
 }
 .ui-accordion-content ul {
   list-style: none;
-  list-style-image: url(data:0);
+  list-style-image: none;
   padding-left: 16px;
   margin-top: 8px;
 }
@@ -390,7 +417,7 @@ input.textSearch {
   padding: 8px 0px 8px 8px;
   margin: 0;
   list-style: none;
-  list-style-image: url(data:0);
+  list-style-image: none;
   border: 0;
 }
 .nothing {
@@ -411,7 +438,7 @@ div.ui-accordion-content {
   text-decoration: none;
 }
 .ui-accordion-content a:hover {
-  color: #e87c1e;
+  color: #ea7d1e;
   text-decoration: none;
 }
 .ui-accordion-content ul {
@@ -442,7 +469,7 @@ a.CollapsibleLabel.open, td a.CollapsibleLabel.open {
   padding: 0px 0pt 0px 16px;
   font-size: 8pt;
   text-decoration: none;
-  color: #e87c1e;
+  color: #ea7d1e;
   background: url(../images/mini-arrow-orange-open.gif) no-repeat left;
 }
 .page_header {
@@ -493,7 +520,7 @@ div.actions_menu > ul {
   nowidth: 70px;
   padding-left: 5px;
   /* Nasty work-around for IE... en attendant mieux */
-  background: #e87c1e url(../images/actions_left.png?v=v2.3.0) no-repeat top left;
+  background: #ea7d1e url(../images/actions_left.png?v=v2.6.1) no-repeat top left;
   cursor: pointer;
   margin: 0;
 }
@@ -505,7 +532,7 @@ div.actions_menu > ul > li {
   height: 17px;
   padding-right: 16px;
   padding-left: 4px;
-  background: url(../images/actions_right.png?v=v2.3.0) no-repeat top right transparent;
+  background: url(../images/actions_right.png?v=v2.6.1) no-repeat top right transparent;
   font-weight: bold;
   color: #fff;
   vertical-align: middle;
@@ -525,6 +552,9 @@ div.actions_menu > ul > li {
   margin: 0;
   padding: 0;
   height: 25px;
+}
+.itop_popup > ul > li > ul, #logOffBtn > ul > li > ul {
+  box-shadow: 3px 3px 5px 0px rgba(0, 0, 0, 0.5);
 }
 .itop_popup li a, #logOffBtn li a {
   display: block;
@@ -564,7 +594,7 @@ div.actions_menu > ul > li {
   position: absolute;
   display: none;
   border-top: 1px solid white;
-  z-index: 999;
+  z-index: 1500;
 }
 .itop_popup li ul li, #logOffBtn li ul li {
   float: none;
@@ -575,7 +605,7 @@ div.actions_menu > ul > li {
   text-align: left;
 }
 .itop_popup li ul li a:hover, #logOffBtn li ul li a:hover {
-  background: #e87c1e;
+  background: #ea7d1e;
   color: #fff;
   font-weight: bold;
 }
@@ -648,7 +678,7 @@ td a.dp-choose-date, a.dp-choose-date, td a.dp-choose-date:hover, a.dp-choose-da
   display: block;
   text-indent: -2000px;
   overflow: hidden;
-  background: url(../images/calendar.png?v=v2.3.0) no-repeat;
+  background: url(../images/calendar.png?v=v2.6.1) no-repeat;
 }
 td a.dp-choose-date.dp-disabled, a.dp-choose-date.dp-disabled {
   background-position: 0 -20px;
@@ -662,54 +692,6 @@ input.dp-applied {
   float: left;
 }
 /* For search forms */
-.SearchDrawer {
-  border-top: 5px solid #1c94c4;
-  border-left: 5px solid #1c94c4;
-  border-right: 5px solid #1c94c4;
-  border-bottom: 0;
-  background: #d6e8ef;
-  color: #000;
-  padding: 10px;
-  margin: 0;
-  font-size: 12px;
-}
-.SearchDrawer label {
-  background: #d6e8ef;
-  color: #000;
-  text-align: right;
-}
-.SearchDrawer h1 {
-  color: #000;
-}
-.DrawerClosed {
-  display: none;
-}
-.DrawerHandle {
-  margin: 0;
-  padding: 5px;
-  background: url(../images/drawer-handle.gif) bottom no-repeat transparent;
-  color: #fff;
-  cursor: pointer;
-  text-align: center;
-  /* center the block */
-  width: 100px;
-  margin-left: auto;
-  margin-right: auto;
-  margin-top: 0;
-  margin-bottom: 0;
-  display: block;
-  font-size: 12px;
-}
-div.HRDrawer {
-  height: 5px;
-  width: 100%;
-  margin: 0;
-  background-color: #1c94c4;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  display: block;
-}
 .mini_tabs a {
   text-decoration: none;
   font-weight: bold;
@@ -734,24 +716,635 @@ div.HRDrawer {
   nopadding-right: 1em;
   margin-top: 0;
 }
+/* Search forms v2 */
+.search_box {
+  box-sizing: border-box;
+  position: relative;
+  z-index: 1100;
+  /* To be over the table block/unblock UI. Not very sure about this. */
+  text-align: center;
+  /* Used when form is closed */
+  /* Sizing reset */
+}
+.search_box * {
+  box-sizing: border-box;
+}
+.search_form_handler {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  font-size: 12px;
+  text-align: left;
+  /* To compensate .search_box:text-align */
+  border: 1px solid #1c94c4;
+  /* Sizing reset */
+  /* Hyperlink reset */
+  /* Input reset */
+  /* List helpers */
+}
+.search_form_handler * {
+  box-sizing: border-box;
+}
+.search_form_handler a {
+  color: inherit;
+  text-decoration: none;
+}
+.search_form_handler input[type="text"], .search_form_handler select {
+  padding: 1px 2px;
+}
+.search_form_handler:not(.closed) .sf_title .sft_short {
+  display: none;
+}
+.search_form_handler:not(.closed) .sf_title .sft_hint, .search_form_handler:not(.closed) .sf_title .sft_toggler {
+  margin-top: 4px;
+}
+.search_form_handler:not(.closed) .sf_title .sft_toggler {
+  transform: rotateX(180deg);
+  transition: transform 0.5s linear;
+}
+.search_form_handler.closed {
+  margin-bottom: 0.5em;
+  width: 150px;
+  overflow: hidden;
+  border-radius: 4px;
+  background-color: #1c94c4;
+}
+.search_form_handler.closed .sf_criterion_area {
+  height: 0;
+  opacity: 0;
+  padding: 0;
+}
+.search_form_handler.closed .sf_title {
+  padding: 6px 8px;
+  text-align: center;
+  font-size: 12px;
+}
+.search_form_handler.closed .sf_title .sft_long {
+  display: none;
+}
+.search_form_handler.closed .sf_title .sft_hint {
+  display: none;
+}
+.search_form_handler:not(.no_auto_submit) .sft_hint {
+  display: none;
+}
+.search_form_handler:not(.no_auto_submit) .sfc_fg_apply {
+  display: none;
+}
+.search_form_handler.no_auto_submit .sfc_fg_search {
+  display: none;
+}
+.search_form_handler .sf_title {
+  transition: opacity 0.3s, background-color 0.3s, color 0.3s linear;
+  padding: 8px 10px;
+  margin: 0;
+  color: #fff;
+  background-color: #1c94c4;
+  cursor: pointer;
+}
+.search_form_handler .sf_title .sft_hint {
+  font-size: 8pt;
+  font-style: italic;
+}
+.search_form_handler .sf_title .sft_toggler {
+  margin-left: 0.7em;
+  transition: color 0.2s ease-in-out, transform 0.4s ease-in-out;
+}
+.search_form_handler .sf_title .sft_toggler:hover {
+  color: #f1f1f1;
+}
+.search_form_handler .sf_message {
+  display: none;
+  margin: 8px 8px 0px 8px;
+  border-radius: 0px;
+}
+.search_form_handler .sf_criterion_area {
+  /*display: none;*/
+  padding: 8px 8px 3px 8px;
+  /* padding-bottom must equals to padding-top - .search_form_criteria:margin-bottom */
+  background-color: #fff;
+  /* Common style between criterion and more criterion */
+  /* Criteria tags */
+  /* More criterion */
+  /* Misc. buttons */
+}
+.search_form_handler .sf_criterion_area .sf_criterion_row {
+  position: relative;
+}
+.search_form_handler .sf_criterion_area .sf_criterion_row:not(:first-child) {
+  margin-top: 20px;
+}
+.search_form_handler .sf_criterion_area .sf_criterion_row:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  top: -12px;
+  left: 0px;
+  width: 100%;
+  border-top: 1px solid #ccc;
+}
+.search_form_handler .sf_criterion_area .sf_criterion_row:not(:first-child)::after {
+  content: "or";
+  /* TODO: Make this into a dict entry */
+  position: absolute;
+  top: -20px;
+  left: 8px;
+  padding-left: 5px;
+  padding-right: 5px;
+  color: #808080;
+  background-color: #fff;
+  /* Must match .sf_criterion_area:background-color */
+}
+.search_form_handler .sf_criterion_area .sf_criterion_row .sf_criterion_group {
+  display: inline;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria, .search_form_handler .sf_criterion_area .sf_more_criterion, .search_form_handler .sf_criterion_area .sf_button {
+  position: relative;
+  display: inline-block;
+  margin-right: 10px;
+  margin-bottom: 5px;
+  vertical-align: top;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.opened, .search_form_handler .sf_criterion_area .sf_more_criterion.opened, .search_form_handler .sf_criterion_area .sf_button.opened {
+  margin-bottom: 0px;
+  /* To compensate the .sfc/.sfm_header:padding-bottom: 13px */
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.opened .sfc_header, .search_form_handler .sf_criterion_area .sf_more_criterion.opened .sfc_header, .search_form_handler .sf_criterion_area .sf_button.opened .sfc_header, .search_form_handler .sf_criterion_area .search_form_criteria.opened .sfm_header, .search_form_handler .sf_criterion_area .sf_more_criterion.opened .sfm_header, .search_form_handler .sf_criterion_area .sf_button.opened .sfm_header {
+  border-bottom: none !important;
+  box-shadow: none !important;
+  padding-bottom: 13px;
+  /* Must be equal to .search_form_criteria:margin-bottom + this:padding-bottom */
+}
+.search_form_handler .sf_criterion_area .search_form_criteria > *, .search_form_handler .sf_criterion_area .sf_more_criterion > *, .search_form_handler .sf_criterion_area .sf_button > * {
+  padding: 7px 8px;
+  vertical-align: top;
+  border: 1px solid #ccc;
+  border-radius: 1px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.15);
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group, .search_form_handler .sf_criterion_area .sf_more_criterion .sfc_form_group, .search_form_handler .sf_criterion_area .sf_button .sfc_form_group, .search_form_handler .sf_criterion_area .search_form_criteria .sfm_content, .search_form_handler .sf_criterion_area .sf_more_criterion .sfm_content, .search_form_handler .sf_criterion_area .sf_button .sfm_content {
+  position: absolute;
+  z-index: -1;
+  min-width: 100%;
+  left: 0px;
+  margin-top: -1px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_buttons, .search_form_handler .sf_criterion_area .sf_more_criterion .sfc_form_group .sfc_fg_buttons, .search_form_handler .sf_criterion_area .sf_button .sfc_form_group .sfc_fg_buttons, .search_form_handler .sf_criterion_area .search_form_criteria .sfm_content .sfc_fg_buttons, .search_form_handler .sf_criterion_area .sf_more_criterion .sfm_content .sfc_fg_buttons, .search_form_handler .sf_criterion_area .sf_button .sfm_content .sfc_fg_buttons {
+  white-space: nowrap;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria {
+  /* Non editable criteria */
+  /* Draft criteria (modifications not applied) */
+  /* Opened criteria (form group displayed) */
+  /* Add "and" on criterion but the one and submit button */
+  /* Top left corner icons */
+  /* Special criterion processing */
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.locked {
+  background-color: #f1f1f1;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.locked .sfc_title {
+  user-select: none;
+  cursor: initial;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.draft .sfc_header, .search_form_handler .sf_criterion_area .search_form_criteria.draft .sfc_form_group {
+  border-style: dashed;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.draft .sfc_title {
+  font-style: italic;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.opened {
+  z-index: 1;
+  /* To be over other criterion */
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.opened .sfc_toggle {
+  transform: rotateX(-180deg);
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.opened .sfc_form_group {
+  display: block;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.opened_left .sfc_form_group {
+  left: auto;
+  right: 0px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria:not(:last-of-type) {
+  margin-right: 30px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria:not(:last-of-type)::after {
+  /* TODO: Find an elegant way to do this, without hardcoding the content (could be a <style> in the markup) and margin. Note, only a few languages (hawaiian and stuff like this have more than 4 letters in for "and" word. */
+  content: "and";
+  position: absolute;
+  top: 8px;
+  left: calc(100% + 0px);
+  margin-right: 5px;
+  margin-left: 5px;
+  text-align: center;
+  color: #808080;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria > * {
+  background-color: #eee;
+  color: #2d2d2d;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_toggle, .search_form_handler .sf_criterion_area .search_form_criteria .sfc_close {
+  position: absolute;
+  top: 7px;
+  color: #e87c1e;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_locked {
+  position: absolute;
+  top: 9px;
+  color: #808080;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_toggle {
+  display: inline-block;
+  right: 23px;
+  transition: all 0.3s ease-in-out;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_close, .search_form_handler .sf_criterion_area .search_form_criteria .sfc_locked {
+  right: 7px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_title {
+  max-width: 240px;
+  padding-right: 30px;
+  white-space: nowrap;
+  overflow-x: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_title .sfc_values {
+  font-weight: bold;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group {
+  /* Form group (operators) is displayed only when the criteria is toggled to opened state */
+  display: none;
+  max-width: 450px;
+  max-height: 520px;
+  overflow: auto;
+  /* Show only first operator in simple mode */
+  /* Show all operators in advanced mode */
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators {
+  font-size: 12px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator.force_hide {
+  display: none !important;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator > label {
+  line-height: 20px;
+  white-space: nowrap;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator > label > * {
+  display: inline-block;
+  vertical-align: middle;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_op_radio {
+  width: 12px;
+  margin: 0px;
+  margin-right: 7px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_op_name {
+  width: 90px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_op_content input[type="text"] {
+  width: 160px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_opc_multichoices label > input {
+  vertical-align: middle;
+  margin-left: 0px;
+  margin-right: 8px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_opc_multichoices .sfc_opc_mc_items_wrapper {
+  max-height: 415px;
+  /* Must be less than .sfc_form_group:max-height - .sfc_opc_mc_toggler:height - .sfc_opc_mc_filter:height */
+  overflow-y: auto;
+  margin: 0px -8px;
+  /* Compensate .sfc_opc_multichoices side padding so the hover style can take the full with */
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_opc_multichoices .sfc_opc_mc_items_wrapper .sfc_opc_mc_items .sfc_opc_mc_items_list.sfc_opc_mc_items_selected {
+  position: relative;
+  padding-top: 5px;
+  margin-top: 5px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_opc_multichoices .sfc_opc_mc_items_wrapper .sfc_opc_mc_items .sfc_opc_mc_items_list.sfc_opc_mc_items_selected::before {
+  content: "";
+  position: absolute;
+  border-top: 1px solid #ddd;
+  width: calc(100% - 12px);
+  /* minus margin-left x2 */
+  margin-left: 6px;
+  top: 0px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_opc_multichoices .sfc_opc_mc_items_wrapper .sfc_opc_mc_items .sfc_opc_mc_items_list .sfc_opc_mc_placeholder {
+  padding: 15px 8px;
+  font-style: italic;
+  text-align: center;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_opc_multichoices .sfc_opc_mc_items_wrapper .sfc_opc_mc_items .sfc_opc_mc_items_list .sfc_opc_mc_item {
+  padding: 4px 8px;
+  /* Putting back the padding remove by .sfc_opc_mc_items */
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_opc_multichoices .sfc_opc_mc_items_wrapper .sfc_opc_mc_items .sfc_opc_mc_items_list .sfc_opc_mc_item:hover {
+  background-color: #fff;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_opc_multichoices .sfc_opc_mc_items_wrapper .sfc_opc_mc_items .sfc_opc_mc_items_list .sfc_opc_mc_item label {
+  display: inline-block;
+  width: 100%;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_opc_multichoices .sfc_opc_mc_items_wrapper .sfc_opc_mc_items_hint {
+  margin-top: 15px;
+  margin-bottom: 15px;
+  padding-left: 9px;
+  padding-right: 9px;
+  color: #777;
+  font-size: 10px;
+  font-style: italic;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operators .sfc_fg_operator .sfc_opc_multichoices .sfc_opc_mc_items_wrapper .sfc_opc_mc_items_hint > span {
+  margin-right: 0.5em;
+  font-style: italic;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_search, .search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_apply, .search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_cancel {
+  margin-top: 8px;
+  padding: 3px 6px;
+  font-size: 11px;
+  /* Not bold, so it looks like 10px/bold of more/less buttons */
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_search, .search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_apply {
+  margin-right: 5px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_more, .search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_less {
+  position: absolute;
+  bottom: 4px;
+  right: 0px;
+  cursor: pointer;
+  color: #3f7294;
+  font-size: 10px;
+  font-weight: bold;
+  border: none;
+  background-color: transparent;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_more > span, .search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_less > span {
+  margin-left: 3px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operator:not(:first-of-type), .search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_operator:first-of-type .sfc_op_radio {
+  display: none;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_less {
+  display: none;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group .sfc_fg_more {
+  display: inline-block;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group.advanced .sfc_fg_operator {
+  margin-bottom: 3px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group.advanced .sfc_fg_operator:last-of-type {
+  margin-bottom: 0px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group.advanced .sfc_fg_operator:not(:first-of-type), .search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group.advanced .sfc_fg_operator:first-of-type .sfc_op_radio {
+  display: inherit;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group.advanced .sfc_fg_less {
+  display: inline-block;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group.advanced .sfc_fg_more {
+  display: none;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group.advanced .hide_on_advanced {
+  display: none;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria .sfc_form_group:not(.advanced) .hide_on_less {
+  display: none;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_raw > * {
+  border-color: transparent;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_raw .sfc_title {
+  cursor: initial;
+  padding-right: 20px;
+  /* Less than regular as there is no toggle icon */
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_raw .sfc_form_group {
+  display: none;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_enum .sfc_form_group .sfc_fg_operator_in > label {
+  display: inline-block;
+  width: 100%;
+  line-height: initial;
+  white-space: nowrap;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_enum .sfc_form_group .sfc_fg_operator_in > label .sfc_op_content {
+  width: 100%;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_tag_set .sfc_form_group .sfc_fg_operator_in > label {
+  display: inline-block;
+  width: 100%;
+  line-height: initial;
+  white-space: nowrap;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_tag_set .sfc_form_group .sfc_fg_operator_in > label .sfc_op_content {
+  width: 100%;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_numeric .sfc_fg_operators .sfc_fg_operator.sfc_fg_operator_between .sfc_op_content_from_outer {
+  display: inline;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_numeric .sfc_fg_operators .sfc_fg_operator.sfc_fg_operator_between .sfc_op_content_until_outer {
+  display: inline;
+  margin-left: 5px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_numeric .sfc_fg_operators .sfc_fg_operator.sfc_fg_operator_between label.sfc_op_content_from_label, .search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_numeric .sfc_fg_operators .sfc_fg_operator.sfc_fg_operator_between label.sfc_op_content_until_label {
+  width: 45px;
+  display: inline-block;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_numeric .sfc_fg_operators .sfc_fg_operator.sfc_fg_operator_between input[type="text"] {
+  width: 77px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_date_time .sfc_form_group.advanced .sfc_fg_operator_between, .search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_date .sfc_form_group.advanced .sfc_fg_operator_between {
+  margin-bottom: 5px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_date_time .sfc_fg_operator_between_days input, .search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_date .sfc_fg_operator_between_days input {
+  width: 135px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_date_time button.ui-datepicker-trigger, .search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_date button.ui-datepicker-trigger {
+  background: none;
+  border: none;
+  height: 100%;
+  padding: 2px;
+}
+.search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_date_time button.ui-datepicker-trigger img, .search_form_handler .sf_criterion_area .search_form_criteria.search_form_criteria_date button.ui-datepicker-trigger img {
+  vertical-align: middle;
+}
+.search_form_handler .sf_criterion_area .sf_more_criterion.opened {
+  z-index: 2;
+  /* To be over criterion */
+}
+.search_form_handler .sf_criterion_area .sf_more_criterion.opened .sfm_content {
+  display: inherit;
+}
+.search_form_handler .sf_criterion_area .sf_more_criterion.opened_left .sfm_content {
+  left: auto;
+  right: 0px;
+}
+.search_form_handler .sf_criterion_area .sf_more_criterion > * {
+  background-color: #fff;
+  color: #2d2d2d;
+}
+.search_form_handler .sf_criterion_area .sf_more_criterion .sfm_toggler .sfm_tg_title {
+  margin-right: 7px;
+}
+.search_form_handler .sf_criterion_area .sf_more_criterion .sfm_toggler .sfm_tg_icon {
+  color: #e87c1e;
+}
+.search_form_handler .sf_criterion_area .sf_more_criterion .sfm_content {
+  display: none;
+  min-width: 200px;
+  /* To avoid element going to thin on filter, not very slick */
+}
+.search_form_handler .sf_criterion_area .sf_more_criterion .sfm_content .sfm_lists {
+  margin: 0px -8px;
+  padding: 0px 8px;
+  max-height: 400px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.search_form_handler .sf_criterion_area .sf_more_criterion .sfm_content .sfm_lists .sfl_items > li:hover {
+  background-color: #f1f1f1;
+}
+.search_form_handler .sf_criterion_area .sf_more_criterion .sfm_content .sfm_buttons {
+  display: none;
+}
+.search_form_handler .sf_criterion_area .sf_more_criterion .sfm_content .sfm_buttons button {
+  margin-top: 8px;
+  margin-right: 5px;
+  padding: 3px 6px;
+  font-size: 11px;
+}
+.search_form_handler .sf_criterion_area .sf_more_criterion .sfm_content .sfm_buttons button:last-of-type {
+  margin-right: 0px;
+}
+.search_form_handler .sf_criterion_area .sf_button {
+  cursor: pointer;
+}
+.search_form_handler .sf_criterion_area .sf_button > * {
+  background-color: #fff;
+  color: #ea7d1e;
+}
+.search_form_handler .sf_list:not(:first-of-type) .sfl_title {
+  border-top: 1px solid #ddd;
+  padding-top: 8px;
+  margin-top: 5px;
+}
+.search_form_handler .sf_list .sfl_title {
+  font-weight: bold;
+}
+.search_form_handler .sf_list .sfl_items {
+  margin: 5px -8px 0px -8px;
+  padding: 0px;
+}
+.search_form_handler .sf_list .sfl_items > li {
+  padding: 4px 8px;
+  list-style: none;
+  white-space: nowrap;
+}
+.search_form_handler .sf_list .sfl_items > li:hover {
+  background-color: #fff;
+}
+.search_form_handler .sf_list .sfl_items > li.sfl_i_placeholder {
+  font-style: italic;
+  opacity: 0.8;
+}
+.search_form_handler .sf_list .sfl_items > li > label {
+  display: inline-block;
+  width: 100%;
+}
+.search_form_handler .sf_list .sfl_items > li > label > * {
+  vertical-align: middle;
+}
+.search_form_handler .sf_list .sfl_items > li > label > input[type="checkbox"] {
+  margin-left: 0px;
+  margin-right: 8px;
+}
+.search_form_handler .sf_filter {
+  position: relative;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+.search_form_handler .sf_filter input, .search_form_handler .sf_filter button, .search_form_handler .sf_filter .sff_picto {
+  vertical-align: middle;
+  height: 22px;
+}
+.search_form_handler .sf_filter input, .search_form_handler .sf_filter button {
+  border: 1px solid #ababab;
+}
+.search_form_handler .sf_filter input {
+  width: 100% !important;
+}
+.search_form_handler .sf_filter button {
+  width: 23px;
+  /* Must be equals to .sf_filter > *:height */
+  background-color: #fff;
+  color: #ea7d1e;
+  font-size: 10px;
+}
+.search_form_handler .sf_filter button:first-of-type {
+  margin-left: 5px;
+}
+.search_form_handler .sf_filter button:not(:first-of-type) {
+  border-left: transparent;
+}
+.search_form_handler .sf_filter .sff_input_wrapper {
+  position: relative;
+}
+.search_form_handler .sf_filter .sff_input_wrapper .sff_picto {
+  position: absolute;
+  right: 5px;
+  top: 2px;
+  opacity: 0.6;
+  user-select: none;
+}
+.search_form_handler .sf_filter .sff_input_wrapper .sff_reset {
+  display: none;
+}
+.search_form_handler .sf_filter .sff_input_wrapper input::-ms-clear {
+  display: none;
+}
+.search_form_handler .sf_filter.sf_with_buttons input {
+  width: calc(100% - 28px) !important;
+  /* Minus button outter width (only one for now) */
+  min-width: 120px;
+}
+.sf_results_area .sf_results_placeholder {
+  margin-top: 100px;
+  text-align: center;
+}
+.sf_results_area .sf_results_placeholder button > span {
+  margin-left: 0.5em;
+}
+.hidden {
+  display: none !important;
+}
+.visible {
+  display: initial !important;
+}
 .mandatory {
   border: 1px solid #f00;
 }
 /* Beware: IE6 does not support multiple selector with multiple classes, only the last class is used */
 table.listResults tr.odd td.truncated, table.listResults tr td.truncated, .wizContainer table.listResults tr.odd td.truncated, .wizContainer table.listResults tr td.truncated {
-  background: url(../images/truncated.png?v=v2.3.0) bottom repeat-x;
+  background: url(../images/truncated.png?v=v2.6.1) bottom repeat-x;
 }
 /* Beware: IE6 does not support multiple selector with multiple classes, only the last class is used */
 table.listResults tr.even td.truncated, .wizContainer table.listResults tr.even td.truncated {
-  background: #f9f9f1 url(../images/truncated.png?v=v2.3.0) bottom repeat-x;
+  background: #f9f9f1 url(../images/truncated.png?v=v2.6.1) bottom repeat-x;
 }
 /* Beware: IE6 does not support multiple selector with multiple classes, only the last class is used */
 table.listResults tr.even td.hover.truncated, .wizContainer table.listResults tr.even td.hover.truncated {
-  background: #fdf5d0 url(../images/truncated.png?v=v2.3.0) bottom repeat-x;
+  background: #fdf5d0 url(../images/truncated.png?v=v2.6.1) bottom repeat-x;
 }
 /* Beware: IE6 does not support multiple selector with multiple classes, only the last class is used */
 table.listResults tr.odd td.hover.truncated, table.listResults tr td.hover.truncated, .wizContainer table.listResults tr.odd td.hover.truncated, .wizContainer table.listResults tr td.hover.truncated {
-  background: #fdf5d0 url(../images/truncated.png?v=v2.3.0) bottom repeat-x;
+  background: #fdf5d0 url(../images/truncated.png?v=v2.6.1) bottom repeat-x;
 }
 table.listResults.truncated {
   border-bottom: 0;
@@ -822,13 +1415,13 @@ td.dashboard {
 div#top-left {
   width: 28px;
   height: 70px;
-  background: #044967;
+  background: #f1f1f1;
   float: left;
 }
 div#header-logo {
   width: 100%;
   height: 70px;
-  background: #044967;
+  background: #f1f1f1;
 }
 .ui-layout-pane-west {
   background: #f1f1f1;
@@ -859,22 +1452,65 @@ div#logo {
 div#logo div {
   height: 88px;
   width: 244px;
-  background: url(../images/itop-logo-2.png?v=v2.3.0) left no-repeat;
+  background: url(../images/itop-logo-2.png?v=v2.6.1) left no-repeat;
 }
 #left-pane .ui-layout-north {
   overflow: hidden;
 }
 #top-bar {
-  background: #044967;
+  background: #f1f1f1;
   text-align: right;
 }
-#admin-banner {
+.app-message {
   float: left;
   margin-top: 2px;
-  padding: 8px;
-  border: 1px solid #c33;
-  background-color: #fee;
-  -moz-border-radius: 0.5em;
+  margin-right: 4px;
+  padding: 6px 9px;
+  background-color: #ea7d1e;
+  color: white;
+  border-radius: 6px;
+  text-align: left;
+}
+.app-message-icon {
+  margin-right: 5px;
+}
+.fa-sm {
+  font-size: 0.66em;
+}
+.object-details-header {
+  margin-top: 7px;
+  margin-bottom: 7px;
+}
+.object-icon {
+  display: table-cell;
+  vertical-align: middle;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+.object-infos {
+  display: table-cell;
+  vertical-align: middle;
+}
+.object-name {
+  margin-top: 0px;
+  margin-bottom: 0px;
+}
+.tags {
+  margin-top: 5px;
+}
+.tag {
+  font-size: 10px;
+  font-weight: initial;
+  display: inline-block;
+  color: white;
+  background-color: #555;
+  padding: 3px 6px;
+  -webkit-border-radius: 4px;
+  -moz-border-radius: 4px;
+  border-radius: 4px;
+}
+.text-danger {
+  color: red;
 }
 #global-search {
   height: 55px;
@@ -908,7 +1544,7 @@ div#logo div {
 }
 #global-search-image {
   vertical-align: middle;
-  background: url(../images/search.png?v=v2.3.0) center center no-repeat;
+  background: url(../images/search.png?v=v2.6.1) center center no-repeat;
   display: inline-block;
   width: 28px;
   height: 30px;
@@ -937,7 +1573,7 @@ span.ui-icon {
   margin: 0 2px;
 }
 .ui-layout-button-pin-down {
-  background: url(../images/splitter-bkg.png?v=v2.3.0) transparent;
+  background: url(../images/splitter-bkg.png?v=v2.6.1) transparent;
   width: 16px;
   background-position: -144px -144px;
 }
@@ -1062,6 +1698,12 @@ span.form_validation {
 .caselog_input_header:empty {
   display: none;
 }
+.editor_magnifier {
+  /* !important so it overrides the .cke_reset_all style */
+  background-position: center center !important;
+  background-repeat: no-repeat !important;
+  background-size: 100% !important;
+}
 .editor_magnifier:hover {
   background-color: #ccc;
 }
@@ -1097,20 +1739,319 @@ span.form_validation {
   margin-top: 0.25em;
   margin-bottom: 0.25em;
 }
-table.details {
+/* Helper classes for object details display. */
+.one-col-details {
+  min-width: 400px;
+  max-width: 600px;
+}
+.n-cols-details {
+  width: 100%;
+}
+.n-cols-details > tbody > tr > td {
+  min-width: 240px;
+}
+.details {
   border-collapse: collapse;
   noborder-bottom: 2px #fff solid;
   nowidth: 100%;
 }
-table.details > tbody > tr > td {
-  border-bottom: 2px #ddd solid;
-  padding-bottom: 5px;
-  padding-top: 3px;
+.details * {
+  box-sizing: border-box;
 }
-fieldset table.details > tbody > tr > td {
-  padding-top: 3px;
+fieldset .details > .field_container {
   background: transparent;
   border: 0;
+}
+.field_container {
+  display: table;
+  width: 100%;
+  margin-bottom: 5px;
+  border-bottom: 2px #ddd solid;
+  box-sizing: border-box;
+  /* .field_label, .field_data */
+}
+.field_container:last-child {
+  margin-bottom: 0px;
+}
+.field_container.field_large {
+  display: inherit;
+  /* .field_label, .field_data */
+}
+.field_container.field_large > div {
+  display: inherit;
+  /* .field_value, .field_comments, .field_infos */
+}
+.field_container.field_large > div.field_label {
+  width: inherit;
+  margin-bottom: 5px;
+}
+.field_container.field_large > div.field_data {
+  margin-top: 8px;
+  margin-bottom: 10px;
+}
+.field_container * {
+  box-sizing: border-box;
+}
+.field_container > div {
+  display: table-cell;
+  vertical-align: top;
+  /* .field_value, .field_comments, .field_infos */
+}
+.field_container > div.field_label {
+  min-width: 100px;
+  max-width: 145px;
+  width: 30%;
+  padding-right: 10px;
+}
+.field_container > div.field_label > label, .field_container > div.field_label span {
+  color: #000;
+  font-weight: bold;
+}
+.field_container > div.field_data {
+  display: table;
+  width: 100%;
+  margin-bottom: 5px;
+}
+.field_container > div > div {
+  display: table-cell;
+  width: auto;
+}
+.field_container > div > div.field_comments, .field_container > div > div.field_infos {
+  width: 50px;
+}
+.field_container > div > div.field_value .attribute-edit {
+  display: table;
+  width: 100%;
+  /* TODO: Refactor so status icon show over mandatory icon */
+}
+.field_container > div > div.field_value .attribute-edit .form_validation, .field_container > div > div.field_value .attribute-edit .field_status {
+  display: table-cell;
+  width: 20px;
+  padding-left: 0.4em;
+  vertical-align: middle;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone {
+  width: 100%;
+  /* auto; */
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_string > select, .field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_password > select, .field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_string input, .field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_password input {
+  width: 100%;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_onewaypassword {
+  display: table-cell;
+  width: auto;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_onewaypassword > * {
+  display: block;
+  width: 100%;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_onewaypassword > span {
+  margin-bottom: 3px;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_date, .field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_datetime {
+  display: table;
+  width: 100%;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_date > input, .field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_datetime > input {
+  display: table-cell;
+  width: 100%;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_date > span, .field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_datetime > span {
+  display: table-cell;
+  width: 20px;
+  padding-left: 0.4em;
+  vertical-align: middle;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_date > span > img, .field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_datetime > span > img {
+  width: 20px;
+  cursor: pointer;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_text {
+  border: none;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_text .f_i_text_header {
+  /* Inspired by .cke_top */
+  padding: 6px 8px 6px;
+  white-space: normal;
+  border-bottom: 1px solid #fff;
+  background: #f2f2f2;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_text .f_i_text_header .fullscreen_button {
+  display: block;
+  width: 15px;
+  height: 15px;
+  border: 1px #a6a6a6 solid;
+  cursor: pointer;
+  background-image: url('../images/full-screen.png');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: 98%;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_text .f_i_text_header .fullscreen_button:hover, .field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_text .f_i_text_header .fullscreen_button:focus {
+  background-color: #ccc;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_text textarea {
+  /* Size for default display */
+  width: 100%;
+  height: 100%;
+  padding: 5px 10px;
+  border: none;
+  resize: none;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_text.fullscreen {
+  z-index: 100;
+  position: fixed;
+  top: 0px;
+  left: 0px;
+  width: 100%;
+  height: 100%;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_text.fullscreen textarea {
+  /* Size set again here to override resize value when in fullscreen */
+  width: 100% !important;
+  height: 100% !important;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_text.fullscreen .fullscreen_button {
+  width: 22px;
+  height: 22px;
+  background-color: #ccc;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_document > input {
+  width: 100%;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_document > span {
+  display: inline-block;
+  margin-bottom: 2px;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_image input {
+  width: 100%;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_extkey {
+  display: table;
+  width: 100%;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_extkey > .field_select_wrapper {
+  display: table-cell;
+  width: auto;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_extkey > .field_select_wrapper > select {
+  width: 100%;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_extkey > .field_autocomplete {
+  display: table-cell;
+  width: 100%;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_extkey > .field_input_btn {
+  display: table-cell;
+  width: 25px;
+  padding-left: 0.4em;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_extkey > .field_input_btn > img {
+  max-width: 20px;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_set .selectize-control {
+  width: 100%;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_set .selectize-control .selectize-dropdown, .field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_set .selectize-control .selectize-input, .field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_set .selectize-control .selectize-input input {
+  font-size: 12px;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_set .selectize-control .selectize-input {
+  padding: 2px 2px 0px 2px;
+  /* padding-bottom = padding-top - item margin-bottom */
+  border: 1px solid #ababab;
+  border-radius: 0;
+}
+.field_container > div > div.field_value .attribute-edit .field_input_zone.field_input_set .selectize-control .selectize-input .attribute-set-item.partial-code {
+  color: rgba(34, 34, 34, 0.6);
+  background-color: #eaeaea;
+}
+.one-col-details .details .field_container.field_small {
+  /* On a single column, field labels can take more width but they are limited so it doesn't feel weird when all labels are short */
+}
+.one-col-details .details .field_container.field_small div.field_label {
+  width: 175px;
+  max-width: inherit;
+}
+/* This is extracted from the ".details > .field_container ..." because of the fullscreen option (element is moved at the end of the body */
+.field_input_text {
+  border: none;
+}
+.field_input_text .f_i_text_header {
+  /* Inspired by .cke_top */
+  padding: 6px 8px 6px;
+  white-space: normal;
+  border-bottom: 1px solid #fff;
+  background: #f2f2f2;
+}
+.field_input_text .f_i_text_header .fullscreen_button {
+  display: block;
+  width: 15px;
+  height: 15px;
+  border: 1px #a6a6a6 solid;
+  cursor: pointer;
+  background-image: url('../images/full-screen.png');
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: 98%;
+}
+.field_input_text .f_i_text_header .fullscreen_button:hover, .field_input_text .f_i_text_header .fullscreen_button:focus {
+  background-color: #ccc;
+}
+.field_input_text textarea {
+  /* Size for default display */
+  width: 100%;
+  height: 100%;
+  margin: 0px;
+  padding: 5px 10px;
+  border: none;
+  resize: none;
+}
+.field_input_text.fullscreen {
+  z-index: 100;
+  position: fixed;
+  top: 0px;
+  left: 0px;
+  width: 100%;
+  height: 100%;
+}
+.field_input_text.fullscreen textarea {
+  /* Size set again here to override resize value when in fullscreen */
+  width: 100% !important;
+  height: 100% !important;
+}
+.field_input_text.fullscreen .fullscreen_button {
+  width: 22px;
+  height: 22px;
+  background-color: #ccc;
+}
+#SiloSelection {
+  padding-top: 3px;
+  padding-right: 30px;
+  text-align: left;
+}
+#SiloSelection * {
+  box-sizing: border-box;
+  vertical-align: middle;
+}
+#SiloSelection .ac_input {
+  width: 100%;
+}
+#SiloSelection .field_input_extkey {
+  display: table;
+  width: 100%;
+}
+#SiloSelection .field_input_extkey .field_select_wrapper {
+  display: table-cell;
+  width: 100%;
+}
+#SiloSelection .field_input_extkey .field_select_wrapper > select {
+  width: 100%;
+  max-width: initial;
+}
+#SiloSelection .field_input_extkey .field_input_btn {
+  display: table-cell;
+  width: 25px;
+  padding-left: 0.4em;
 }
 .ac_dlg_loading {
   background: white url('../images/indicator.gif') right center no-repeat;
@@ -1148,7 +2089,7 @@ img.prev, img.first, img.next, img.last {
 }
 div.actions_button {
   float: right;
-  background: #e87c1e url("../images/actions_left.png?v=v2.3.0") no-repeat scroll left top;
+  background: #ea7d1e url("../images/actions_left.png?v=v2.6.1") no-repeat scroll left top;
   padding-left: 5px;
   margin-top: 0;
   margin-right: 10px;
@@ -1156,7 +2097,7 @@ div.actions_button {
   vertical-align: middle;
 }
 div.actions_button a, .actions_button a:hover, .actions_button a:visited {
-  background: #e87c1e url(../images/actions_bkg.png?v=v2.3.0) no-repeat scroll right top;
+  background: #ea7d1e url(../images/actions_bkg.png?v=v2.6.1) no-repeat scroll right top;
   color: #fff;
   padding-right: 8px;
   cursor: pointer;
@@ -1180,18 +2121,29 @@ select#org_id {
   cursor: not-allowed;
 }
 .dragHover {
-  background: url(./ui-lightness/images/ui-bg_diagonals-thick_20_666666_40x40.png?v=v2.3.0);
+  background: url(./ui-lightness/images/ui-bg_diagonals-thick_20_666666_40x40.png?v=v2.6.1);
 }
 .edit_mode .dashlet {
-  background: url(./ui-lightness/images/ui-bg_diagonals-thick_20_666666_40x40.png?v=v2.3.0);
+  background: url(./ui-lightness/images/ui-bg_diagonals-thick_20_666666_40x40.png?v=v2.6.1);
   padding: 5px;
   margin: 0;
   position: relative;
 }
 .edit_mode .dashlet-selected {
-  background: #e87c1e !important;
+  background: #ea7d1e !important;
   padding: 5px;
   margin: 0;
+}
+/* Prevent cursor clicking on the calendar (eg. While editing dashlet) */
+.dashlet-blocker {
+  position: absolute;
+  z-index: 9;
+  /* To be above calendar links & all, but below .close-box (9) */
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  cursor: not-allowed;
 }
 td.layout_cell {
   height: 50px;
@@ -1199,8 +2151,10 @@ td.layout_cell {
   vertical-align: top;
 }
 .dashlet-content {
+  position: relative;
   background: #fff;
   margin: 0;
+  overflow: auto;
 }
 table.prop_table {
   border-bottom: 2px solid #f9f9f1;
@@ -1215,7 +2169,7 @@ table.prop_table {
   top: 0;
   right: 0;
   z-index: 10;
-  background: transparent url(../images/delete.png?v=v2.3.0) no-repeat center;
+  background: transparent url(../images/delete.png?v=v2.6.1) no-repeat center;
 }
 td.prop_value {
   text-align: left;
@@ -1246,6 +2200,14 @@ td.prop_icon {
 }
 .dashlet-content .display_block {
   text-align: left;
+}
+.dashlet-unknown .dashlet-content, .dashlet-proxy .dashlet-content {
+  padding: 8px;
+  background-color: #f2f2f2;
+  text-align: center;
+}
+.dashlet-unknown .dashlet-content .dashlet-ukn-text, .dashlet-proxy .dashlet-content .dashlet-ukn-text, .dashlet-unknown .dashlet-content .dashlet-pxy-text, .dashlet-proxy .dashlet-content .dashlet-pxy-text {
+  margin-top: 10px;
 }
 .prop_apply .ui-icon-alert {
   display: none;
@@ -1295,6 +2257,35 @@ a.summary, a.summary:hover {
   padding: 5px;
   text-align: center;
 }
+.dashboard-title {
+  display: block;
+  float: left;
+  color: #000;
+  font-weight: bold;
+  font-size: 1.2em;
+  margin: 10px;
+}
+.dashboard_contents {
+  width: 100%;
+  background-color: #fff;
+}
+.dashboard-selector {
+  display: block;
+  float: right;
+  margin-top: 10px;
+}
+.dashboard-selector .selector-label {
+  display: inline-block;
+  margin-left: 10px;
+  margin-right: 10px;
+  vertical-align: super;
+}
+#DashboardMenu {
+  display: block;
+  float: right;
+  font-size: 12px;
+  margin: 10px;
+}
 #DashboardMenu > ul > li {
   list-style: none;
   vertical-align: middle;
@@ -1343,10 +2334,10 @@ a.summary, a.summary:hover {
   position: absolute;
   display: none;
   border-top: 1px solid white;
-  z-index: 999;
+  z-index: 1500;
 }
 #DashboardMenu li ul li a:hover {
-  background: #e87c1e;
+  background: #ea7d1e;
   color: #fff;
   font-weight: bold;
   list-style: none;
@@ -1397,29 +2388,19 @@ a.summary, a.summary:hover {
   border-radius: 4px;
   margin-bottom: 10px;
 }
-.header_message {
-  padding: 1em;
-  font-size: 10pt;
-  background: #fff;
-  border: 1px solid #999;
-  -moz-border-radius: 4px;
-  -webkit-border-radius: 4px;
-  border-radius: 4px;
-  margin-bottom: 10px;
-}
 .message_info {
   border: 1px solid #993;
-  background: url(../images/info-mini.png?v=v2.3.0) 1em 1em no-repeat #ffc;
+  background: url(../images/info-mini.png?v=v2.6.1) 1em 1em no-repeat #ffc;
   padding-left: 3em;
 }
 .message_ok {
   border: 1px solid #393;
-  background: url(../images/ok.png?v=v2.3.0) 1em 1em no-repeat #cfc;
+  background: url(../images/ok.png?v=v2.6.1) 1em 1em no-repeat #cfc;
   padding-left: 3em;
 }
 .message_error {
   border: 1px solid #933;
-  background: url(../images/error.png?v=v2.3.0) 1em 1em no-repeat #fcc;
+  background: url(../images/error.png?v=v2.6.1) 1em 1em no-repeat #fcc;
   padding-left: 3em;
 }
 .fg-menu a img {
@@ -1484,6 +2465,9 @@ div.ui-dialog-header {
   bottom: -20px;
   top: auto;
 }
+.ui-tooltip .ui-tooltip-content {
+  overflow-x: auto;
+}
 table.export_parameters td {
   padding-right: 2em;
 }
@@ -1547,18 +2531,18 @@ div.explain-printable {
 }
 #hiddeable_chapters .ui-tabs .ui-tabs-nav li.hideable-chapter span {
   padding-left: 20px;
-  background: url(../images/eye-open-555.png?v=v2.3.0) 2px center no-repeat;
+  background: url(../images/eye-open-555.png?v=v2.6.1) 2px center no-repeat;
 }
 #hiddeable_chapters .ui-tabs .ui-tabs-nav li.hideable-chapter.strikethrough span {
   text-decoration: line-through;
-  background: url(../images/eye-closed-555.png?v=v2.3.0) 2px center no-repeat;
+  background: url(../images/eye-closed-555.png?v=v2.6.1) 2px center no-repeat;
 }
 .printable-version legend {
   padding-left: 26px;
-  background: #1c94c4 url(../images/eye-open-fff.png?v=v2.3.0) 8px center no-repeat;
+  background: #1c94c4 url(../images/eye-open-fff.png?v=v2.6.1) 8px center no-repeat;
 }
 .printable-version .strikethrough legend {
-  background: #1c94c4 url(../images/eye-closed-fff.png?v=v2.3.0) 8px center no-repeat;
+  background: #1c94c4 url(../images/eye-closed-fff.png?v=v2.6.1) 8px center no-repeat;
 }
 .printable-version fieldset.strikethrough span {
   display: none;
@@ -1572,12 +2556,18 @@ h2.printable-tab-title {
 select.multiselect {
   max-width: 150px;
 }
-span.refresh-button {
+span.search-button, span.refresh-button {
   display: inline-block;
   width: 21px;
   height: 18px;
   cursor: pointer;
-  background: transparent url(../images/refresh-fff.png?v=v2.3.0) left center no-repeat;
+  color: #fff;
+  text-align: center;
+  padding-top: 3px;
+  font-size: 10px;
+}
+.actions_button.icon_actions_button {
+  padding: 0 2px 0 2px;
 }
 .case-log-history-entry {
   display: block;
@@ -1658,12 +2648,12 @@ span.refresh-button {
   width: 35px !important;
 }
 #top-bar-table #top-bar-table-search {
-  width: 347px;
+  min-width: 370px;
 }
 #itop-breadcrumb {
   overflow: hidden;
   float: left;
-  background: #044967;
+  background: #f1f1f1;
 }
 #itop-breadcrumb .breadcrumb-item {
   float: left;
@@ -1675,13 +2665,11 @@ span.refresh-button {
   margin-right: 5px;
   -webkit-filter: grayscale(100%);
   filter: grayscale(100%);
-  filter: gray;
-  filter: url("data:image/svg+xml;utf8,<svg version='1.1' xmlns='http://www.w3.org/2000/svg' height='0'><filter id='greyscale'><feColorMatrix type='matrix' values='0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0.3333 0.3333 0.3333 0 0 0 0 0 1 0' /></filter></svg>#greyscale");
   opacity: 0.5;
 }
 #itop-breadcrumb .breadcrumb-item a {
   text-decoration: none;
-  color #FFFFFF;
+  color: #555;
   font-size: 9pt;
   padding: 0;
   background: none;
@@ -1700,12 +2688,12 @@ span.refresh-button {
 }
 #itop-breadcrumb .breadcrumb-item a:hover {
   text-decoration: none;
-  color: #e87c1e;
+  color: #ea7d1e;
 }
 #itop-breadcrumb .breadcrumb-item a::after {
   content: '';
   position: absolute;
-  background-image: url(../images/breadcrumb-separator.png?v=v2.3.0);
+  background-image: url(../images/breadcrumb-separator.png?v=v2.6.1);
   background-repeat: no-repeat;
   width: 8px;
   height: 16px;
@@ -1716,7 +2704,7 @@ span.refresh-button {
 }
 #itop-breadcrumb .breadcrumb-item.breadcrumb-current {
   text-decoration: none;
-  color: #FFFFFF;
+  color: #555;
   font-size: 9pt;
   padding: 0;
   background: none;
@@ -1762,4 +2750,438 @@ span.refresh-button {
   font-size: smaller;
   margin-top: 3px;
   margin-bottom: 1px;
+}
+.object-ref-icon.fa {
+  color: #ea7d1e;
+  font-size: smaller;
+  vertical-align: 1px;
+  margin-right: 1px;
+}
+.object-ref-icon-disabled.fa {
+  color: #555;
+  font-size: smaller;
+  margin-right: 1px;
+}
+.object-ref-link {
+  background: none;
+}
+.extension-source {
+  display: inline-block;
+  background-color: #555;
+  padding: 3px;
+  font-size: 10px;
+  color: #fff;
+  border-radius: 4px;
+}
+#img-lifecycle {
+  width: 100%;
+}
+#img-lifecycle:hover {
+  width: 100%;
+  cursor: pointer;
+}
+#search-model {
+  width: 90%;
+}
+.mfp-figure:after {
+  background-color: #dff1ff;
+}
+#classDetailsClassName {
+  display: inline;
+}
+.qtip-content a, .qtip-content a:visited {
+  color: #1c94c4;
+  text-decoration: none;
+}
+.qtip-content a:hover, .qtip-content a:active {
+  color: #e87c1e;
+  text-decoration: none;
+}
+.data-model-viewer a, .data-model-viewer a:visited {
+  color: #1c94c4;
+  text-decoration: none;
+}
+.data-model-viewer a:hover {
+  color: #e87c1e;
+  text-decoration: none;
+}
+table.listResults .originColor {
+  width: 0px;
+  padding: 2px !important;
+}
+#displaySelectorLabel, #changeDefaultDisplay {
+  display: inline-block;
+}
+#dataModelSplitPane {
+  height: 100%;
+}
+#dataModelClassIcon, dataModelScrollableDiv > img {
+  padding-right: 13px;
+  display: inline;
+}
+#dataModelScrollableDiv {
+  background-color: #eee;
+  position: fixed;
+  z-index: -1;
+  width: 100%;
+}
+#dataModelHeader {
+  background-color: white;
+}
+#dataModelSplitPane #tabbedContent_0 {
+  z-index: -2;
+}
+#dataModelScrollableClassName, #dataModelScrollableClassIcon {
+  display: inline;
+}
+#dataModelScrollableDiv > img {
+  padding-right: 5px;
+}
+#dataModelSplitPane .ui-layout-resizer {
+  background: #ddd;
+  width: 10px !important;
+  margin-left: 15px !important;
+}
+#dataModelSplitPane .ui-layout-resizer :hover {
+  background: #e87c1e;
+}
+#dataModelSplitPane .ui-layout-resizer-west {
+  border-left: 1px solid #bbb;
+  border-right: 1px solid #bbb;
+}
+#dataModelSplitPane .ui-layout-resizer-east {
+  border-left: 1px solid #bbb;
+  border-right: 1px solid #bbb;
+}
+#dataModelSplitPane .ui-layout-toggler {
+  background: #aaa;
+  width: 10px !important;
+}
+#dataModelSplitPane .ui-layout-toggler:hover {
+  background: #e87c1e;
+}
+.dataModelSchema g {
+  cursor: pointer;
+}
+.dataModelSchema g:hover rect:not(.liseret) {
+  fill: #dbe4f0;
+}
+.dataModelSchema text {
+  fill: black;
+  font: 10px sans-serif;
+  text-anchor: middle;
+}
+#selfreferencing:hover ~ g > .selfattr {
+  fill: #dbe4f0;
+}
+.tooltipD3 {
+  position: fixed;
+  text-align: center;
+  background: #eee;
+  border: 1px solid #555;
+  border-radius: 2px;
+  pointer-events: none;
+  fill: black;
+  font: 11px sans-serif;
+  text-anchor: middle;
+}
+#tooltipD3_top {
+  font-weight: bold;
+  border-bottom: 1px solid #555;
+  padding: 3px;
+}
+.tooltipD3 i {
+  font-size: 14px;
+}
+.tooltipD3 span {
+  margin: 2px;
+}
+.dataModelSchema .selfattrtxt {
+  font-family: FontAwesome;
+}
+.data-model-viewer {
+  background-color: #fff;
+  margin-top: 7px !important;
+  margin-left: 15px !important;
+}
+#delDataModelSearch {
+  color: #e87c1e;
+  font-family: FontAwesome;
+  display: inline-block;
+  font-size: 15px;
+  margin-left: 1%;
+}
+#dataModelSplitPane .ui-layout-center {
+  margin-left: 30px !important;
+}
+#ds_flash {
+  margin-bottom: 5px;
+}
+.menu-icon-select {
+  max-height: 300px;
+  position: absolute;
+  z-index: 201;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.menu-icon-select > .ui-menu-item {
+  padding: 0.3em 3%;
+}
+.attribute.attribute-set .attribute-set-item::after {
+  content: ",";
+  margin-right: 0.5em;
+}
+.attribute.attribute-set .attribute-set-item:last-of-type::after {
+  content: "";
+  margin-right: 0;
+}
+.attribute.attribute-set.history-added .attribute-set-item {
+  font-weight: bold;
+}
+.attribute.attribute-set.history-removed .attribute-set-item {
+  text-decoration: line-through;
+  font-style: italic;
+}
+.attribute-edit .attribute-set .attribute-set-item, .attribute-tag-set.attribute-set .attribute-set-item, .selectize-control > .selectize-input > .item[data-value], .selectize-control.multi > .selectize-input > .item[data-value], .selectize-control > .selectize-input > .item[data-value].active, .selectize-control.multi > .selectize-input > .item[data-value].active {
+  display: inline-block;
+  margin-right: 3px;
+  margin-bottom: 3px;
+  padding: 4px 6px;
+  max-width: 120px;
+  background: #fdfdfd none;
+  border-radius: 2px;
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.15), 0 0 1px 1px #f1f1f1;
+  color: #222;
+  text-shadow: none;
+  vertical-align: middle;
+  overflow-x: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.attribute-edit .attribute-set .attribute-set-item::after, .attribute-tag-set.attribute-set .attribute-set-item::after, .selectize-control > .selectize-input > .item[data-value]::after, .selectize-control.multi > .selectize-input > .item[data-value]::after, .selectize-control > .selectize-input > .item[data-value].active::after, .selectize-control.multi > .selectize-input > .item[data-value].active::after {
+  content: "";
+  margin-right: 0;
+}
+.selectize-control > .selectize-input.has-items:after, .selectize-control.multi > .selectize-input.has-items:after {
+  content: "+";
+  display: inline-block;
+  font-size: 17px;
+  font-weight: bold;
+  color: #222;
+}
+.selectize-control > .selectize-input > .item[data-value], .selectize-control.multi > .selectize-input > .item[data-value] {
+  padding-right: 1.5em !important;
+  border: 1px solid #ddd;
+}
+.selectize-control > .selectize-input > .item[data-value] > .remove, .selectize-control.multi > .selectize-input > .item[data-value] > .remove {
+  padding-top: 0.3em;
+  border: none;
+}
+/* The switch - the box around the slider */
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  vertical-align: baseline;
+}
+/* Hide default HTML checkbox */
+.switch input {
+  display: none;
+}
+/* The slider */
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #ccc;
+  transition: 0.4s;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 15px;
+  width: 15px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.4s;
+}
+input:checked + .slider {
+  background-color: #ea7d1e;
+}
+input:focus + .slider {
+  box-shadow: 0 0 1px #ea7d1e;
+}
+input:checked + .slider:before {
+  transform: translateX(14.5px);
+}
+/* Rounded sliders */
+.slider.round {
+  border-radius: 20px;
+}
+.slider.round:before {
+  border-radius: 7px;
+}
+#newsroom_menu li span {
+  display: block;
+  padding: 5px 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+#newsroom_menu li li p {
+  text-align: left;
+  margin: 2px;
+  margin-left: 5px;
+  margin-right: 5px;
+  cursor: pointer;
+  background-color: transparent;
+}
+#newsroom_menu > ul > li > ul {
+  margin-top: 8px;
+}
+#newsroom_menu > ul > li > ul > li {
+  display: block;
+  border-bottom: 1px #ddd solid;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  text-align: left;
+}
+#newsroom_menu > ul > li > ul > li:hover, #newsroom_menu > ul > li > ul > li:hover h1, #newsroom_menu > ul > li > ul > li:hover h2, #newsroom_menu > ul > li > ul > li:hover h3 {
+  background: #ea7d1e;
+  color: #fff;
+}
+#newsroom_menu li li:last-of-type {
+  border-bottom: 0;
+}
+#newsroom_menu li {
+  list-style: none;
+  cursor: pointer;
+  color: #000;
+}
+#newsroom_menu li ul {
+  width: 300px;
+}
+#top-left-newsroom-cell {
+  padding-right: 11px !important;
+}
+#newsroom_menu_icon {
+  position: relative;
+  top: 8px;
+}
+#newsroom_menu_counter_container {
+  position: relative;
+  top: -26px;
+  left: 4px;
+}
+#newsroom_menu_counter {
+  display: inline-block;
+  padding: 2px;
+  border-radius: 8px;
+  text-align: center;
+  width: 12px;
+  box-shadow: 1px 1px 2px 0px #777;
+  font-size: 8pt;
+  background-color: #1c94c4;
+  color: #fff;
+  cursor: pointer;
+}
+.newsroom_extra_messages_counter {
+  display: inline-block !important;
+  padding: 2px !important;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 8pt;
+  min-width: 12px;
+  background-color: #808080;
+  color: #fff;
+  float: right;
+  margin-right: 5px;
+}
+.newsroom_menu_item > div > img {
+  float: left;
+  width: 32px;
+  max-height: 32px;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-left: 5px;
+  margin-right: 5px;
+}
+#newsroom_menu_dismiss_all, #newsroom_menu_show_all {
+  text-align: center !important;
+}
+#newsroom_show_all_submenu {
+  text-align: center;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+}
+#newsroom_show_all_submenu > ul {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+#newsroom_show_all_submenu > ul > li > ul {
+  margin-top: 8px;
+}
+#newsroom_show_all_submenu > ul > li > ul > li {
+  display: block;
+  border-bottom: 1px #ddd solid;
+  padding-left: 5px;
+  padding-top: 4px;
+  padding-bottom: 6px;
+  text-align: left;
+}
+#newsroom_show_all_submenu > ul > li > ul > li:hover {
+  background: #ea7d1e;
+  color: #fff;
+}
+#newsroom_show_all_submenu li ul {
+  width: 200px;
+  color: #000;
+}
+.no-padding {
+  padding: 0 !important;
+}
+.newsroom_menu_item_date {
+  padding: 0 !important;
+  margin-bottom: -10px;
+  font-size: 8pt;
+  text-align: right;
+  margin-top: -2px;
+  margin-right: 5px;
+  color: #fff;
+}
+#newsroom_display_size {
+  height: 1em;
+  width: 3em;
+}
+#newsroom_no_new_message p {
+  text-align: center !important;
+  cursor: default !important;
+  font-style: italic;
+}
+#newsroom_no_new_message {
+  color: #444 !important;
+}
+#newsroom_no_new_message:hover {
+  cursor: default !important;
+  color: #444 !important;
+  background-color: #fff !important;
+}
+#newsroom_menu h1 {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 0.5em;
+}
+#newsroom_menu h2 {
+  font-weight: 700;
+  font-size: 14px;
+  margin-bottom: 0.5em;
+}
+#newsroom_menu h3, #newsroom_menu h4, #newsroom_menu h5 {
+  font-weight: 700;
+  font-size: 12px;
+  margin-bottom: 0.5em;
 }

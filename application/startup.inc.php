@@ -24,16 +24,49 @@
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 
+// This storage is freed on error (case of allowed memory exhausted)
+$sReservedMemory = str_repeat('*', 1024 * 1024);
+register_shutdown_function(function()
+{
+	global $sReservedMemory;
+	$sReservedMemory = null;
+	if (!is_null($err = error_get_last()) && ($err['type'] == E_ERROR))
+	{
+		if (strpos($err['message'], 'Allowed memory size of') !== false)
+		{
+			$sLimit = ini_get('memory_limit');
+			echo "<p>iTop: Allowed memory size of $sLimit exhausted, contact your administrator to increase memory_limit in php.ini</p>\n";
+		}
+		else
+		{
+			echo "<p>iTop: An error occurred, check server error log for more information.</p>\n";
+		}
+	}
+});
+
 require_once(APPROOT.'/core/cmdbobject.class.inc.php');
 require_once(APPROOT.'/application/utils.inc.php');
 require_once(APPROOT.'/core/contexttag.class.inc.php');
 session_name('itop-'.md5(APPROOT));
 session_start();
 $sSwitchEnv = utils::ReadParam('switch_env', null);
-if (($sSwitchEnv != null) && (file_exists(APPCONF.$sSwitchEnv.'/'.ITOP_CONFIG_FILE)))
+$bAllowCache = true;
+if (($sSwitchEnv != null) && (file_exists(APPCONF.$sSwitchEnv.'/'.ITOP_CONFIG_FILE)) && isset($_SESSION['itop_env']) && ($_SESSION['itop_env'] !== $sSwitchEnv))
 {
 	$_SESSION['itop_env'] = $sSwitchEnv;
 	$sEnv = $sSwitchEnv;
+    $bAllowCache = false;
+    // Reset the opcache since otherwise the PHP "model" files may still be cached !!
+    if (function_exists('opcache_reset'))
+    {
+        // Zend opcode cache
+        opcache_reset();
+    }
+    if (function_exists('apc_clear_cache'))
+    {
+        // APC(u) cache
+        apc_clear_cache();
+    }
 	// TODO: reset the credentials as well ??
 }
 else if (isset($_SESSION['itop_env']))
@@ -46,4 +79,4 @@ else
 	$_SESSION['itop_env'] = ITOP_DEFAULT_ENV;
 }
 $sConfigFile = APPCONF.$sEnv.'/'.ITOP_CONFIG_FILE;
-MetaModel::Startup($sConfigFile, false /* $bModelOnly */, true /* $bAllowCache */, false /* $bTraceSourceFiles */, $sEnv);
+MetaModel::Startup($sConfigFile, false /* $bModelOnly */, $bAllowCache, false /* $bTraceSourceFiles */, $sEnv);

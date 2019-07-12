@@ -119,6 +119,7 @@ class WizardController
 	{
 		$sCurrentStepClass = utils::ReadParam('_class', $this->sInitialStepClass);
 		$sCurrentState = utils::ReadParam('_state', $this->sInitialState);
+		/** @var \WizardStep $oStep */
 		$oStep = new $sCurrentStepClass($this, $sCurrentState);
 		if ($oStep->ValidateParams($sCurrentState))
 		{
@@ -172,10 +173,11 @@ class WizardController
 				// The configuration file already exists
 				if (!is_writable($sConfigFile))
 				{
+					$sRelativePath = utils::GetConfigFilePathRelative();
 					$oP = new SetupPage('Installation Cannot Continue');
 					$oP->add("<h2>Fatal error</h2>\n");
-					$oP->error("<b>Error:</b> the configuration file '".$sConfigFile."' already exists and cannot be overwritten.");
-					$oP->p("The wizard cannot modify the configuration file for you. If you want to upgrade ".ITOP_APPLICATION.", make sure that the file '<b>".realpath($sConfigFile)."</b>' can be modified by the web server.");
+					$oP->error("<b>Error:</b> the configuration file '".$sRelativePath."' already exists and cannot be overwritten.");
+					$oP->p("The wizard cannot modify the configuration file for you. If you want to upgrade ".ITOP_APPLICATION.", make sure that the file '<b>".$sRelativePath."</b>' can be modified by the web server.");
 					$oP->p('<button type="button" onclick="window.location.reload()">Reload</button>');
 					$oP->output();
 					return;
@@ -217,7 +219,7 @@ class WizardController
 
 $('form').each(function () {
 	var thisform = $(this);
-		thisform.prepend(thisform.find('button.default').clone().removeAttr('id').removeAttr('disabled').css({
+		thisform.prepend(thisform.find('button.default').clone().removeAttr('id').prop('disabled', false).css({
 		position: 'absolute',
 		left: '-999px',
 		top: '-999px',

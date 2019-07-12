@@ -143,7 +143,7 @@ $(function()
 				var oField = $('#'+this.options.field_id, this.element);
 				if (oField.attr('type') == 'checkbox')
 				{
-					return (oField.attr('checked') == 'checked');
+					return oField.prop('checked');
 				}
 				else
 				{
@@ -220,11 +220,11 @@ $(function()
 				{
 					if (this.value)
 					{
-						oField.attr('checked', true);					
+						oField.prop('checked', true);
 					}
 					else
 					{
-						oField.removeAttr('checked');										
+						oField.prop('checked', false);
 					}
 				}
 				else
@@ -574,10 +574,12 @@ function ValidateInteger(sFieldId, bMandatory, sFormId, iMin, iMax, sExplainForm
 	{
 		bValid = false;
 	}
-
-	re = new RegExp('^$|^-?[0-9]+$');
-	bValid = re.test(currentVal);
-
+	else
+	{
+		re = new RegExp('^$|^-?[0-9]+$');
+		bValid = re.test(currentVal);
+	}
+	
 	if (bValid && (currentVal != ''))
 	{
 		// It is a valid number, let's check the boundaries
@@ -664,7 +666,7 @@ function ReadFormParams(sFormId)
 			{
 				if (this.type == 'checkbox')
 				{
-					oMap[sName] = ($(this).attr('checked') == 'checked');
+					oMap[sName] = $(this).prop('checked');
 				}
 				else if (this.type == 'radio')
 				{
@@ -699,7 +701,7 @@ function SubmitForm(sFormId, onSubmitResult)
 				{
 					if (this.type == 'checkbox')
 					{
-						oMap[sName] = ($(this).attr('checked') == 'checked');
+						oMap[sName] = $(this).prop('checked');
 					}
 					else
 					{

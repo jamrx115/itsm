@@ -1,11 +1,17 @@
 {# itop-portal-base/portal/src/views/bricks/object/mode_create.html.twig #}
 {# Object brick create layout #}
 
+{% set tIsModal = (tIsModal is defined and tIsModal == true) ? true : false %}
 {% set sFormId = (form.id is defined and form.id is not null) ? form.id : 'object_form' %}
 {% set sFormIdSanitized = sFormId|replace({'-': ''}) %}
-{% set tIsModal = (tIsModal is defined and tIsModal == true) ? true : false %}
+{% set sFormDisplayModeClass = (form.display_mode is defined and form.display_mode is not null) ? 'form_' ~ form.display_mode : '' %}
+{% set sFormObjectStateClass = (form.object_state is defined and form.object_state is not null) ? 'form_object_state_' ~ form.object_state : '' %}
 
-<form id="{{ sFormId }}" method="POST" action="{{ form.renderer.GetEndpoint()|raw }}">
+<form id="{{ sFormId }}" class="{{ sFormDisplayModeClass }} {{ sFormObjectStateClass }}" method="POST" action="{{ form.renderer.GetEndpoint()|raw }}"
+	{% if sMode is defined and sMode is not null %}data-form-mode="{{ sMode }}"{% endif %}
+	{% if form.object_class is defined and form.object_class is not null %}data-object-class="{{ form.object_class }}"{% endif %}
+	{% if form.object_id is defined and form.object_id is not null %}data-object-id="{{ form.object_id }}"{% endif %}
+	{% if form.object_state is defined and form.object_state is not null %}data-object-state="{{ form.object_state }}"{% endif %}>
 	<input type="hidden" name="transaction_id" value="{{ form.transaction_id }}" />
 	<div class="form_alerts">
 		{% block pFormAlerts %}
@@ -21,6 +27,13 @@
 	</div>
 	<div class="form_buttons">
 		{% block pFormButtons %}
+            {# Misc. buttons #}
+            {% if form.buttons is defined and (form.buttons.actions is defined or form.buttons.links is defined) %}
+				<div class="form_btn_misc">
+                    {% include 'itop-portal-base/portal/src/views/bricks/object/plugins_buttons.html.twig' with {'aButtons': form.buttons} %}
+				</div>
+            {% endif %}
+			{# Transition buttons #}
 			{% if form.buttons is defined and form.buttons.transitions is defined and form.buttons.transitions|length > 0 %}
 				<div class="form_btn_transitions">
 				{% for sStimulusCode, sStimulusLabel in form.buttons.transitions %}
@@ -29,16 +42,20 @@
 				</div>
 			{% endif %}
 			<div class="form_btn_regular">
+				{# If form has editable fields, we display cancel / submit buttons #}
 				{% if form.editable_fields_count is defined and form.editable_fields_count > 0 %}
 					<button class="btn btn-default form_btn_cancel" type="button" value="cancel" title="{{ 'Portal:Button:Cancel'|dict_s }}" data-dismiss="modal">
 						<span class="glyphicon glyphicon-remove"></span>
 						{{ 'Portal:Button:Cancel'|dict_s }}
 					</button>
-					<button class="btn btn-primary form_btn_submit" type="submit" value="submit" title="{{ 'Portal:Button:Submit'|dict_s }}">
-						<span class="glyphicon glyphicon-ok"></span>
-						{{ 'Portal:Button:Submit'|dict_s }}
-					</button>
+					{% if form.buttons.submit is defined %}
+						<button class="btn btn-primary form_btn_submit" type="submit" value="submit" title="{{ form.buttons.submit.label }}">
+							<span class="glyphicon glyphicon-ok"></span>
+							{{ form.buttons.submit.label }}
+						</button>
+					{% endif %}
 				{% else %}
+					{# Modal mode #}
 					{% if tIsModal %}
 						<input class="btn btn-default form_btn_cancel" type="button" value="{{ 'Portal:Button:Close'|dict_s }}" data-dismiss="modal">
 					{% endif %}

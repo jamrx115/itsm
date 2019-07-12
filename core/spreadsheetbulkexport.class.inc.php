@@ -175,7 +175,8 @@ EOF
 				}
 				elseif ($oAttDef instanceof AttributeCustomFields)
 				{
-					$sRet = $oObj->GetAsHTML($sAttCode);
+					// Stick to the weird implementation made in GetNextChunk
+					$sRet = utils::TextToHtml($oObj->GetEditValue($sAttCode));
 				}
 				else
 				{
@@ -233,7 +234,6 @@ EOF
 			}
 		}
 		$sData = '';
-		$sData .= '<style>table br {mso-data-placement:same-cell;}</style>'; // Trick for Excel: keep line breaks inside the same cell !
 		$sData .= "<table border=\"1\">\n";
 		$sData .= "<tr>\n";
 		foreach($aData as $sLabel)
@@ -275,6 +275,7 @@ EOF
 				$sAttCode = $aFieldSpec['sAttCode'];
 
 				$sField = '';
+				/** @var \DBObject $oObj */
 				$oObj = $aRow[$sAlias];
 				if ($oObj == null)
 				{
@@ -326,9 +327,20 @@ EOF
 							}
 							$sData .= "<td x:str>$sField</td>";
 						}
-						else if($oAttDef instanceof AttributeString)
+						elseif ($oAttDef instanceof AttributeCustomFields)
+						{
+							// GetAsHTML returns a table that would not fit
+							$sField = utils::TextToHtml($oObj->GetEditValue($sAttCode));
+							$sData .= "<td x:str>$sField</td>";
+						}
+						else if ($oAttDef instanceof AttributeString)
 						{
 							$sField = $oObj->GetAsHTML($sAttCode, $this->bLocalizeOutput);
+							$sData .= "<td x:str>$sField</td>";
+						}
+						else if ($oAttDef instanceof AttributeTagSet)
+						{
+							$sField = $oObj->GetAsCSV($sAttCode, $this->bLocalizeOutput, '');
 							$sData .= "<td x:str>$sField</td>";
 						}
 						else

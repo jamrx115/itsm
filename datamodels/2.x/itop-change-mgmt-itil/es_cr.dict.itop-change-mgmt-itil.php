@@ -3,7 +3,7 @@
 //
 //   This file is part of iTop.
 //
-//   iTop is free software; you can redistribute it and/or modify	
+//   iTop is free software; you can redistribute it and/or modify
 //   it under the terms of the GNU Affero General Public License as published by
 //   the Free Software Foundation, either version 3 of the License, or
 //   (at your option) any later version.
@@ -15,8 +15,6 @@
 //
 //   You should have received a copy of the GNU Affero General Public License
 //   along with iTop. If not, see <http://www.gnu.org/licenses/>
-
-
 /**
  * Localized data
  *
@@ -24,8 +22,7 @@
  * @license     http://opensource.org/licenses/AGPL-3.0
  * @traductor   Miguel Turrubiates <miguel_tf@yahoo.com> 
  */
-
-Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
 	'Menu:ChangeManagement' => 'Administración de Cambios',
 	'Menu:Change:Overview' => 'Resumen de Cambios',
 	'Menu:Change:Overview+' => 'Resumen de Cambios',
@@ -47,6 +44,8 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'UI-ChangeManagementOverview-Last-7-days' => 'Número de Cambios de los últimos 7 días',
 	'UI-ChangeManagementOverview-ChangeByDomain-last-7-days' => 'Cambios por Dominio de los últimos 7 días',
 	'UI-ChangeManagementOverview-ChangeByStatus-last-7-days' => 'Cambios por Estatus de los últimos 7 días',
+	'Tickets:Related:OpenChanges' => 'Cambios Abiertos',
+	'Tickets:Related:RecentChanges' => 'Cambios Recientes (72 hrs)',
 ));
 
 // Dictionnay conventions
@@ -64,7 +63,7 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 // Class: Change
 //
 
-Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
 	'Class:Change' => 'Cambio',
 	'Class:Change+' => 'Cambio',
 	'Class:Change/Attribute:status' => 'Estatus',
@@ -127,8 +126,8 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:Change/Attribute:parent_id+' => 'Cambio Padre',
 	'Class:Change/Attribute:parent_name' => 'Ref. Cambio Padre',
 	'Class:Change/Attribute:parent_name+' => 'Ref. Cambio Padre',
-	'Class:Change/Attribute:related_request_list' => 'Ticker Incidentes Relacionados',
-	'Class:Change/Attribute:related_request_list+' => 'Ticker Incidentes Relacionados',
+	'Class:Change/Attribute:related_request_list' => 'Requerimientos Relacionados',
+	'Class:Change/Attribute:related_request_list+' => 'Requerimientos Relacionados',
 	'Class:Change/Attribute:related_problems_list' => 'Problemas Relacionados',
 	'Class:Change/Attribute:related_problems_list+' => 'Problemas Relacionados',
 	'Class:Change/Attribute:related_incident_list' => 'Incidentes Relacionados',
@@ -167,9 +166,9 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 // Class: RoutineChange
 //
 
-Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
-	'Class:RoutineChange' => 'UAT Release',
-	'Class:RoutineChange+' => 'UAT Release',
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
+	'Class:RoutineChange' => 'Cambio Rutinario',
+	'Class:RoutineChange+' => 'Cambio Rutinario',
 	'Class:RoutineChange/Stimulus:ev_validate' => 'Validar',
 	'Class:RoutineChange/Stimulus:ev_validate+' => 'Validar',
 	'Class:RoutineChange/Stimulus:ev_reject' => 'Rechazar',
@@ -198,7 +197,7 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 // Class: ApprovedChange
 //
 
-Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
 	'Class:ApprovedChange' => 'Cambios Aprobados',
 	'Class:ApprovedChange+' => 'Cambios Aprobados',
 	'Class:ApprovedChange/Attribute:approval_date' => 'Fecha de Aprobación',
@@ -233,7 +232,7 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 // Class: NormalChange
 //
 
-Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
 	'Class:NormalChange' => 'Cambio Normal',
 	'Class:NormalChange+' => 'Cambio Normal',
 	'Class:NormalChange/Attribute:acceptance_date' => 'Fecha de Aceptación',
@@ -268,9 +267,9 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 // Class: EmergencyChange
 //
 
-Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
-	'Class:EmergencyChange' => 'Hughes Reqm',
-	'Class:EmergencyChange+' => 'Hughes Reqm',
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
+	'Class:EmergencyChange' => 'Cambio de Emergencia',
+	'Class:EmergencyChange+' => 'Cambio de Emergencia',
 	'Class:EmergencyChange/Stimulus:ev_validate' => 'Validar',
 	'Class:EmergencyChange/Stimulus:ev_validate+' => 'Validar',
 	'Class:EmergencyChange/Stimulus:ev_reject' => 'Rechazar',
@@ -293,8 +292,4 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:EmergencyChange/Stimulus:ev_monitor+' => 'Monitorear',
 	'Class:EmergencyChange/Stimulus:ev_finish' => 'Finalizar',
 	'Class:EmergencyChange/Stimulus:ev_finish+' => 'Finalizar',
-	'Tickets:Related:OpenChanges' => 'Open changes~~',
-	'Tickets:Related:RecentChanges' => 'Recent changes (72h)~~',
 ));
-
-?>

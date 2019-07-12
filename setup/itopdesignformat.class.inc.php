@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2014-2016 Combodo SARL
+// Copyright (C) 2014-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -34,8 +34,8 @@
  *     echo "Error, failed to upgrade the format, reason(s):\n".implode("\n", $oFormat->GetErrors());
  * }
  */
- 
-define('ITOP_DESIGN_LATEST_VERSION', '1.3'); // iTop > 2.2.0
+
+define('ITOP_DESIGN_LATEST_VERSION', '1.6'); // iTop >= 2.6.0
  
 class iTopDesignFormat
 {
@@ -61,6 +61,24 @@ class iTopDesignFormat
 		'1.3' => array(
 			'previous' => '1.2',
 			'go_to_previous' => 'From13To12',
+			'next' => '1.4',
+			'go_to_next' => 'From13To14',
+		),
+		'1.4' => array(
+			'previous' => '1.3',
+			'go_to_previous' => 'From14To13',
+			'next' => '1.5',
+			'go_to_next' => 'From14To15',
+		),
+		'1.5' => array(
+			'previous' => '1.4',
+			'go_to_previous' => 'From15To14',
+			'next' => '1.6',
+			'go_to_next' => 'From15To16',
+		),
+		'1.6' => array(
+			'previous' => '1.5',
+			'go_to_previous' => 'From16To15',
 			'next' => null,
 			'go_to_next' => null,
 		),
@@ -166,8 +184,10 @@ class iTopDesignFormat
 	}
 
 	/**
-	 * An alternative to getNodePath, that gives the id of nodes instead of the position within the children	
-	 */	
+	 * An alternative to getNodePath, that gives the id of nodes instead of the position within the children
+	 * @param $oNode
+	 * @return string
+	 */
 	public static function GetItopNodePath($oNode)
 	{
 		if ($oNode instanceof DOMDocument) return '';
@@ -239,7 +259,6 @@ class iTopDesignFormat
 	 * @param string $sFrom The source format version
 	 * @param string $sTo The desired format version
 	 * @param object $oFactory Full data model (not yet used, aimed at allowing conversion that could not be performed without knowing the whole data model)
-	 * @return bool True on success	 
 	 */
 	protected function DoConvert($sFrom, $sTo, $oFactory = null)
 	{
@@ -293,6 +312,7 @@ class iTopDesignFormat
 
 	/**
 	 * Upgrade the format from version 1.0 to 1.1
+	 * @param $oFactory
 	 * @return void (Errors are logged)
 	 */
 	protected function From10To11($oFactory)
@@ -344,9 +364,10 @@ class iTopDesignFormat
 			}
 		}
 	}
-	
+
 	/**
 	 * Downgrade the format from version 1.1 to 1.0
+	 * @param $oFactory
 	 * @return void (Errors are logged)
 	 */
 	protected function From11To10($oFactory)
@@ -416,6 +437,7 @@ class iTopDesignFormat
 
 	/**
 	 * Upgrade the format from version 1.1 to 1.2
+	 * @param $oFactory
 	 * @return void (Errors are logged)
 	 */
 	protected function From11To12($oFactory)
@@ -424,6 +446,7 @@ class iTopDesignFormat
 
 	/**
 	 * Downgrade the format from version 1.2 to 1.1
+	 * @param $oFactory
 	 * @return void (Errors are logged)
 	 */
 	protected function From12To11($oFactory)
@@ -481,6 +504,7 @@ class iTopDesignFormat
 
 	/**
 	 * Upgrade the format from version 1.2 to 1.3
+	 * @param $oFactory
 	 * @return void (Errors are logged)
 	 */
 	protected function From12To13($oFactory)
@@ -489,6 +513,7 @@ class iTopDesignFormat
 
 	/**
 	 * Downgrade the format from version 1.3 to 1.2
+	 * @param $oFactory
 	 * @return void (Errors are logged)
 	 */
 	protected function From13To12($oFactory)
@@ -538,6 +563,120 @@ class iTopDesignFormat
 			$oNode->setAttribute('_delta', 'must_exist');
 		}
 	}
+
+	/**
+	 * Upgrade the format from version 1.3 to 1.4
+	 * @param $oFactory
+	 * @return void (Errors are logged)
+	 */
+	protected function From13To14($oFactory)
+	{
+	}
+
+	/**
+	 * Downgrade the format from version 1.4 to 1.3
+	 * @param $oFactory
+	 * @return void (Errors are logged)
+	 */
+	protected function From14To13($oFactory)
+	{
+		$oXPath = new DOMXPath($this->oDocument);
+		
+		// Transform _delta="force" into _delta="define"
+		//
+		$oNodeList = $oXPath->query("/itop_design/classes//class/fields/field[@_delta='force']");
+		$iCount = 0;
+		foreach ($oNodeList as $oNode)
+		{
+			$oNode->setAttribute('_delta', 'define');
+			$iCount++;
+		}
+		if ($iCount > 0)
+		{
+			$this->LogWarning('The attribute _delta="force" is not supported, converted to _delta="define" ('.$iCount.' instances processed).');
+		}
+
+        // Remove attribute flags on transitions
+        //
+        $oNodeList = $oXPath->query("/itop_design/classes//class/lifecycle/states/state/transitions/transition/flags");
+        $this->LogWarning('Before removing flags nodes');
+        foreach ($oNodeList as $oNode)
+        {
+            $this->LogWarning('Attribute flags '.self::GetItopNodePath($oNode).' is irrelevant on transition and must be removed.');
+            $this->DeleteNode($oNode);
+        }
+	}
+
+	/**
+	 * Downgrade the format from version 1.5 to 1.4
+	 * @param $oFactory
+	 * @return void (Errors are logged)
+	 */
+	protected function From15To14($oFactory)
+	{
+		$oXPath = new DOMXPath($this->oDocument);
+
+		// Remove nodes on some menus
+		//
+		$sPath = "/itop_design/menus/menu[@xsi:type!='MenuGroup' and @xsi:type!='TemplateMenuNode']";
+		$oNodeList = $oXPath->query("$sPath/enable_class | $sPath/enable_action | $sPath/enable_permission | $sPath/enable_stimulus");
+		foreach ($oNodeList as $oNode)
+		{
+			$this->LogWarning('Node '.self::GetItopNodePath($oNode).' is irrelevant in this version, it will be ignored. Use enable_admin_only instead.');
+		}
+	}
+
+	/**
+	 * Upgrade the format from version 1.4 to 1.5
+	 * @param $oFactory
+	 * @return void (Errors are logged)
+	 */
+	protected function From14To15($oFactory)
+	{
+	}
+
+	/**
+	 * @param $oFactory
+	 *
+	 * @return void (Errors are logged)
+	 */
+	protected function From15To16($oFactory)
+	{
+		// nothing changed !
+	}
+
+	/**
+	 * @param $oFactory
+	 *
+	 * @return void (Errors are logged)
+	 */
+	protected function From16To15($oFactory)
+	{
+		$oXPath = new DOMXPath($this->oDocument);
+
+		// Remove AttributeTagSet nodes
+		//
+		$sPath = "/itop_design/classes/class/fields/field[@xsi:type='AttributeTagSet']";
+		$this->RemoveNodeFromXPath($sPath);
+
+		// Remove uniqueness rules nodes
+		//
+		$sPath = "/itop_design/classes/class/properties/uniqueness_rules";
+		$this->RemoveNodeFromXPath($sPath);
+	}
+
+	private function RemoveNodeFromXPath($sPath)
+	{
+		$oXPath = new DOMXPath($this->oDocument);
+
+		$oNodeList = $oXPath->query($sPath);
+		foreach ($oNodeList as $oNode)
+		{
+			$this->LogWarning('Node '.self::GetItopNodePath($oNode).' is irrelevant in this version, it will be removed.');
+			$this->DeleteNode($oNode);
+		}
+	}
+
 
 	/**
 	 * Delete a node from the DOM and make sure to also remove the immediately following line break (DOMText), if any.

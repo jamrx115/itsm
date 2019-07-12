@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2015-2016 Combodo SARL
+// Copyright (C) 2015-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,7 +19,7 @@
 /**
  * Export data specified by an OQL or a query phrasebook entry
  *
- * @copyright   Copyright (C) 2015-2016 Combodo SARL
+ * @copyright   Copyright (C) 2015-2017 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 
@@ -37,6 +37,7 @@ require_once(APPROOT.'/core/bulkexport.class.inc.php');
 
 require_once(APPROOT.'/application/startup.inc.php');
 
+
 function ReportErrorAndExit($sErrorMessage)
 {
 	if (utils::IsModeCLI())
@@ -44,14 +45,14 @@ function ReportErrorAndExit($sErrorMessage)
 		$oP = new CLIPage("iTop - Export");
 		$oP->p('ERROR: '.$sErrorMessage);
 		$oP->output();
-		exit -1;
+		exit(-1);
 	}
 	else
 	{
 		$oP = new WebPage("iTop - Export");
 		$oP->p('ERROR: '.$sErrorMessage);
 		$oP->output();
-		exit -1;		
+		exit(-1);
 	}
 }
 
@@ -63,7 +64,7 @@ function ReportErrorAndUsage($sErrorMessage)
 		$oP->p('ERROR: '.$sErrorMessage);
 		Usage($oP);
 		$oP->output();
-		exit -1;
+		exit(-1);
 	}
 	else
 	{
@@ -71,7 +72,7 @@ function ReportErrorAndUsage($sErrorMessage)
 		$oP->p('ERROR: '.$sErrorMessage);
 		Usage($oP);
 		$oP->output();
-		exit -1;
+		exit(-1);
 	}
 }
 
@@ -90,6 +91,14 @@ function Usage(Page $oP)
 	}
 	$oP->p(" * expression: an OQL expression (e.g. SELECT Contact WHERE name LIKE 'm%')");
 	$oP->p(" * query: (alternative to 'expression') the id of an entry from the query phrasebook");
+	if (Utils::IsModeCLI())
+	{
+		$oP->p(" * with_archive: (optional, defaults to 0) if set to 1 then the result set will include archived objects");
+	}
+	else
+	{
+		$oP->p(" * with_archive: (optional, defaults to the current mode) if set to 1 then the result set will include archived objects");
+	}
 	$oP->p(" * arg_xxx: (needed if the query has parameters) the value of the parameter 'xxx'");
 	$aSupportedFormats = BulkExport::FindSupportedFormats();
 	$oP->p(" * format: (optional, default is html) the desired output format. Can be one of '".implode("', '", array_keys($aSupportedFormats))."'");
@@ -109,10 +118,10 @@ function Usage(Page $oP)
 			}
 		}
 	}
-	if (!Utils::IsModeCLI())
-	{
-		//$oP->add('</pre>');
-	}
+	//if (!Utils::IsModeCLI())
+	//{
+	//	$oP->add('</pre>');
+	//}
 }
 
 function DisplayExpressionForm(WebPage $oP, $sAction, $sExpression = '', $sExceptionMessage = '')
@@ -129,6 +138,7 @@ function DisplayExpressionForm(WebPage $oP, $sAction, $sExpression = '', $sExcep
 	$oP->add('<td><select name="query" id="select_phrasebook">');
 	$oP->add('<option value="">'.Dict::S('UI:SelectOne').'</option>');
 	$oSearch = DBObjectSearch::FromOQL('SELECT QueryOQL');
+    $oSearch->UpdateContextFromUser();
 	$oQueries = new DBObjectSet($oSearch);
 	while ($oQuery = $oQueries->Fetch())
 	{
@@ -231,6 +241,7 @@ EOF
 		try
 		{
 			$oExportSearch = DBObjectSearch::FromOQL($sExpression);
+			$oExportSearch->UpdateContextFromUser();
 		}
 		catch(OQLException $e)
 		{
@@ -249,11 +260,13 @@ EOF
 	{
 		$oP->add('<input type="hidden" name="expression" value="'.htmlentities($sExpression, ENT_QUOTES, 'UTF-8').'">');
 		$oExportSearch = DBObjectSearch::FromOQL($sExpression);
+        $oExportSearch->UpdateContextFromUser();
 	}
 	else
 	{
 		$oQuery = MetaModel::GetObject('QueryOQL', $sQueryId);
 		$oExportSearch = DBObjectSearch::FromOQL($oQuery->Get('oql'));
+        $oExportSearch->UpdateContextFromUser();
 		$oP->add('<input type="hidden" name="query" value="'.htmlentities($sQueryId, ENT_QUOTES, 'UTF-8').'">');
 	}
 	$aFormPartsByFormat = array();
@@ -308,9 +321,6 @@ EOF
 	$oP->add('</div>');
 	
 	$sJSParts = json_encode($aFormPartsByFormat);
-	$sJSCancel = json_encode(Dict::S('UI:Button:Cancel'));
-	$sJSClose = json_encode(Dict::S('UI:Button:Done'));
-	
 	$oP->add_ready_script(
 <<<EOF
 window.aFormParts = $sJSParts;
@@ -349,6 +359,8 @@ function InteractiveShell($sExpression, $sQueryId, $sFormat, $sFileName, $sMode)
 			autoOpen: true,
 			modal: true,
 			width: '80%',
+			height: 'auto',
+			maxHeight: $(window).height() - 50,
 			title: $sJSTitle,
 			close: function() { $('#export-form').attr('data-state', 'cancelled'); $(this).remove(); },
 			buttons: [
@@ -372,12 +384,12 @@ EOF
 		if ($sQueryId !== null)
 		{
 			$oSearch = DBObjectSearch::FromOQL('SELECT QueryOQL WHERE id = :query_id', array('query_id' => $sQueryId));
+            $oSearch->UpdateContextFromUser();
 			$oQueries = new DBObjectSet($oSearch);
 			if ($oQueries->Count() > 0)
 			{
 				$oQuery = $oQueries->Fetch();
 				$sExpression = $oQuery->Get('oql');
-				$sFields = trim($oQuery->Get('fields'));
 			}
 			else
 			{
@@ -388,7 +400,7 @@ EOF
 		{
 			if (utils::IsModeCLI())
 			{
-				Usage();
+				Usage($oP);
 				ReportErrorAndExit("No expression or query phrasebook identifier supplied.");
 			}
 			else
@@ -400,6 +412,7 @@ EOF
 			}
 		}
 	}
+
 	
 	if ($sFormat !== null)
 	{
@@ -430,13 +443,17 @@ EOF
  * @param string $sExpression The OQL query to export or null
  * @param string $sQueryId The entry in the query phrasebook if $sExpression is null
  * @param string $sFormat The code of export format: csv, pdf, html, xlsx
- * @throws MissingQueryArgument
- * @return Ambigous <iBulkExport, NULL>
+ * @return BulkExport
  */
 function CheckParameters($sExpression, $sQueryId, $sFormat)
 {
-	$oExporter  = null;	
-	
+	$oExporter  = null;
+
+	if (utils::IsArchiveMode() && !UserRights::CanBrowseArchive())
+	{
+		ReportErrorAndExit("The user account is not authorized to access the archives");
+	}
+
 	if (($sExpression === null) && ($sQueryId === null))
 	{
 		ReportErrorAndUsage("Missing parameter. The parameter 'expression' or 'query' must be specified.");
@@ -446,16 +463,12 @@ function CheckParameters($sExpression, $sQueryId, $sFormat)
 	if ($sExpression === null)
 	{
 		$oSearch = DBObjectSearch::FromOQL('SELECT QueryOQL WHERE id = :query_id', array('query_id' => $sQueryId));
-		$oQueries = new DBObjectSet($oSearch);
+        $oSearch->UpdateContextFromUser();
+        $oQueries = new DBObjectSet($oSearch);
 		if ($oQueries->Count() > 0)
 		{
 			$oQuery = $oQueries->Fetch();
 			$sExpression = $oQuery->Get('oql');
-			$sFields = $oQuery->Get('fields');
-			if (strlen($sFields) == 0)
-			{
-				$sFields = trim($oQuery->Get('fields'));
-			}
 		}
 		else
 		{
@@ -471,6 +484,7 @@ function CheckParameters($sExpression, $sQueryId, $sFormat)
 	try
 	{
 		$oSearch = DBObjectSearch::FromOQL($sExpression);
+        $oSearch->UpdateContextFromUser();
 		$aArgs = array();
 		foreach($oSearch->GetQueryParams() as $sParam => $foo)
 		{
@@ -485,7 +499,7 @@ function CheckParameters($sExpression, $sQueryId, $sFormat)
 			}
 		}
 		$oSearch->SetInternalParams($aArgs);
-	
+
 		$sFormat = utils::ReadParam('format', 'html', true /* Allow CLI */, 'raw_data');
 		$oExporter = BulkExport::FindExporter($sFormat, $oSearch);
 		if ($oExporter == null)
@@ -496,14 +510,17 @@ function CheckParameters($sExpression, $sQueryId, $sFormat)
 	}
 	catch(MissingQueryArgument $e)
 	{
+		$oSearch = null;
 		ReportErrorAndUsage("Invalid OQL query: '$sExpression'.\n".$e->getMessage());
 	}
 	catch(OQLException $e)
 	{
+		$oSearch = null;
 		ReportErrorAndExit("Invalid OQL query: '$sExpression'.\n".$e->getMessage());
 	}
 	catch(Exception $e)
 	{
+		$oSearch = null;
 		ReportErrorAndExit($e->getMessage());
 	}
 	
@@ -562,7 +579,7 @@ if (utils::IsModeCLI())
 	catch(Exception $e)
 	{
 		echo "Error: ".$e->GetMessage()."<br/>\n";
-		exit -2;
+		exit(-2);
 	}
 	
 	$sAuthUser = utils::ReadParam('auth_user', null, true /* Allow CLI */, 'raw_data');
@@ -588,7 +605,11 @@ if (utils::IsModeCLI())
 	$sExpression = utils::ReadParam('expression', null, true /* Allow CLI */, 'raw_data');
 	$sQueryId = utils::ReadParam('query', null, true /* Allow CLI */, 'raw_data');
 	$bLocalize = (utils::ReadParam('no_localize', 0) != 1);
-	
+	if (utils::IsArchiveMode() && !UserRights::CanBrowseArchive())
+	{
+		ReportErrorAndExit("The user account is not authorized to access the archives");
+	}
+
 	if (($sExpression == null) && ($sQueryId == null))
 	{
 		ReportErrorAndUsage("Missing parameter. At least one of '--expression' or '--query' must be specified.");
@@ -597,6 +618,7 @@ if (utils::IsModeCLI())
 	if ($sExpression === null)
 	{
 		$oSearch = DBObjectSearch::FromOQL('SELECT QueryOQL WHERE id = :query_id', array('query_id' => $sQueryId));
+        $oSearch->UpdateContextFromUser();
 		$oQueries = new DBObjectSet($oSearch);
 		if ($oQueries->Count() > 0)
 		{
@@ -611,6 +633,7 @@ if (utils::IsModeCLI())
 	try
 	{
 		$oSearch = DBObjectSearch::FromOQL($sExpression);
+        $oSearch->UpdateContextFromUser();
 		$aArgs = array();
 		foreach($oSearch->GetQueryParams() as $sParam => $foo)
 		{
@@ -708,9 +731,18 @@ try
 		$sMimeType = $oExporter->GetMimeType();
 		if ($sMimeType == 'text/html')
 		{
-			$oP = new NiceWebPage('iTop export');
+			// Note: Using NiceWebPage only for HTML export as it includes JS scripts & files, which makes no sense in other export formats. More over, it breaks Excel spreadsheet import.
+			if($oExporter instanceof HTMLBulkExport)
+			{
+				$oP = new NiceWebPage('iTop export');
+				$oP->add_ready_script("$('table.listResults').tablesorter({widgets: ['MyZebra']});");
+			}
+			else
+			{
+				$oP = new WebPage('iTop export');
+                $oP->add_style("table br { mso-data-placement:same-cell; }"); // Trick for Excel: keep line breaks inside the same cell !
+			}
 			$oP->add_style("body { overflow: auto; }");
-			$oP->add_ready_script("$('table.listResults').tablesorter({widgets: ['MyZebra']});");
 		}
 		else
 		{

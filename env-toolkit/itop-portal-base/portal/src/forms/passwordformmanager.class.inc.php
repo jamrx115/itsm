@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (C) 2010-2016 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,14 +19,14 @@
 
 namespace Combodo\iTop\Portal\Form;
 
-use \Exception;
-use \CMDBSource;
-use \Dict;
-use \UserRights;
-use \Combodo\iTop\Form\FormManager;
-use \Combodo\iTop\Form\Form;
-use \Combodo\iTop\Form\Field\HiddenField;
-use \Combodo\iTop\Form\Field\PasswordField;
+use Exception;
+use Dict;
+use UserRights;
+use IssueLog;
+use Combodo\iTop\Form\FormManager;
+use Combodo\iTop\Form\Form;
+use Combodo\iTop\Form\Field\HiddenField;
+use Combodo\iTop\Form\Field\PasswordField;
 
 /**
  * Description of passwordformmanager
@@ -37,7 +37,10 @@ class PasswordFormManager extends FormManager
 {
 	const FORM_TYPE = 'change_password';
 
-	public function Build()
+    /**
+     * @throws \Exception
+     */
+    public function Build()
 	{
 		// Building the form
 		$oForm = new Form('change_password');
@@ -68,20 +71,23 @@ class PasswordFormManager extends FormManager
 		$this->oRenderer->SetForm($this->oForm);
 	}
 
-	/**
-	 * Validates the form and returns an array with the validation status and the messages.
-	 * If the form is valid, creates/updates the object.
-	 *
-	 * eg :
-	 *  array(
-	 * 	  'status' => true|false
-	 * 	  'messages' => array(
-	 * 		  'errors' => array()
-	 * 	)
-	 *
-	 * @param array $aArgs
-	 * @return array
-	 */
+    /**
+     * Validates the form and returns an array with the validation status and the messages.
+     * If the form is valid, creates/updates the object.
+     *
+     * eg :
+     *  array(
+     *      'status' => true|false
+     *      'messages' => array(
+     *          'errors' => array()
+     *    )
+     *
+     * @param array $aArgs
+     *
+     * @return array
+     *
+     * @throws \Exception
+     */
 	public function OnSubmit($aArgs = null)
 	{
 		$aData = array(
@@ -113,7 +119,7 @@ class PasswordFormManager extends FormManager
 					if (!UserRights::CanChangePassword())
 					{
 						$aData['valid'] = false;
-						$aData['messages']['error'] += array('_main' => array(Dict::S('Brick:Portal:UserProfile:Password:CantChangeContactAdministrator')));
+						$aData['messages']['error'] += array('_main' => array(Dict::Format('Brick:Portal:UserProfile:Password:CantChangeContactAdministrator', ITOP_APPLICATION_SHORT)));
 					}
 					else if (!UserRights::CheckCredentials($sAuthUser, $sOldPassword))
 					{
@@ -128,7 +134,7 @@ class PasswordFormManager extends FormManager
 					else if (!UserRights::ChangePassword($sOldPassword, $sNewPassword))
 					{
 						$aData['valid'] = false;
-						$aData['messages']['error'] += array('confirm_password' => array(Dict::S('Brick:Portal:UserProfile:Password:CantChangeForUnknownReason')));
+						$aData['messages']['error'] += array('confirm_password' => array(Dict::Format('Brick:Portal:UserProfile:Password:CantChangeForUnknownReason', ITOP_APPLICATION_SHORT)));
 					}
 					else
 					{
@@ -153,7 +159,12 @@ class PasswordFormManager extends FormManager
 		return $aData;
 	}
 
-	public function OnUpdate($aArgs = null)
+    /**
+     * @param array $aArgs
+     *
+     * @throws \Exception
+     */
+    public function OnUpdate($aArgs = null)
 	{
 
 		// We build the form
@@ -172,6 +183,9 @@ class PasswordFormManager extends FormManager
 		}
 	}
 
+    /**
+     * @param array $aArgs
+     */
 	public function OnCancel($aArgs = null)
 	{
 		

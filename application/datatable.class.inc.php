@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2010-2015 Combodo SARL
+// Copyright (C) 2010-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -18,7 +18,7 @@
 /**
  * Data Table to display a set of objects in a tabular manner in HTML
  *
- * @copyright   Copyright (C) 2010-2015 Combodo SARL
+ * @copyright   Copyright (C) 2010-2017 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 
@@ -31,7 +31,8 @@ class DataTable
 	protected $iNbObjects;		// Total number of objects inthe set
 	protected $bUseCustomSettings;	// Whether or not the current display uses custom settings
 	protected $oDefaultSettings;	// the default settings for displaying such a list
-		
+	protected $bShowObsoleteData;
+
 	/**
 	 * @param $iListId mixed Unique ID for this div/table in the page
 	 * @param $oSet DBObjectSet The set of data to display
@@ -47,6 +48,7 @@ class DataTable
 		$this->iNbObjects = $oSet->Count();
 		$this->bUseCustomSettings = false;
 		$this->oDefaultSettings = null;
+		$this->bShowObsoleteData = $oSet->GetShowObsoleteData();
 	}
 	
 	public function Display(WebPage $oPage, DataTableSettings $oSettings, $bActionsMenu, $sSelectMode, $bViewLink, $aExtraParams)
@@ -145,7 +147,9 @@ class DataTable
 		$sHtml .= "<tr><td class=\"datacontents\">$sDataTable</td></tr>";
 		$sHtml .= "</table>\n";
 		$oPage->add_at_the_end($sConfigDlg);
-		
+
+		$aExtraParams['show_obsolete_data'] = $this->bShowObsoleteData;
+
 		$aOptions = array(
 			'sPersistentId' => '',
 			'sFilter' => $this->oSet->GetFilter()->serialize(),
@@ -170,6 +174,7 @@ class DataTable
 		}
 		$sJSOptions = json_encode($aOptions);
 		$oPage->add_ready_script("$('#datatable_{$this->iListId}').datatable($sJSOptions);");
+
 		return $sHtml;
 	}
 	
@@ -293,7 +298,7 @@ EOF;
 		if (!$oPage->IsPrintableVersion())
 		{
 			$sMenuTitle = Dict::S('UI:ConfigureThisList');
-			$sHtml = '<div class="itop_popup toolkit_menu" id="tk_'.$this->iListId.'"><ul><li><img src="../images/toolkit_menu.png?itopversion='.ITOP_VERSION.'"><ul>';
+			$sHtml = '<div class="itop_popup toolkit_menu" id="tk_'.$this->iListId.'"><ul><li><img src="../images/toolkit_menu.png?t='.utils::GetCacheBusterTimestamp().'"><ul>';
 	
 			$oMenuItem1 = new JSPopupMenuItem('iTop::ConfigureList', $sMenuTitle, "$('#datatable_dlg_".$this->iListId."').dialog('open');");
 			$aActions = array(
@@ -426,7 +431,7 @@ EOF;
 						}
 						else
 						{
-							$aRow['form::select'] = "<input type=\"checkBox\" $sDisabled class=\"selectList{$this->iListId}\" name=\"selectObject[]\" value=\"".$aObjects[$sAlias]->GetKey()."\"></input>";
+							$aRow['form::select'] = "<input type=\"checkbox\" $sDisabled class=\"selectList{$this->iListId}\" name=\"selectObject[]\" value=\"".$aObjects[$sAlias]->GetKey()."\"></input>";
 						}
 					}
 					foreach($aColumns[$sAlias] as $sAttCode => $aData)
@@ -486,6 +491,7 @@ EOF;
 		{
 			$aExtraParams['query_params'][$sName] = $sValue;
 		}
+		$aExtraParams['show_obsolete_data'] = $this->bShowObsoleteData;
 
 		$sHtml .= "<tr><td>";
 		$sHtml .= $oPage->GetTable($aAttribs, $aValues);
@@ -559,39 +565,12 @@ EOF;
 <<<EOF
 var oTable = $('#{$this->iListId} table.listResults');
 oTable.tableHover();
-oTable.tablesorter( { $sHeaders widgets: ['myZebra', 'truncatedList']} ).tablesorterPager({container: $('#pager{$this->iListId}'), totalRows:$iCount, size: $iPageSize, filter: '$sOQL', extra_params: '$sExtraParams', select_mode: '$sSelectModeJS', displayKey: $sDisplayKey, columns: $sJSColumns, class_aliases: $sJSClassAliases $sCssCount});
+oTable.tablesorter( { $sHeaders widgets: ['myZebra', 'truncatedList']} ).tablesorterPager({container: $('#pager{$this->iListId}'), totalRows:$iCount, size: $iPageSize, filter: '$sOQL', extra_params: '$sExtraParams', select_mode: '$sSelectModeJS', displayKey: $sDisplayKey, table_id: '{$this->iListId}', columns: $sJSColumns, class_aliases: $sJSClassAliases $sCssCount});
 EOF
 		);
 		if ($sFakeSortList != '')
 		{
 			$oPage->add_ready_script("oTable.trigger(\"fakesorton\", [$sFakeSortList]);");
-		}
-		//if ($iNbPages == 1)
-		if (false)
-		{
-			if (isset($aExtraParams['cssCount']))
-			{
-				$sCssCount = $aExtraParams['cssCount'];
-				if ($sSelectMode == 'single')
-				{
-					$sSelectSelector = ":radio[name^=selectObj]";
-				}
-				else if ($sSelectMode == 'multiple')
-				{
-					$sSelectSelector = ":checkbox[name^=selectObj]";
-				}
-				$oPage->add_ready_script(
-<<<EOF
-	$('#{$this->iListId} table.listResults $sSelectSelector').change(function() {
-		var c = $('{$sCssCount}');							
-		var v = $('#{$this->iListId} table.listResults $sSelectSelector:checked').length;
-		c.val(v);
-		$('#{$this->iListId} .selectedCount').text(v);
-		c.trigger('change');	
-	});
-EOF
-				);
-			}
 		}
 		return $sHtml;
 	}
@@ -601,7 +580,7 @@ EOF
 		$iPageSize = ($iDefaultPageSize < 1) ? 1 : $iDefaultPageSize;
 		$iPageIndex = 1 + floor($iStart / $iPageSize);
 		$sHtml = $this->GetPager($oPage, $iPageSize, $iDefaultPageSize, $iPageIndex);
-		$oPage->add_ready_script("$('#pager{$this->iListId}').html('".str_replace("\n", ' ', addslashes($sHtml))."');");
+		$oPage->add_ready_script("$('#pager{$this->iListId}').html('".json_encode($sHtml)."');");
 		if ($iDefaultPageSize < 1)
 		{
 			$oPage->add_ready_script("$('#pager{$this->iListId}').parent().hide()");
@@ -777,6 +756,10 @@ class DataTableSettings implements Serializable
 	{
 		foreach($this->aClassAliases as $sAlias => $sClass)
 		{
+			if (!isset($this->aColumns[$sAlias]))
+			{
+				continue;
+			}
 			foreach($this->aColumns[$sAlias] as $sAttCode => $aData)
 			{
 				// Remove non-existent columns
@@ -792,7 +775,7 @@ class DataTableSettings implements Serializable
 			$aTempData = array();
 			foreach($aList as $sAttCode => $oAttDef)
 			{
-				if ( (!array_key_exists($sAttCode, $this->aColumns[$sAlias])) && (!$oAttDef instanceof AttributeLinkSet))
+				if ( (!array_key_exists($sAttCode, $this->aColumns[$sAlias])) && (!($oAttDef instanceof AttributeLinkedSet || $oAttDef instanceof AttributeDashboard)))
 				{
 					$aFieldData = $this->GetFieldData($sAlias, $sAttCode, $oAttDef, false /* bChecked */, 'none');
 					if ($aFieldData) $aTempData[$aFieldData['label']] = $aFieldData;
@@ -928,8 +911,15 @@ class DataTableSettings implements Serializable
 			}
 			else if ($oAttDef->IsExternalField())
 			{
-				$oExtAttDef = $oAttDef->GetExtAttDef();
-				$sLabel = Dict::Format('UI:ExtField_AsRemoteField', $oAttDef->GetLabel(), $oExtAttDef->GetLabel());
+				if ($oAttDef->IsFriendlyName())
+				{
+					$sLabel = Dict::Format('UI:ExtKey_AsFriendlyName', $oAttDef->GetLabel());
+				}
+				else
+				{
+					$oExtAttDef = $oAttDef->GetExtAttDef();
+					$sLabel = Dict::Format('UI:ExtField_AsRemoteField', $oAttDef->GetLabel(), $oExtAttDef->GetLabel());
+				}
 			}
 			elseif ($oAttDef instanceof AttributeFriendlyName)
 			{

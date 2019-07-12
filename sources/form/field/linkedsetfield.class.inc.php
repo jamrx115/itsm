@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (C) 2010-2016 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,8 +19,6 @@
 
 namespace Combodo\iTop\Form\Field;
 
-use \Combodo\iTop\Form\Field\Field;
-
 /**
  * Description of LinkedSetField
  *
@@ -28,9 +26,13 @@ use \Combodo\iTop\Form\Field\Field;
  */
 class LinkedSetField extends Field
 {
+    const DEFAULT_INDIRECT = false;
+    const DEFAULT_DISPLAY_OPENED = false;
+
 	protected $sTargetClass;
 	protected $sExtKeyToRemote;
 	protected $bIndirect;
+    protected $bDisplayOpened;
 	protected $aAttributesToDisplay;
 	protected $sSearchEndpoint;
 	protected $sInformationEndpoint;
@@ -39,7 +41,8 @@ class LinkedSetField extends Field
 	{
 		$this->sTargetClass = null;
 		$this->sExtKeyToRemote = null;
-		$this->bIndirect = false;
+		$this->bIndirect = static::DEFAULT_INDIRECT;
+		$this->bDisplayOpened = static::DEFAULT_DISPLAY_OPENED;
 		$this->aAttributesToDisplay = array();
 		$this->sSearchEndpoint = null;
 		$this->sInformationEndpoint = null;
@@ -64,7 +67,7 @@ class LinkedSetField extends Field
 	public function SetTargetClass($sTargetClass)
 	{
 		$this->sTargetClass = $sTargetClass;
-		return $sTargetClass;
+		return $this;
 	}
 
 	/**
@@ -84,7 +87,7 @@ class LinkedSetField extends Field
 	public function SetExtKeyToRemote($sExtKeyToRemote)
 	{
 		$this->sExtKeyToRemote = $sExtKeyToRemote;
-		return $sExtKeyToRemote;
+		return $this;
 	}
 
 	/**
@@ -107,10 +110,33 @@ class LinkedSetField extends Field
 		return $this;
 	}
 
+    /**
+     * Returns if the field should be displayed opened on initialization
+     *
+     * @return boolean
+     */
+	public function GetDisplayOpened()
+    {
+        return $this->bDisplayOpened;
+    }
+
+    /**
+     * Sets if the field should be displayed opened on initialization
+     *
+     * @param $bDisplayOpened
+     * @return \Combodo\iTop\Form\Field\LinkedSetField
+     */
+    public function SetDisplayOpened($bDisplayOpened)
+    {
+        $this->bDisplayOpened = $bDisplayOpened;
+        return $this;
+    }
+
 	/**
 	 * Returns a hash array of attributes to be displayed in the linkedset in the form $sAttCode => $sAttLabel
 	 *
-	 * @param $bAttCodesOnly If set to true, will return only the attcodes
+	 * @param boolean $bAttCodesOnly If set to true, will return only the attcodes
+     *
 	 * @return array
 	 */
 	public function GetAttributesToDisplay($bAttCodesOnly = false)
@@ -120,7 +146,8 @@ class LinkedSetField extends Field
 
 	/**
 	 *
-	 * @param array $aAttCodes
+	 * @param array $aAttributesToDisplay
+     *
 	 * @return \Combodo\iTop\Form\Field\LinkedSetField
 	 */
 	public function SetAttributesToDisplay(array $aAttributesToDisplay)

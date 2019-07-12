@@ -3,7 +3,7 @@
 //
 //   This file is part of iTop.
 //
-//   iTop is free software; you can redistribute it and/or modify	
+//   iTop is free software; you can redistribute it and/or modify
 //   it under the terms of the GNU Affero General Public License as published by
 //   the Free Software Foundation, either version 3 of the License, or
 //   (at your option) any later version.
@@ -15,8 +15,6 @@
 //
 //   You should have received a copy of the GNU Affero General Public License
 //   along with iTop. If not, see <http://www.gnu.org/licenses/>
-
-
 /**
  * Localized data
  *
@@ -24,39 +22,36 @@
  * @license     http://opensource.org/licenses/AGPL-3.0
  * @traductor   Miguel Turrubiates <miguel_tf@yahoo.com> 
  */
-
-Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
-	'Menu:RequestManagement' => 'Administración de Solicitudes',
-	'Menu:RequestManagement+' => 'Administración de Solicitudes',
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
+	'Menu:RequestManagement' => 'Administración de Requerimientos',
+	'Menu:RequestManagement+' => 'Administración de Requerimientos',
 	'Menu:RequestManagementProvider' => 'Proveedor de Mesa de Ayuda',
 	'Menu:RequestManagementProvider+' => 'Proveedor de Mesa de Ayuda',
-	'Menu:UserRequest:Provider' => 'Solicitudes Abiertos transferidos a Proveedor',
-	'Menu:UserRequest:Provider+' => 'Solicitudes Abiertos transferidos a Proveedor',
-	'Menu:UserRequest:Overview' => 'Resumen de Solicitudes',
-	'Menu:UserRequest:Overview+' => 'Resumen de Solicitudes',
-	'Menu:NewUserRequest' => 'Nueva Solicitud',
-	'Menu:NewUserRequest+' => 'Nueva Solicitud',
-	'Menu:SearchUserRequests' => 'Búsqueda de Solicitudes',
-	'Menu:SearchUserRequests+' => 'Búsqueda de Solicitudes',
+	'Menu:UserRequest:Provider' => 'Requerimientos Abiertos transferidos a Proveedor',
+	'Menu:UserRequest:Provider+' => 'Requerimientos Abiertos transferidos a Proveedor',
+	'Menu:UserRequest:Overview' => 'Resumen de Requerimientos',
+	'Menu:UserRequest:Overview+' => 'Resumen de Requerimientos',
+	'Menu:NewUserRequest' => 'Nuevo Requerimiento',
+	'Menu:NewUserRequest+' => 'Nuevo Requerimiento',
+	'Menu:SearchUserRequests' => 'Búsqueda de Requerimientos de Usuario',
+	'Menu:SearchUserRequests+' => 'Búsqueda de Requerimientos de Usuario',
 	'Menu:UserRequest:Shortcuts' => 'Acceso Rápido',
 	'Menu:UserRequest:Shortcuts+' => 'Acceso Rápido',
-	'Menu:UserRequest:MyRequests' => 'Solicitudes Asignados a Mí',
-	'Menu:UserRequest:MyRequests+' => 'Solicitudes Asignados a Mí (como Analista)',
-	'Menu:UserRequest:MySupportRequests' => "Llamadas de Solicitudes Asignadas a Mí",
-	'Menu:UserRequest:MySupportRequests+' => "Llamadas de Solicitudes Asignadas a Mí (como Analista)",
-  'Menu:UserRequest:EscalatedRequests' => 'Solicitudes Escaladas',
-	'Menu:UserRequest:EscalatedRequests+' => 'Solicitudes Escaladas',
-	'Menu:UserRequest:OpenRequests' => 'Solicitudes Abiertos',
-	'Menu:UserRequest:OpenRequests+' => 'Solicitudes Abiertos',
-	'Menu:UserRequest:OpenProblems' => 'Problemas Abiertos',
-	'Menu:UserRequest:OpenProblems+' => 'Problemas Abiertos',
-	'UI:WelcomeMenu:MyAssignedCalls' => 'Solicitudes Asignados a Mí',
-	'UI-RequestManagementOverview-RequestByType-last-14-days' => 'Solicitudes por Tipo de los Últimos 14 días',
-	'UI-RequestManagementOverview-Last-14-days' => 'Número de Solicitudes de los Últimos 14 días',
-	'UI-RequestManagementOverview-OpenRequestByStatus' => 'Solicitudes Abiertos por Estatus',
-	'UI-RequestManagementOverview-OpenRequestByAgent' => 'Solicitudes Abiertos por Analista',
-	'UI-RequestManagementOverview-OpenRequestByType' => 'Solicitudes Abiertos por Tipo',
-	'UI-RequestManagementOverview-OpenRequestByCustomer' => 'Solicitudes Abiertos por Cliente',
+	'Menu:UserRequest:MyRequests' => 'Requerimientos Asignados a Mí',
+	'Menu:UserRequest:MyRequests+' => 'Requerimientos Asignados a Mí (como Analista)',
+	'Menu:UserRequest:MySupportRequests' => 'Llamadas de Soporte Asignadas a Mí',
+	'Menu:UserRequest:MySupportRequests+' => 'Llamadas de Soporte Asignadas a Mí (como Analista)',
+	'Menu:UserRequest:EscalatedRequests' => 'Requerimientos Escalados',
+	'Menu:UserRequest:EscalatedRequests+' => 'Requerimientos Escalados',
+	'Menu:UserRequest:OpenRequests' => 'Requerimientos Abiertos',
+	'Menu:UserRequest:OpenRequests+' => 'Requerimientos Abiertos',
+	'UI:WelcomeMenu:MyAssignedCalls' => 'Requerimientos asignados a Mí',
+	'UI-RequestManagementOverview-RequestByType-last-14-days' => 'Requerimientos por Tipo de los Últimos 14 días',
+	'UI-RequestManagementOverview-Last-14-days' => 'Número de Requerimientos de los Últimos 14 días',
+	'UI-RequestManagementOverview-OpenRequestByStatus' => 'Requerimientos Abiertos por Estatus',
+	'UI-RequestManagementOverview-OpenRequestByAgent' => 'Requerimientos Abiertos por Analista',
+	'UI-RequestManagementOverview-OpenRequestByType' => 'Requerimientos Abiertos por Tipo',
+	'UI-RequestManagementOverview-OpenRequestByCustomer' => 'Requerimientos Abiertos por Cliente',
 	'Class:UserRequest:KnownErrorList' => 'Errores Conocidos',
 ));
 
@@ -74,9 +69,9 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 // Class: UserRequest
 //
 
-Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
-	'Class:UserRequest' => 'Solicitudes',
-	'Class:UserRequest+' => 'Solicitudes',
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
+	'Class:UserRequest' => 'Requerimiento',
+	'Class:UserRequest+' => 'Requerimiento',
 	'Class:UserRequest/Attribute:status' => 'Estatus',
 	'Class:UserRequest/Attribute:status+' => 'Estatus',
 	'Class:UserRequest/Attribute:status/Value:new' => 'Nuevo',
@@ -99,10 +94,10 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:UserRequest/Attribute:status/Value:resolved+' => 'Solucionado',
 	'Class:UserRequest/Attribute:status/Value:closed' => 'Cerrado',
 	'Class:UserRequest/Attribute:status/Value:closed+' => 'Cerrado',
-  'Class:UserRequest/Attribute:request_type' => 'Tipo de Reporte',
+	'Class:UserRequest/Attribute:request_type' => 'Tipo de Reporte',
 	'Class:UserRequest/Attribute:request_type+' => 'Tipo de Reporte',
-	'Class:UserRequest/Attribute:request_type/Value:service_request' => 'Solicitudes de Servicio',
-	'Class:UserRequest/Attribute:request_type/Value:service_request+' => 'Solicitudes de Servicio',
+	'Class:UserRequest/Attribute:request_type/Value:service_request' => 'Requerimiento de Servicio',
+	'Class:UserRequest/Attribute:request_type/Value:service_request+' => 'Requerimiento de Servicio',
 	'Class:UserRequest/Attribute:impact' => 'Impacto',
 	'Class:UserRequest/Attribute:impact+' => 'Impacto',
 	'Class:UserRequest/Attribute:impact/Value:1' => 'Un Departmento',
@@ -145,10 +140,6 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:UserRequest/Attribute:approver_id+' => 'Aprobador',
 	'Class:UserRequest/Attribute:approver_email' => 'Correo Electrónico del Aprobador',
 	'Class:UserRequest/Attribute:approver_email+' => 'Correo Electrónico del Aprobador',
-	'Class:UserRequest/Attribute:servicefamily_id' => 'Plataforma',
-	'Class:UserRequest/Attribute:servicefamily_id+' => 'Plataforma',
-	'Class:UserRequest/Attribute:servicefamily_name' => 'Plataforma',
-	'Class:UserRequest/Attribute:servicefamily_name+' => 'Plataforma',
 	'Class:UserRequest/Attribute:service_id' => 'Servicio',
 	'Class:UserRequest/Attribute:service_id+' => 'Servicio',
 	'Class:UserRequest/Attribute:service_name' => 'Servicio',
@@ -179,14 +170,14 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:UserRequest/Attribute:ttr+' => 'Tiempo de Solución',
 	'Class:UserRequest/Attribute:tto_escalation_deadline' => 'Límite de Tiempo de Asignación',
 	'Class:UserRequest/Attribute:tto_escalation_deadline+' => 'Límite de Tiempo de Asignación',
-	'Class:UserRequest/Attribute:sla_tto_passed' => 'SLA de Tiempo de Asignanción Incumplido',
-	'Class:UserRequest/Attribute:sla_tto_passed+' => 'SLA de Tiempo de Asignanción Incumplido',
+	'Class:UserRequest/Attribute:sla_tto_passed' => 'SLA de Tiempo de Asignanción Cumplido',
+	'Class:UserRequest/Attribute:sla_tto_passed+' => 'SLA de Tiempo de Asignanción Cumplido',
 	'Class:UserRequest/Attribute:sla_tto_over' => 'SLA de Tiempo de Asignación Excedído',
 	'Class:UserRequest/Attribute:sla_tto_over+' => 'SLA de Tiempo de Asignación Excedído',
 	'Class:UserRequest/Attribute:ttr_escalation_deadline' => 'Límite de Tiempo de Solución',
 	'Class:UserRequest/Attribute:ttr_escalation_deadline+' => 'Límite de Tiempo de Solución',
-	'Class:UserRequest/Attribute:sla_ttr_passed' => 'SLA de Tiempo de Solución Incumplido',
-	'Class:UserRequest/Attribute:sla_ttr_passed+' => 'SLA de Tiempo de Solución Incumplido',
+	'Class:UserRequest/Attribute:sla_ttr_passed' => 'SLA de Tiempo de Solución Cumplido',
+	'Class:UserRequest/Attribute:sla_ttr_passed+' => 'SLA de Tiempo de Solución Cumplido',
 	'Class:UserRequest/Attribute:sla_ttr_over' => 'SLA de Tiempo de Solución Excedído',
 	'Class:UserRequest/Attribute:sla_ttr_over+' => 'SLA de Tiempo de Solución Excedído',
 	'Class:UserRequest/Attribute:time_spent' => 'Tiempo Utilizado',
@@ -197,12 +188,6 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:UserRequest/Attribute:resolution_code/Value:assistance+' => 'Asistencia',
 	'Class:UserRequest/Attribute:resolution_code/Value:bug fixed' => 'Falla Corregida',
 	'Class:UserRequest/Attribute:resolution_code/Value:bug fixed+' => 'Falla Corregida',
-	'Class:UserRequest/Attribute:resolution_code/Value:data modified' => 'Datos Modificados',
-	'Class:UserRequest/Attribute:resolution_code/Value:data modified+' => 'Datos Modificados',
-	'Class:UserRequest/Attribute:resolution_code/Value:test drills' => 'Ejecucion de Pruebas',
-	'Class:UserRequest/Attribute:resolution_code/Value:test drills+' => 'Ejecucion de Pruebas',
-	'Class:UserRequest/Attribute:resolution_code/Value:documented' => 'Documentación',
-	'Class:UserRequest/Attribute:resolution_code/Value:documented+' => 'Documentación',
 	'Class:UserRequest/Attribute:resolution_code/Value:hardware repair' => 'Reparación de Hardware',
 	'Class:UserRequest/Attribute:resolution_code/Value:hardware repair+' => 'Reparación de Hardware',
 	'Class:UserRequest/Attribute:resolution_code/Value:other' => 'Otro',
@@ -217,22 +202,24 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:UserRequest/Attribute:solution+' => 'Solución',
 	'Class:UserRequest/Attribute:pending_reason' => 'Motivo Pendiente',
 	'Class:UserRequest/Attribute:pending_reason+' => 'Motivo Pendiente',
-	'Class:UserRequest/Attribute:parent_request_id' => 'Solicitudes Padre',
-	'Class:UserRequest/Attribute:parent_request_id+' => 'Solicitudes Padre',
-	'Class:UserRequest/Attribute:parent_request_ref' => 'Ref. Solicitudes',
-	'Class:UserRequest/Attribute:parent_request_ref+' => 'Ref. Solicitudes',
-	'Class:UserRequest/Attribute:parent_problem_id' => 'Problema Padre',
-	'Class:UserRequest/Attribute:parent_problem_id+' => 'Problema Padre',
+	'Class:UserRequest/Attribute:parent_request_id' => 'Requerimiento Padre',
+	'Class:UserRequest/Attribute:parent_request_id+' => 'Requerimiento Padre',
 	'Class:UserRequest/Attribute:parent_incident_id' => 'Incidente Padre',
 	'Class:UserRequest/Attribute:parent_incident_id+' => 'Incidente Padre',
+	'Class:UserRequest/Attribute:parent_request_ref' => 'Ref. Requerimiento',
+	'Class:UserRequest/Attribute:parent_request_ref+' => 'Ref. Requerimiento',
+	'Class:UserRequest/Attribute:parent_problem_id' => 'Problema Padre',
+	'Class:UserRequest/Attribute:parent_problem_id+' => 'Problema Padre',
 	'Class:UserRequest/Attribute:parent_problem_ref' => 'Ref. Problema',
 	'Class:UserRequest/Attribute:parent_problem_ref+' => 'Ref. Problema',
 	'Class:UserRequest/Attribute:parent_change_id' => 'Cambio Padre',
 	'Class:UserRequest/Attribute:parent_change_id+' => 'Cambio Padre',
 	'Class:UserRequest/Attribute:parent_change_ref' => 'Ref. Cambio',
 	'Class:UserRequest/Attribute:parent_change_ref+' => 'Ref. Cambio',
-	'Class:UserRequest/Attribute:related_request_list' => 'Solicitudess Hijo',
-	'Class:UserRequest/Attribute:related_request_list+' => 'Solicitudess Hijo',
+	'Class:UserRequest/Attribute:parent_incident_ref' => 'Parent incident ref~~',
+	'Class:UserRequest/Attribute:parent_incident_ref+' => '~~',
+	'Class:UserRequest/Attribute:related_request_list' => 'Requerimientos Hijo',
+	'Class:UserRequest/Attribute:related_request_list+' => 'Requerimientos Hijo',
 	'Class:UserRequest/Attribute:public_log' => 'Bitácora Pública',
 	'Class:UserRequest/Attribute:public_log+' => 'Bitácora Pública',
 	'Class:UserRequest/Attribute:user_satisfaction' => 'Satisfacción del Usuario',
@@ -245,8 +232,6 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:UserRequest/Attribute:user_satisfaction/Value:3+' => 'Insatisfecha',
 	'Class:UserRequest/Attribute:user_satisfaction/Value:4' => 'Muy Insatisfecho',
 	'Class:UserRequest/Attribute:user_satisfaction/Value:4+' => 'Muy Insatisfecho',
-	'Class:UserRequest/Attribute:user_satisfaction/Value:5' => 'iTop',
-	'Class:UserRequest/Attribute:user_satisfaction/Value:5+' => 'iTop',
 	'Class:UserRequest/Attribute:user_comment' => 'Comentarios del Usuario',
 	'Class:UserRequest/Attribute:user_comment+' => 'Comentarios del Usuario',
 	'Class:UserRequest/Attribute:parent_request_id_friendlyname' => 'parent_request_id_friendlyname',
@@ -275,11 +260,15 @@ Dict::Add('ES CR', 'Spanish', 'Español, Castellano', array(
 	'Class:UserRequest/Stimulus:ev_reopen+' => 'Reabrir',
 	'Class:UserRequest/Stimulus:ev_wait_for_approval' => 'Esperando Aprobación',
 	'Class:UserRequest/Stimulus:ev_wait_for_approval+' => 'Esperando Aprobación',
-	'Class:UserRequest/Error:CannotAssignParentRequestIdToSelf' => 'Cannot assign the Parent request to the request itself~~',
-	'Class:UserRequest/Method:ResolveChildTickets' => 'ResolveChildTickets~~',
-	'Class:UserRequest/Method:ResolveChildTickets+' => 'Cascade the resolution to child requests (ev_autoresolve), and align the following characteristics of the request: service, team, agent, resolution info~~',
+	'Class:UserRequest/Error:CannotAssignParentRequestIdToSelf' => 'No puede asignarse el requerimiento Padre a si mismo',
+
+	'Class:UserRequest/Method:ResolveChildTickets' => 'Resolver tickets hijos',
+	'Class:UserRequest/Method:ResolveChildTickets+' => 'Cascadear la solución a los tickets hijos (ev_autoresolve), y alinear las siguientes características: servicio, equipo, agente, información de solución',
 ));
 
 
-
-?>
+Dict::Add('ES CR', 'Spanish', 'Español, Castellaño', array(
+	'Organization:Overview:UserRequests' => 'User Requests from this organization~~',
+	'Organization:Overview:MyUserRequests' => 'My User Requests for this organization~~',
+	'Organization:Overview:Tickets' => 'Tickets for this organization~~',
+));

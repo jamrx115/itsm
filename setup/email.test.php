@@ -124,7 +124,7 @@ function CheckEmailSetting($oP)
 		$oP->info("SMTP configuration (from config-itop.php): host: $sHost, port: $sPort, user: $sDisplayUserName, password: $sDisplayPassword, encryption: $sDisplayEncryption.");
 		if (($sHost == 'localhost') && ($sPort == '25') && ($sUserName == '') && ($sPassword == '') )
 		{
-			$oP->warning("The default settings may not be suitable for your environment. You may want to ajust these values by editing iTop's configuration file (".APPROOT."conf/production/config-itop.php).");
+			$oP->warning("The default settings may not be suitable for your environment. You may want to adjust these values by editing iTop's configuration file (".utils::GetConfigFilePathRelative().").");
 		}
 		break;
 		
@@ -134,7 +134,7 @@ function CheckEmailSetting($oP)
 		break;
 		
 		case 'LogFile':
-		$oP->warning("iTop is configured to use the <b>LogFile</b> transport: emails will <em>not</em> be sent but logged to the file: '".APPROOT."/log/mail.log'.");
+		$oP->warning("iTop is configured to use the <b>LogFile</b> transport: emails will <em>not</em> be sent but logged to the file: 'log/mail.log'.");
 		$bRet = true;
 		break;
 		
@@ -181,7 +181,7 @@ function DisplayStep1(SetupPage $oP)
 		$aForm[] = array(
 			'label' => "From:",
 			'input' => "<input id=\"from\" type=\"text\" name=\"from\" value=\"\">",
-			'help' => ' defaults to \'To\'',
+			'help' => ' defaults to the configuration param "email_default_sender_address" or "To" field.',
 		);
 		$oP->form($aForm);
 		$oP->add("</fieldset>\n");
@@ -265,10 +265,6 @@ try
 		$oP->no_cache();
 		$sTo = Utils::ReadParam('to', '', false, 'raw_data');
 		$sFrom = Utils::ReadParam('from', '', false, 'raw_data');
-		if (strlen($sFrom) == 0)
-		{
-			$sFrom = $sTo;
-		}
 		DisplayStep2($oP, $sFrom, $sTo);
 		break;
 

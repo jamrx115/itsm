@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (C) 2010-2016 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,17 +19,14 @@
 
 namespace Combodo\iTop\Renderer\Bootstrap\FieldRenderer;
 
-use \Exception;
-use \utils;
-use \IssueLog;
-use \Dict;
-use \UserRights;
-use \InlineImage;
-use \DBObjectSet;
-use \MetaModel;
-use \Combodo\iTop\Renderer\FieldRenderer;
-use \Combodo\iTop\Renderer\RenderingOutput;
-use \Combodo\iTop\Form\Field\LinkedSetField;
+use Exception;
+use ApplicationContext;
+use IssueLog;
+use Dict;
+use MetaModel;
+use AttributeFriendlyName;
+use Combodo\iTop\Renderer\FieldRenderer;
+use Combodo\iTop\Renderer\RenderingOutput;
 
 /**
  * Description of BsLinkedSetFieldRenderer
@@ -38,15 +35,18 @@ use \Combodo\iTop\Form\Field\LinkedSetField;
  */
 class BsLinkedSetFieldRenderer extends FieldRenderer
 {
-
-	/**
-	 * Returns a RenderingOutput for the FieldRenderer's Field
-	 *
-	 * @return \Combodo\iTop\Renderer\RenderingOutput
-	 */
+    /**
+     * Returns a RenderingOutput for the FieldRenderer's Field
+     *
+     * @return \Combodo\iTop\Renderer\RenderingOutput
+     *
+     * @throws \CoreException
+     */
 	public function Render()
 	{
-		$oOutput = new RenderingOutput();
+	    $oOutput = new RenderingOutput();
+        $oOutput->AddCssClass('form_field_' . $this->oField->GetDisplayMode());
+
 		$sFieldMandatoryClass = ($this->oField->GetMandatory()) ? 'form_mandatory' : '';
 		// Vars to build the table
 		$sAttributesToDisplayAsJson = json_encode($this->oField->GetAttributesToDisplay());
@@ -55,24 +55,41 @@ class BsLinkedSetFieldRenderer extends FieldRenderer
 		$aItemIds = array();
 		$this->PrepareItems($aItems, $aItemIds);
 		$sItemsAsJson = json_encode($aItems);
-		$sItemIdsAsJson = htmlentities(json_encode($aItemIds), ENT_QUOTES, 'UTF-8');
-		
-		if (!$this->oField->GetHidden())
+        $sItemIdsAsJson = htmlentities(json_encode(array('current' => $aItemIds)), ENT_QUOTES, 'UTF-8');
+
+        if (!$this->oField->GetHidden())
 		{
 			// Rendering field
 			$sIsEditable = ($this->oField->GetReadOnly()) ? 'false' : 'true';
-			$sCollapseTogglerVisibleClass = 'glyphicon-menu-down';
-			$sCollapseTogglerHiddenClass = 'glyphicon-menu-down collapsed';
-			$sCollapseTogglerId = 'form_linkedset_toggler_' . $this->oField->GetGlobalId();
+			$sCollapseTogglerIconVisibleClass = 'glyphicon-menu-down';
+			$sCollapseTogglerIconHiddenClass = 'glyphicon-menu-down collapsed';
+			$sCollapseTogglerClass = 'form_linkedset_toggler';
+			$sCollapseTogglerId = $sCollapseTogglerClass . '_' . $this->oField->GetGlobalId();
 			$sFieldWrapperId = 'form_linkedset_wrapper_' . $this->oField->GetGlobalId();
+
+			// Preparing collapsed state
+            if($this->oField->GetDisplayOpened())
+            {
+                $sCollapseTogglerExpanded = 'true';
+                $sCollapseTogglerIconClass = $sCollapseTogglerIconVisibleClass;
+                $sCollapseJSInitState = 'true';
+            }
+            else
+            {
+                $sCollapseTogglerClass .= ' collapsed';
+                $sCollapseTogglerExpanded = 'false';
+                $sCollapseTogglerIconClass = $sCollapseTogglerIconHiddenClass;
+                $sCollapseJSInitState = 'false';
+            }
+
 			$oOutput->AddHtml('<div class="form-group ' . $sFieldMandatoryClass . '">');
 			if ($this->oField->GetLabel() !== '')
 			{
 				$oOutput->AddHtml('<label for="' . $this->oField->GetGlobalId() . '" class="control-label">')
+					->AddHtml('<a id="' . $sCollapseTogglerId . '" class="' . $sCollapseTogglerClass . '" data-toggle="collapse" href="#' . $sFieldWrapperId . '" aria-expanded="' . $sCollapseTogglerExpanded . '" aria-controls="' . $sFieldWrapperId . '">')
 					->AddHtml($this->oField->GetLabel(), true)
-					->AddHtml('<a id="' . $sCollapseTogglerId . '" class="form_linkedset_toggler" data-toggle="collapse" href="#' . $sFieldWrapperId . '" aria-expanded="false" aria-controls="' . $sFieldWrapperId . '">')
 					->AddHtml('<span class="text">' . count($aItemIds) . '</span>')
-					->AddHtml('<span class="glyphicon ' . $sCollapseTogglerHiddenClass . '"></>')
+					->AddHtml('<span class="glyphicon ' . $sCollapseTogglerIconClass . '"></>')
 					->AddHtml('</a>')
 					->AddHtml('</label>');
 			}
@@ -109,8 +126,8 @@ EOF
 <<<EOF
 				// Collapse handlers
 				// - Collapsing by default to optimize form space
-				// It would be better to be able to construct the widget as collapsed, but in this ase, datatables thinks the container is very small and therefore renders the table as if it was in microbox.
-				$('#{$sFieldWrapperId}').collapse({toggle: false});
+				// It would be better to be able to construct the widget as collapsed, but in this case, datatables thinks the container is very small and therefore renders the table as if it was in microbox.
+				$('#{$sFieldWrapperId}').collapse({toggle: {$sCollapseJSInitState}});
 				// - Change toggle icon class
 				$('#{$sFieldWrapperId}').on('shown.bs.collapse', function(){
 					// Creating the table if null (first expand). If we create it on start, it will be displayed as if it was in a micro screen due to the div being "display: none;"
@@ -120,10 +137,10 @@ EOF
 					}
 				})
 				.on('show.bs.collapse', function(){
-					$('#{$sCollapseTogglerId} > span.glyphicon').removeClass('{$sCollapseTogglerHiddenClass}').addClass('{$sCollapseTogglerVisibleClass}');
+					$('#{$sCollapseTogglerId} > span.glyphicon').removeClass('{$sCollapseTogglerIconHiddenClass}').addClass('{$sCollapseTogglerIconVisibleClass}');
 				})
 				.on('hide.bs.collapse', function(){
-					$('#{$sCollapseTogglerId} > span.glyphicon').removeClass('{$sCollapseTogglerVisibleClass}').addClass('{$sCollapseTogglerHiddenClass}');
+					$('#{$sCollapseTogglerId} > span.glyphicon').removeClass('{$sCollapseTogglerIconVisibleClass}').addClass('{$sCollapseTogglerIconHiddenClass}');
 				});
 
 				// Places a loader in the empty datatables
@@ -175,7 +192,7 @@ EOF
 								if(row.attributes[data].url !== undefined)
 								{
 									cellElem = $('<a></a>');
-									cellElem.attr('target', '_blank').attr('href', row.attributes[data].url);
+									cellElem.attr('href', row.attributes[data].url);
 								}
 								else
 								{
@@ -206,12 +223,40 @@ EOF
 						"displayLength": -1,
 						"scrollY": "300px",
 						"scrollCollapse": true,
+						"retrieve": true,
 						"order": [[iDefaultOrderColumnIndex, "asc"]],
 						"dom": 't',
 						"columns": getColumnsDefinition_{$this->oField->GetGlobalId()}(),
 						"select": {$sSelectionOptionHtml},
 						"rowId": "id",
 						"data": oRawDatas_{$this->oField->GetGlobalId()},
+						"rowCallback": function(oRow, oData){
+							// Opening in a new modal on click
+							$(oRow).find('a').off('click').on('click', function(oEvent){
+								// Prevents link opening.
+								oEvent.preventDefault();
+								// Prevents row selection
+								oEvent.stopPropagation();
+								
+								// Note : This could be better if we check for an existing modal first instead of always creating a new one
+								var oModalElem = $('#modal-for-all').clone();
+								oModalElem.attr('id', '').appendTo('body');
+								// Loading content
+								oModalElem.find('.modal-content').html($('#page_overlay .overlay_content').html());
+								oModalElem.find('.modal-content').load(
+									$(this).attr('href'),
+									{},
+			                        function(sResponseText, sStatus, oXHR){
+			                            // Hiding modal in case of error as the general AJAX error handler will display a message
+			                            if(sStatus === 'error')
+			                            {
+			                                oModalElem.modal('hide');
+			                            }
+			                        }
+								);
+								oModalElem.modal('show');
+							});
+						},
 					});
 						
 					// Handles items selection/deselection
@@ -268,11 +313,14 @@ EOF
 EOF
 			);
 
-			// Attaching JS widget
-			$sObjectInformationsUrl = $this->oField->GetInformationEndpoint();
-			$oOutput->AddJs(
+			// Additional features if in edition mode
+			if (!$this->oField->GetReadOnly())
+			{
+                // Attaching JS widget
+                $sObjectInformationsUrl = $this->oField->GetInformationEndpoint();
+                $oOutput->AddJs(
 <<<EOF
-				$("[data-field-id='{$this->oField->GetId()}'][data-form-path='{$this->oField->GetFormPath()}']").portal_form_field({
+                $("[data-field-id='{$this->oField->GetId()}'][data-form-path='{$this->oField->GetFormPath()}']").portal_form_field({
 					'validators': {$this->GetValidatorsAsJson()},
 					'get_current_value_callback': function(me, oEvent, oData){
 						var value = null;
@@ -309,10 +357,11 @@ EOF
 									// Updating datatables
 									if(oData.items !== undefined)
 									{
-										for(var i in oData.items)
+									    for(var i in oData.items)
 										{
 											// Adding target item id information
 											oData.items[i].target_id = oData.items[i].id;
+											
 											// Adding item to table only if it's not already there
 											if($('#{$sTableId} tr[role="row"] > td input[data-target-object-id="' + oData.items[i].target_id + '"], #{$sTableId} tr[role="row"] > td input[data-target-object-id="' + (oData.items[i].target_id*-1) + '"]').length === 0)
 											{
@@ -320,22 +369,17 @@ EOF
 												oData.items[i].id = -1 * parseInt(oData.items[i].id);
 												oTable_{$this->oField->GetGlobalId()}.row.add(oData.items[i]);
 											}
+											
+											
 										}
 										oTable_{$this->oField->GetGlobalId()}.draw();
+										
+										// Updating input
+						                updateInputValue_{$this->oField->GetGlobalId()}();
 									}
 								}
 							)
 							.done(function(oData){
-								// Updating hidden field
-								var aData = oTable_{$this->oField->GetGlobalId()}.rows().data().toArray();
-								var aObjectIds = [];
-
-								for(var i in aData)
-								{
-									aObjectIds.push({id: aData[i].id});
-								}
-
-								$('#{$this->oField->GetGlobalId()}').val(JSON.stringify(aObjectIds));
 								// Updating items count
 								updateItemCount_{$this->oField->GetGlobalId()}();
 								// Updating global checkbox
@@ -349,16 +393,8 @@ EOF
 						// We come from a button
 						else
 						{
-							// Updating hidden field
-							var aData = oTable_{$this->oField->GetGlobalId()}.rows().data().toArray();
-							var aObjectIds = [];
-
-							for(var i in aData)
-							{
-								aObjectIds.push({id: aData[i].id});
-							}
-
-							$('#{$this->oField->GetGlobalId()}').val(JSON.stringify(aObjectIds));
+						    // Updating input
+						    updateInputValue_{$this->oField->GetGlobalId()}();
 							// Updating items count
 							updateItemCount_{$this->oField->GetGlobalId()}();
 							// Updating global checkbox
@@ -367,11 +403,8 @@ EOF
 					}
 				});
 EOF
-			);
+                );
 
-			// Additional features if in edition mode
-			if (!$this->oField->GetReadOnly())
-			{
 				// Rendering table
 				// - Vars
 				$sButtonRemoveId = 'btn_remove_' . $this->oField->GetGlobalId();
@@ -409,6 +442,38 @@ EOF
 					var updateItemCount_{$this->oField->GetGlobalId()} = function()
 					{
 						$('#{$sCollapseTogglerId} > .text').text( oTable_{$this->oField->GetGlobalId()}.rows().count() );
+					};
+					// - Field input handler
+					var updateInputValue_{$this->oField->GetGlobalId()} = function()
+					{
+					    // Retrieving table rows
+					    var aData = oTable_{$this->oField->GetGlobalId()}.rows().data().toArray();
+					    
+					    // Retrieving input values
+                        var oValues = JSON.parse($('#{$this->oField->GetGlobalId()}').val());
+                        oValues.add = {};
+                        oValues.remove = {};
+                        
+					    // Checking removed objects
+					    for(var i in oValues.current)
+					    {
+					        if($('#{$sTableId} tr[role="row"] input[data-object-id="'+i+'"]').length === 0)
+                            {
+                                oValues.remove[i] = {};
+                            }
+					    }
+					    
+					    // Checking added objects
+					    for(var i in aData)
+					    {
+					        if(oValues.current[aData[i].id] === undefined)
+					        {
+					            oValues.add[aData[i].target_id] = {};
+                            }
+					    }
+					    
+                        // Setting input values
+                        $('#{$this->oField->GetGlobalId()}').val(JSON.stringify(oValues));
 					};
 
 					// Handles items remove/add
@@ -451,6 +516,13 @@ EOF
 								sFormPath: '{$this->oField->GetFormPath()}',
 								sFieldId: '{$this->oField->GetId()}',
 								aObjectIdsToIgnore : aObjectIdsToIgnore
+							},
+							function(sResponseText, sStatus, oXHR){
+							    // Hiding modal in case of error as the general AJAX error handler will display a message
+							    if(sStatus === 'error')
+							    {
+							        oModalElem.modal('hide');
+							    }
 							}
 						);
 						oModalElem.modal('show');
@@ -472,6 +544,13 @@ EOF
 		return $oOutput;
 	}
 
+    /**
+     * @param $aItems
+     * @param $aItemIds
+     *
+     * @throws \Exception
+     * @throws \CoreException
+     */
 	protected function PrepareItems(&$aItems, &$aItemIds)
 	{
 		$oValueSet = $this->oField->GetCurrentValue();
@@ -506,6 +585,7 @@ EOF
 			);
 
 			// Target object others attributes
+            // TODO: Support for AttriubteImage, AttributeBlob
 			foreach ($this->oField->GetAttributesToDisplay(true) as $sAttCode)
 			{
 				if ($sAttCode !== 'id')
@@ -518,10 +598,27 @@ EOF
 					if ($oAttDef->IsExternalKey())
 					{
 						$aAttProperties['value'] = $oRemoteItem->Get($sAttCode . '_friendlyname');
+
+						// Checking if user can access object's external key
+						$sObjectUrl = ApplicationContext::MakeObjectUrl($oAttDef->GetTargetClass(), $oRemoteItem->Get($sAttCode));
+						if(!empty($sObjectUrl))
+						{
+							$aAttProperties['url'] = $sObjectUrl;
+						}
 					}
 					else
 					{
-						$aAttProperties['value'] = $oAttDef->GetValueLabel($oRemoteItem->Get($sAttCode));
+						$aAttProperties['value'] = $oAttDef->GetAsHTML($oRemoteItem->Get($sAttCode));
+
+						if ($oAttDef instanceof AttributeFriendlyName)
+						{
+							// Checking if user can access object
+							$sObjectUrl = ApplicationContext::MakeObjectUrl(get_class($oRemoteItem), $oRemoteItem->GetKey());
+							if(!empty($sObjectUrl))
+							{
+								$aAttProperties['url'] = $sObjectUrl;
+							}
+						}
 					}
 
 					$aItemProperties['attributes'][$sAttCode] = $aAttProperties;
@@ -529,7 +626,7 @@ EOF
 			}
 			
 			$aItems[] = $aItemProperties;
-			$aItemIds[] = array('id' => $aItemProperties['id']);
+			$aItemIds[$aItemProperties['id']] = array();
 		}
 	}
 

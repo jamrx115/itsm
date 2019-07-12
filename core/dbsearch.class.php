@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2015-2016 Combodo SARL
+// Copyright (C) 2015-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -33,7 +33,7 @@ require_once('dbunionsearch.class.php');
  *    - do not provide a type-hint for function parameters defined in the modules
  *    - leave the statements DBObjectSearch::FromOQL in the modules, though DBSearch is more relevant 
  *
- * @copyright   Copyright (C) 2015-2016 Combodo SARL
+ * @copyright   Copyright (C) 2015-2017 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
  
@@ -44,13 +44,25 @@ abstract class DBSearch
 
 	protected $m_bNoContextParameters = false;
 	protected $m_aModifierProperties = array();
+	protected $m_bArchiveMode = false;
+	protected $m_bShowObsoleteData = true;
 
 	public function __construct()
 	{
+		$this->Init();
+	}
+
+	protected function Init()
+	{
+		// Set the obsolete and archive modes to the default ones
+		$this->m_bArchiveMode = utils::IsArchiveMode();
+		$this->m_bShowObsoleteData = true;
 	}
 
 	/**
 	 * Perform a deep clone (as opposed to "clone" which does copy a reference to the underlying objects)
+	 *
+	 * @return \DBSearch
 	 **/	 	
 	public function DeepClone()
 	{
@@ -59,6 +71,33 @@ abstract class DBSearch
 
 	abstract public function AllowAllData();
 	abstract public function IsAllDataAllowed();
+
+	public function SetArchiveMode($bEnable)
+	{
+		$this->m_bArchiveMode = $bEnable;
+	}
+	public function GetArchiveMode()
+	{
+		return $this->m_bArchiveMode;
+	}
+
+	public function SetShowObsoleteData($bShow)
+	{
+		$this->m_bShowObsoleteData = $bShow;
+	}
+	public function GetShowObsoleteData()
+	{
+		if ($this->m_bArchiveMode || $this->IsAllDataAllowed())
+		{
+			// Enable obsolete data too!
+			$bRet = true;
+		}
+		else
+		{
+			$bRet = $this->m_bShowObsoleteData;
+		}
+		return $bRet;
+	}
 
 	public function NoContextParameters() {$this->m_bNoContextParameters = true;}
 	public function HasContextParameters() {return $this->m_bNoContextParameters;}
@@ -196,24 +235,96 @@ abstract class DBSearch
 	abstract public function GetInternalParams();
 	abstract public function GetQueryParams($bExcludeMagicParams = true);
 	abstract public function ListConstantFields();
-	
+
 	/**
 	 * Turn the parameters (:xxx) into scalar values in order to easily
 	 * serialize a search
+	 *
+	 * @param array $aArgs
+	 *
+	 * @return string
 	 */
 	abstract public function ApplyParameters($aArgs);
 
-    public function serialize($bDevelopParams = false, $aContextParams = null)
+    public function serialize($bDevelopParams = false, $aContextParams = array())
 	{
+		$aQueryParams = $this->GetQueryParams();
+
+		$aContextParams = array_merge($this->GetInternalParams(), $aContextParams);
+
+		foreach($aQueryParams as $sParam => $sValue)
+		{
+			if (isset($aContextParams[$sParam]))
+			{
+				$aQueryParams[$sParam] = $aContextParams[$sParam];
+			}
+			elseif (($iPos = strpos($sParam, '->')) !== false)
+			{
+				$sParamName = substr($sParam, 0, $iPos);
+				if (isset($aContextParams[$sParamName.'->object()']))
+				{
+					$sAttCode = substr($sParam, $iPos + 2);
+					/** @var \DBObject $oObj */
+					$oObj = $aContextParams[$sParamName.'->object()'];
+					if ($oObj->IsModified())
+					{
+						if ($sAttCode == 'id')
+						{
+							$aQueryParams[$sParam] = $oObj->GetKey();
+						}
+						else
+						{
+							$aQueryParams[$sParam] = $oObj->Get($sAttCode);
+						}
+					}
+					else
+					{
+						unset($aQueryParams[$sParam]);
+						// For database objects, serialize only class, key
+						$aQueryParams[$sParamName.'->id'] = $oObj->GetKey();
+						$aQueryParams[$sParamName.'->class'] = get_class($oObj);
+					}
+				}
+			}
+		}
+
 		$sOql = $this->ToOql($bDevelopParams, $aContextParams);
-		return base64_encode(serialize(array($sOql, $this->GetInternalParams(), $this->m_aModifierProperties)));
+		return json_encode(array($sOql, $aQueryParams, $this->m_aModifierProperties));
 	}
-	
+
+	/**
+	 * @param string $sValue Serialized OQL query
+	 *
+	 * @return \DBSearch
+	 * @throws \ArchivedObjectException
+	 * @throws \CoreException
+	 * @throws \OQLException
+	 */
 	static public function unserialize($sValue)
 	{
-		$aData = unserialize(base64_decode($sValue));
+		$aData = json_decode($sValue, true);
+		if (is_null($aData))
+		{
+			throw new CoreException("Invalid filter parameter");
+		}
 		$sOql = $aData[0];
 		$aParams = $aData[1];
+		$aExtraParams = array();
+		foreach($aParams as $sParam => $sValue)
+		{
+			if (($iPos = strpos($sParam, '->class')) !== false)
+			{
+				$sParamName = substr($sParam, 0, $iPos);
+				if (isset($aParams[$sParamName.'->id']))
+				{
+					$sClass = $aParams[$sParamName.'->class'];
+					$iKey = $aParams[$sParamName.'->id'];
+					$oObj = MetaModel::GetObject($sClass, $iKey);
+					$aExtraParams[$sParamName.'->object()'] = $oObj;
+				}
+			}
+		}
+		$aParams = array_merge($aExtraParams, $aParams);
 		// We've tried to use gzcompress/gzuncompress, but for some specific queries
 		// it was not working at all (See Trac #193)
 		// gzuncompress was issuing a warning "data error" and the return object was null
@@ -254,12 +365,15 @@ abstract class DBSearch
 	/**
 	 * @param string $sQuery
 	 * @param array $aParams
-	 * @return DBSearch
+	 * @return self
 	 * @throws OQLException
 	 */
 	static public function FromOQL($sQuery, $aParams = null)
 	{
-		if (empty($sQuery)) return null;
+		if (empty($sQuery))
+		{
+			return null;
+		}
 
 		// Query caching
 		$sQueryId = md5($sQuery);
@@ -288,6 +402,7 @@ abstract class DBSearch
 			}
 		}
 
+		/** @var DBObjectSearch | null $oResultFilter */
 		if (!isset($oResultFilter))
 		{
 			$oKPI = new ExecutionKPI();
@@ -319,19 +434,35 @@ abstract class DBSearch
 		{
 			$oResultFilter->SetInternalParams($aParams);
 		}
+
+		// Set the default fields
+		$oResultFilter->Init();
+
 		return $oResultFilter;
 	}
 
-	// Alternative to object mapping: the data are transfered directly into an array
-	// This is 10 times faster than creating a set of objects, and makes sense when optimization is required
 	/**
-	 * @param hash $aOrderBy Array of '[<classalias>.]attcode' => bAscending
-	 */	
+	 * Alternative to object mapping: the data are transfered directly into an array
+	 * This is 10 times faster than creating a set of objects, and makes sense when optimization is required
+	 *
+	 * @param array $aColumns
+	 * @param array $aOrderBy Array of '[<classalias>.]attcode' => bAscending
+	 * @param array $aArgs
+	 *
+	 * @return array|void
+	 * @throws \CoreException
+	 * @throws \MissingQueryArgument
+	 * @throws \MySQLException
+	 * @throws \MySQLHasGoneAwayException
+	 */
 	public function ToDataArray($aColumns = array(), $aOrderBy = array(), $aArgs = array())
 	{
 		$sSQL = $this->MakeSelectQuery($aOrderBy, $aArgs);
 		$resQuery = CMDBSource::Query($sSQL);
-		if (!$resQuery) return;
+		if (!$resQuery)
+		{
+			return;
+		}
 
 		if (count($aColumns) == 0)
 		{
@@ -340,7 +471,7 @@ abstract class DBSearch
 			array_unshift($aColumns, 'id');
 		}
 
-		$aQueryCols = CMDBSource::GetColumns($resQuery);
+		$aQueryCols = CMDBSource::GetColumns($resQuery, $sSQL);
 
 		$sClassAlias = $this->GetClassAlias();
 		$aColMap = array();
@@ -375,8 +506,53 @@ abstract class DBSearch
 	protected static $m_aQueryStructCache = array();
 
 
-	public function MakeGroupByQuery($aArgs, $aGroupByExpr, $bExcludeNullValues = false)
+	/** Generate a Group By SQL request from a search
+	 * @param array $aArgs
+	 * @param array $aGroupByExpr array('alias' => Expression)
+	 * @param bool $bExcludeNullValues
+	 * @param array $aSelectExpr array('alias' => Expression) Additional expressions added to the request
+	 * @param array $aOrderBy array('alias' => bool) true = ASC false = DESC
+	 * @param int $iLimitCount
+	 * @param int $iLimitStart
+	 * @return string SQL query generated
+	 * @throws Exception
+	 */
+	public function MakeGroupByQuery($aArgs, $aGroupByExpr, $bExcludeNullValues = false, $aSelectExpr = array(), $aOrderBy = array(), $iLimitCount = 0, $iLimitStart = 0)
 	{
+		// Sanity check
+		foreach($aGroupByExpr as $sAlias => $oExpr)
+		{
+			if (!($oExpr instanceof Expression))
+			{
+				throw new CoreException("Wrong parameter for 'Group By' for [$sAlias] (an array('alias' => Expression) is awaited)");
+			}
+		}
+		foreach($aSelectExpr as $sAlias => $oExpr)
+		{
+			if (array_key_exists($sAlias, $aGroupByExpr))
+			{
+				throw new CoreException("Alias collision between 'Group By' and 'Select Expressions' [$sAlias]");
+			}
+			if (!($oExpr instanceof Expression))
+			{
+				throw new CoreException("Wrong parameter for 'Select Expressions' for [$sAlias] (an array('alias' => Expression) is awaited)");
+			}
+		}
+		foreach($aOrderBy as $sAlias => $bAscending)
+		{
+			if (!array_key_exists($sAlias, $aGroupByExpr) && !array_key_exists($sAlias, $aSelectExpr) && ($sAlias != '_itop_count_'))
+			{
+				$aAllowedAliases = array_keys($aSelectExpr);
+				$aAllowedAliases = array_merge($aAllowedAliases,  array_keys($aGroupByExpr));
+				$aAllowedAliases[] = '_itop_count_';
+				throw new CoreException("Wrong alias [$sAlias] for 'Order By'. Allowed values are: ", null, implode(", ", $aAllowedAliases));
+			}
+			if (!is_bool($bAscending))
+			{
+				throw new CoreException("Wrong direction in ORDER BY spec, found '$bAscending' and expecting a boolean value for '$sAlias''");
+			}
+		}
+
 		if ($bExcludeNullValues)
 		{
 			// Null values are not handled (though external keys set to 0 are allowed)
@@ -394,15 +570,15 @@ abstract class DBSearch
 		}
 
 		$aAttToLoad = array();
-		$oSQLQuery = $oQueryFilter->GetSQLQuery(array(), $aArgs, $aAttToLoad, null, 0, 0, false, $aGroupByExpr);
+		$oSQLQuery = $oQueryFilter->GetSQLQuery(array(), $aArgs, $aAttToLoad, null, 0, 0, false, $aGroupByExpr, $aSelectExpr);
 
 		$aScalarArgs = MetaModel::PrepareQueryArguments($aArgs, $this->GetInternalParams());
 		try
 		{
 			$bBeautifulSQL = self::$m_bTraceQueries || self::$m_bDebugQuery || self::$m_bIndentQueries;
-			$sRes = $oSQLQuery->RenderGroupBy($aScalarArgs, $bBeautifulSQL);
+			$sRes = $oSQLQuery->RenderGroupBy($aScalarArgs, $bBeautifulSQL, $aOrderBy, $iLimitCount, $iLimitStart);
 		}
-		catch (MissingQueryArgument $e)
+		catch (Exception $e)
 		{
 			// Add some information...
 			$e->addInfo('OQL', $this->ToOQL());
@@ -508,11 +684,30 @@ abstract class DBSearch
 		return $sRes;
 	}
 
+	protected abstract function IsDataFiltered();
+	protected abstract function SetDataFiltered();
 
-	protected function GetSQLQuery($aOrderBy, $aArgs, $aAttToLoad, $aExtendedDataSpec, $iLimitCount, $iLimitStart, $bGetCount, $aGroupByExpr = null)
+	protected function GetSQLQuery($aOrderBy, $aArgs, $aAttToLoad, $aExtendedDataSpec, $iLimitCount, $iLimitStart, $bGetCount, $aGroupByExpr = null, $aSelectExpr = null)
 	{
-		$oSQLQuery = $this->GetSQLQueryStructure($aAttToLoad, $bGetCount, $aGroupByExpr);
-		$oSQLQuery->SetSourceOQL($this->ToOQL());
+		$oSearch = $this;
+		if (!$this->IsAllDataAllowed() && !$this->IsDataFiltered())
+		{
+			$oVisibleObjects = UserRights::GetSelectFilter($this->GetClass(), $this->GetModifierProperties('UserRightsGetSelectFilter'));
+			if ($oVisibleObjects === false)
+			{
+				// Make sure this is a valid search object, saying NO for all
+				$oVisibleObjects = DBObjectSearch::FromEmptySet($this->GetClass());
+			}
+			if (is_object($oVisibleObjects))
+			{
+				$oVisibleObjects->AllowAllData();
+				$oSearch = $this->Intersect($oVisibleObjects);
+				/** @var DBSearch $oSearch */
+				$oSearch->SetDataFiltered();
+			}
+		}
+		$oSQLQuery = $oSearch->GetSQLQueryStructure($aAttToLoad, $bGetCount, $aGroupByExpr, null, $aSelectExpr);
+		$oSQLQuery->SetSourceOQL($oSearch->ToOQL());
 
 		// Join to an additional table, if required...
 		//
@@ -530,6 +725,24 @@ abstract class DBSearch
 		}
 		
 		return $oSQLQuery;
+	}
+
+	public abstract function GetSQLQueryStructure(
+		$aAttToLoad, $bGetCount, $aGroupByExpr = null, $aSelectedClasses = null, $aSelectExpr = null
+	);
+
+	/**
+	 * @return \Expression
+	 */
+	public abstract function GetCriteria();
+
+	public abstract function AddConditionForInOperatorUsingParam($sFilterCode, $aValues, $bPositiveMatch = true);
+
+	/**
+	 * @return string a unique param name
+	 */
+	protected function GenerateUniqueParamName() {
+		return str_replace('.', '', 'param_'.microtime(true).rand(0,100));
 	}
 
 	////////////////////////////////////////////////////////////////////////////
@@ -643,7 +856,10 @@ abstract class DBSearch
 
 	public static function RecordQueryTrace()
 	{
-		if (!self::$m_bTraceQueries) return;
+		if (!self::$m_bTraceQueries)
+		{
+			return;
+		}
 
 		$iOqlCount = count(self::$m_aQueriesLog);
 		$iSqlCount = 0;
@@ -681,6 +897,7 @@ abstract class DBSearch
 		{
 			// Merge the new queries into the existing log
 			include($sAllQueries);
+			$aQueriesLog = array();
 			foreach (self::$m_aQueriesLog as $sQueryId => $aOqlData)
 			{
 				if (!array_key_exists($sQueryId, $aQueriesLog))
@@ -699,7 +916,10 @@ abstract class DBSearch
 
 	protected static function DbgTrace($value)
 	{
-		if (!self::$m_bDebugQuery) return;
+		if (!self::$m_bDebugQuery)
+		{
+			return;
+		}
 		$aBacktrace = debug_backtrace();
 		$iCallStackPos = count($aBacktrace) - self::$m_bDebugQuery;
 		$sIndent = ""; 
@@ -715,11 +935,7 @@ abstract class DBSearch
 		$sCallers = "Callstack: ".implode(', ', $aCallers);
 		$sFunction = "<b title=\"$sCallers\">".$aBacktrace[1]["function"]."</b>";
 
-		if (is_string($value))
-		{
-			echo "$sIndent$sFunction: $value<br/>\n";
-		}
-		else if (is_object($value))
+		if (is_object($value))
 		{
 			echo "$sIndent$sFunction:\n<pre>\n";
 			print_r($value);
@@ -729,5 +945,88 @@ abstract class DBSearch
 		{
 			echo "$sIndent$sFunction: $value<br/>\n";
 		}
+	}
+
+	/**
+	 * Experimental!
+	 * todo: implement the change tracking
+	 *
+	 * @param $bArchive
+	 * @throws Exception
+	 */
+	function DBBulkWriteArchiveFlag($bArchive)
+	{
+		$sClass = $this->GetClass();
+		if (!MetaModel::IsArchivable($sClass))
+		{
+			throw new Exception($sClass.' is not an archivable class');
+		}
+
+		$iFlag = $bArchive ? 1 : 0;
+
+		$oSet = new DBObjectSet($this);
+		if (MetaModel::IsStandaloneClass($sClass))
+		{
+			$oSet->OptimizeColumnLoad(array($this->GetClassAlias() => array('')));
+			$aIds = array($sClass => $oSet->GetColumnAsArray('id'));
+		}
+		else
+		{
+			$oSet->OptimizeColumnLoad(array($this->GetClassAlias() => array('finalclass')));
+			$aTemp = $oSet->GetColumnAsArray('finalclass');
+			$aIds = array();
+			foreach ($aTemp as $iObjectId => $sObjectClass)
+			{
+				$aIds[$sObjectClass][$iObjectId] = $iObjectId;
+			}
+		}
+		foreach ($aIds as $sFinalClass => $aObjectIds)
+		{
+			$sIds = implode(', ', $aObjectIds);
+
+			$sArchiveRoot = MetaModel::GetAttributeOrigin($sFinalClass, 'archive_flag');
+			$sRootTable = MetaModel::DBGetTable($sArchiveRoot);
+			$sRootKey = MetaModel::DBGetKey($sArchiveRoot);
+			$aJoins = array("`$sRootTable`");
+			$aUpdates = array();
+			foreach (MetaModel::EnumParentClasses($sFinalClass, ENUM_PARENT_CLASSES_ALL) as $sParentClass)
+			{
+				if (!MetaModel::IsValidAttCode($sParentClass, 'archive_flag'))
+				{
+					continue;
+				}
+
+				$sTable = MetaModel::DBGetTable($sParentClass);
+				$aUpdates[] = "`$sTable`.`archive_flag` = $iFlag";
+				if ($sParentClass == $sArchiveRoot)
+				{
+					if ($bArchive)
+					{
+						// Set the date (do not change it)
+						$sDate = '"'.date(AttributeDate::GetSQLFormat()).'"';
+						$aUpdates[] = "`$sTable`.`archive_date` = coalesce(`$sTable`.`archive_date`, $sDate)";
+					}
+					else
+					{
+						// Reset the date
+						$aUpdates[] = "`$sTable`.`archive_date` = null";
+					}
+				}
+				else
+				{
+					$sKey = MetaModel::DBGetKey($sParentClass);
+					$aJoins[] = "`$sTable` ON `$sTable`.`$sKey` = `$sRootTable`.`$sRootKey`";
+				}
+			}
+			$sJoins = implode(' INNER JOIN ', $aJoins);
+			$sValues = implode(', ', $aUpdates);
+			$sUpdateQuery = "UPDATE $sJoins SET $sValues WHERE `$sRootTable`.`$sRootKey` IN ($sIds)";
+			CMDBSource::Query($sUpdateQuery);
+		}
+	}
+
+	public function UpdateContextFromUser()
+	{
+		$this->SetShowObsoleteData(utils::ShowObsoleteData());
 	}
 }

@@ -34,7 +34,7 @@ class ormCaseLog {
 	/**
 	 * Initializes the log with the first (initial) entry
 	 * @param $sLog string The text of the whole case log
-	 * @param $aIndex hash The case log index
+	 * @param $aIndex array The case log index
 	 */
 	public function __construct($sLog = '', $aIndex = array())
 	{
@@ -159,6 +159,7 @@ class ormCaseLog {
 			$aEntries[] = array(
 				'date' => '',
 				'user_login' => '',
+				'user_id' => 0,
 				'message' => $sTextEntry,
 				'message_html' => utils::TextToHtml($sTextEntry),
 			);
@@ -191,8 +192,15 @@ class ormCaseLog {
 
 	public function __toString()
 	{
-		return $this->m_sLog;
+        if($this->IsEmpty()) return '';
+
+        return $this->m_sLog;
 	}
+
+	public function IsEmpty()
+    {
+        return ($this->m_sLog === null);
+    }
 	
 	public function ClearModifiedFlag()
 	{
@@ -288,7 +296,6 @@ class ormCaseLog {
 	 */	 	
 	public function GetAsSimpleHtml($aTransfoHandler = null)
 	{
-		$sStyleCaseLogHeader = '';
 		$sStyleCaseLogEntry = '';
 
 		$sHtml = '<ul class="case_log_simple_html">';
@@ -506,7 +513,6 @@ class ormCaseLog {
 	public function AddLogEntry($sText, $sOnBehalfOf = '')
 	{
 		$sText = HTMLSanitizer::Sanitize($sText);
-		$bMergeEntries = false;
 		$sDate = date(AttributeDateTime::GetInternalFormat());
 		if ($sOnBehalfOf == '')
 		{
@@ -520,49 +526,30 @@ class ormCaseLog {
 		if ($this->m_bModified)
 		{
 			$aLatestEntry = end($this->m_aIndex);
-			if ($aLatestEntry['user_name'] != $sOnBehalfOf)
+			if ($aLatestEntry['user_name'] == $sOnBehalfOf)
 			{
-				$bMergeEntries = false;
+				// Append the new text to the previous one
+				$sPreviousText = substr($this->m_sLog, $aLatestEntry['separator_length'], $aLatestEntry['text_length']);
+				$sText = $sPreviousText."\n".$sText;
+
+				// Cleanup the previous entry
+				array_pop($this->m_aIndex);
+				$this->m_sLog = substr($this->m_sLog, $aLatestEntry['separator_length'] + $aLatestEntry['text_length']);
 			}
-			else
-			{
-				$bMergeEntries = true;
-			}
 		}
-		
-		if ($bMergeEntries)
-		{
-			$aLatestEntry = end($this->m_aIndex);
-			$this->m_sLog = substr($this->m_sLog, $aLatestEntry['separator_length']);
-			$sSeparator = sprintf(CASELOG_SEPARATOR, $sDate, $sOnBehalfOf, $iUserId);
-			$iSepLength = strlen($sSeparator);
-			$iTextlength = strlen($sText."\n");
-			$this->m_sLog = $sSeparator.$sText.$this->m_sLog; // Latest entry printed first
-			$this->m_aIndex[] = array(
-				'user_name' => $sOnBehalfOf,	
-				'user_id' => $iUserId,	
-				'date' => time(),	
-				'text_length' => $aLatestEntry['text_length'] + $iTextlength,	
-				'separator_length' => $iSepLength,
-				'format' => 'html',	
-			);
-			
-		}
-		else
-		{
-			$sSeparator = sprintf(CASELOG_SEPARATOR, $sDate, $sOnBehalfOf, $iUserId);
-			$iSepLength = strlen($sSeparator);
-			$iTextlength = strlen($sText);
-			$this->m_sLog = $sSeparator.$sText.$this->m_sLog; // Latest entry printed first
-			$this->m_aIndex[] = array(
-				'user_name' => $sOnBehalfOf,	
-				'user_id' => $iUserId,	
-				'date' => time(),	
-				'text_length' => $iTextlength,	
-				'separator_length' => $iSepLength,	
-				'format' => 'html',	
-			);
-		}
+
+		$sSeparator = sprintf(CASELOG_SEPARATOR, $sDate, $sOnBehalfOf, $iUserId);
+		$iSepLength = strlen($sSeparator);
+		$iTextlength = strlen($sText);
+		$this->m_sLog = $sSeparator.$sText.$this->m_sLog; // Latest entry printed first
+		$this->m_aIndex[] = array(
+			'user_name' => $sOnBehalfOf,
+			'user_id' => $iUserId,
+			'date' => time(),
+			'text_length' => $iTextlength,
+			'separator_length' => $iSepLength,
+			'format' => 'html',
+		);
 		$this->m_bModified = true;
 	}
 
@@ -711,7 +698,6 @@ class ormCaseLog {
 	{
 		$iPos = 0;
 		$index = count($this->m_aIndex) - 1;
-		$aIndex = $this->m_aIndex;
 		while($index > $iIndex)
 		{
 			$iPos += $this->m_aIndex[$index]['separator_length'];

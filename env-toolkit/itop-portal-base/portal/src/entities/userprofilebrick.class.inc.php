@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2010-2015 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -18,14 +18,13 @@
 
 namespace Combodo\iTop\Portal\Brick;
 
-use \DOMFormatException;
-use \Combodo\iTop\DesignElement;
-use \Combodo\iTop\Portal\Brick\PortalBrick;
+use DOMFormatException;
+use Combodo\iTop\DesignElement;
 
 /**
  * Description of UserProfileBrick
  * 
- * @author Guillaume Lajarige
+ * @author Guillaume Lajarige <guillaume.lajarige@combodo.com>
  */
 class UserProfileBrick extends PortalBrick
 {
@@ -34,11 +33,17 @@ class UserProfileBrick extends PortalBrick
 	const DEFAULT_VISIBLE_NAVIGATION_MENU = false;
 	const DEFAULT_VISIBLE_HOME = false;
 	const DEFAUT_TITLE = 'Brick:Portal:UserProfile:Title';
-	const DEFAULT_HOME_ICON_CLASS = 'glyphicon glyphicon-user';
-	const DEFAULT_NAVIGATION_MENU_ICON_CLASS = 'glyphicon glyphicon-user';
+	const DEFAULT_DECORATION_CLASS_HOME = 'glyphicon glyphicon-user';
+	const DEFAULT_DECORATION_CLASS_NAVIGATION_MENU = 'glyphicon glyphicon-user';
+    const DEFAULT_SHOW_PICTURE_FORM = true;
+    const DEFAULT_SHOW_PREFERENCES_FORM = true;
+    const DEFAULT_SHOW_PASSWORD_FORM = true;
 
 	static $sRouteName = 'p_user_profile_brick';
 	protected $aForm;
+	protected $bShowPictureForm;
+	protected $bShowPreferencesForm;
+	protected $bShowPasswordForm;
 
 	public function __construct()
 	{
@@ -50,6 +55,9 @@ class UserProfileBrick extends PortalBrick
 			'fields' => 'details',
 			'layout' => null
 		);
+		$this->bShowPictureForm = static::DEFAULT_SHOW_PICTURE_FORM;
+		$this->bShowPreferencesForm = static::DEFAULT_SHOW_PREFERENCES_FORM;
+		$this->bShowPasswordForm = static::DEFAULT_SHOW_PASSWORD_FORM;
 	}
 
 	/**
@@ -71,6 +79,60 @@ class UserProfileBrick extends PortalBrick
 		$this->aForm = $aForm;
 		return $this;
 	}
+
+    /**
+     * @return bool
+     */
+    public function GetShowPictureForm()
+    {
+        return $this->bShowPictureForm;
+    }
+
+    /**
+     * @param $bShowPictureForm
+     * @return \Combodo\iTop\Portal\Brick\UserProfileBrick
+     */
+    public function SetShowPictureForm($bShowPictureForm)
+    {
+        $this->bShowPictureForm = $bShowPictureForm;
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function GetShowPreferencesForm()
+    {
+        return $this->bShowPreferencesForm;
+    }
+
+    /**
+     * @param $bShowPreferencesForm
+     * @return \Combodo\iTop\Portal\Brick\UserProfileBrick
+     */
+    public function SetShowPreferencesForm($bShowPreferencesForm)
+    {
+        $this->bShowPreferencesForm = $bShowPreferencesForm;
+        return $this;
+    }
+
+    /**
+     * @return bool
+     */
+    public function GetShowPasswordForm()
+    {
+        return $this->bShowPasswordForm;
+    }
+
+    /**
+     * @param $bShowPasswordForm
+     * @return \Combodo\iTop\Portal\Brick\UserProfileBrick
+     */
+    public function SetShowPasswordForm($bShowPasswordForm)
+    {
+        $this->bShowPasswordForm = $bShowPasswordForm;
+        return $this;
+    }
 
 	/**
 	 * Load the brick's data from the xml passed as a ModuleDesignElement.
@@ -121,7 +183,7 @@ class UserProfileBrick extends PortalBrick
 							}
 							else
 							{
-								throw new DOMFormatException('Field tag must have an id attribute', null, null, $oFormNode);
+								throw new DOMFormatException('Field tag must have an id attribute', null, null, $oFieldNode);
 							}
 						}
 					}
@@ -140,6 +202,16 @@ class UserProfileBrick extends PortalBrick
 						);
 					}
 					break;
+
+                case 'show_picture_form':
+                case 'show_preferences_form':
+                case 'show_password_form':
+                    $sConstName = 'DEFAULT_'.strtoupper($oBrickSubNode->nodeName);
+                    $sSetterName = 'Set'.str_replace('_', '', ucwords($oBrickSubNode->nodeName, '_'));
+
+                    $bNodeValue = ($oBrickSubNode->GetText(constant('static::'.$sConstName)) === 'true') ? true : false;
+                    $this->$sSetterName($bNodeValue);
+                    break;
 			}
 		}
 
@@ -147,5 +219,3 @@ class UserProfileBrick extends PortalBrick
 	}
 
 }
-
-?>

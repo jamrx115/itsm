@@ -138,8 +138,8 @@ var oFormErrors = { err_form0: 0 };
 
 function CheckFields(sFormId, bDisplayAlert)
 {
-	$('#'+sFormId+' :submit').attr('disable', 'disabled');
-	$('#'+sFormId+' :button[type=submit]').attr('disable', 'disabled');
+	$('#'+sFormId+' :submit').prop('disable', true);
+	$('#'+sFormId+' :button[type=submit]').prop('disable', true);
 	firstErrorId = '';
 	
 	// The two 'fields' below will be updated when the 'validate' event is processed
@@ -147,6 +147,8 @@ function CheckFields(sFormId, bDisplayAlert)
 	oFormErrors['input_'+sFormId] = null;	// First 'input' with an error, to set the focus to it
 	$('#'+sFormId+' :input').each( function()
 	{
+		// this is synchronous !
+		// each field should register this event to launch ValidateField() if needed
 		validateEventResult = $(this).trigger('validate', sFormId);
 	}
 	);
@@ -154,16 +156,32 @@ function CheckFields(sFormId, bDisplayAlert)
 	{
 		if (bDisplayAlert)
 		{
+			activateFirstTabWithError(sFormId);
 			alert(Dict.S('UI:FillAllMandatoryFields'));
 		}
-		$('#'+sFormId+' :submit').attr('disable', '');
-		$('#'+sFormId+' :button[type=submit]').attr('disable', '');
+		$('#'+sFormId+' :submit').prop('disable', false);
+		$('#'+sFormId+' :button[type=submit]').prop('disable', false);
 		if (oFormErrors['input_'+sFormId] != null)
 		{
 			$('#'+oFormErrors['input_'+sFormId]).focus();
 		}
 	}
 	return (oFormErrors['err_'+sFormId] == 0); // If no error, submit the form
+}
+
+function activateFirstTabWithError(sFormId) {
+	var $form = $("#"+sFormId),
+		$tabsContainer = $form.find(".ui-widget.ui-widget-content"),
+		$tabs = $tabsContainer.find(".ui-tabs-panel");
+
+	$tabs.each(function (index, element) {
+		var $fieldsWithError = $(element).find(".form_validation");
+		if ($fieldsWithError.length > 0)
+		{
+			$tabsContainer.tabs("option", "active", index);
+			return;
+		}
+	});
 }
 
 function ReportFieldValidationStatus(sFieldId, sFormId, bValid, sExplain)
@@ -184,21 +202,37 @@ function ReportFieldValidationStatus(sFieldId, sFormId, bValid, sExplain)
 		}
 		// Visual feedback
 		$('#v_'+sFieldId).html('<img src="../images/validation_error.png" style="vertical-align:middle" data-tooltip="'+sExplain+'"/>');
-		$('#v_'+sFieldId).tooltip({
-			items: 'span',
-			tooltipClass: 'form_field_error',
-			content: function() {
-				return $(this).find('img').attr('data-tooltip'); // As opposed to the default 'content' handler, do not escape the contents of 'title'
-			}
-		});
+		//Avoid replacing exisiting tooltip for periodically checked element (like CKeditor fields) 
+		if($('#v_'+sFieldId).tooltip( "instance" ) === undefined)
+		{
+			$('#v_'+sFieldId).tooltip({
+				items: 'span',
+				tooltipClass: 'form_field_error',
+				content: function() {
+					return $(this).find('img').attr('data-tooltip'); // As opposed to the default 'content' handler, do not escape the contents of 'title'
+				}
+			});
+		}
 	}
 }
 
+/**
+ * To be launched on each field from normal event (click, change, ...) and 'validate' event for form submission.
+ * Calls ReportFieldValidationStatus() to update global vars containing fields status
+ * @param sFieldId
+ * @param sPattern
+ * @param bMandatory
+ * @param sFormId
+ * @param nullValue
+ * @param originalValue
+ * @returns {boolean}
+ * @constructor
+ */
 function ValidateField(sFieldId, sPattern, bMandatory, sFormId, nullValue, originalValue)
 {
 	var bValid = true;
 	var sExplain = '';
-	if ($('#'+sFieldId).attr('disabled'))
+	if ($('#'+sFieldId).prop('disabled'))
 	{
 		bValid = true; // disabled fields are not checked
 	}
@@ -245,12 +279,13 @@ function ValidateField(sFieldId, sPattern, bMandatory, sFormId, nullValue, origi
 	return true; // Do not stop propagation ??
 }
 
-function ValidateCKEditField(sFieldId, sPattern, bMandatory, sFormId, nullValue)
+function ValidateCKEditField(sFieldId, sPattern, bMandatory, sFormId, nullValue, originalValue)
 {
 	var bValid;
+	var sExplain = '';
 	var sTextContent;
 
-	if ($('#'+sFieldId).attr('disabled'))
+	if ($('#'+sFieldId).prop('disabled'))
 	{
 		bValid = true; // disabled fields are not checked
 	}
@@ -277,10 +312,28 @@ function ValidateCKEditField(sFieldId, sPattern, bMandatory, sFormId, nullValue)
 				}
 			}
 		}
+
+		// Get the original value without the tags
+		var oFormattedOriginalContents = (originalValue !== undefined) ? $('<div></div>').html(originalValue) : undefined;
+		var sTextOriginalContents = (oFormattedOriginalContents !== undefined) ? oFormattedOriginalContents.text() : undefined;
 	
-		if (bMandatory && (sTextContent == ''))
+		if (bMandatory && (sTextContent == nullValue))
 		{
 			bValid = false;
+			sExplain = Dict.S('UI:ValueMustBeSet');
+		}
+		else if ((sTextOriginalContents != undefined) && (sTextContent == sTextOriginalContents))
+		{
+			bValid = false;
+			if (sTextOriginalContents == nullValue)
+			{
+				sExplain = Dict.S('UI:ValueMustBeSet');
+			}
+			else
+			{
+				// Note: value change check is not working well yet as the HTML to Text conversion is not exactly the same when done from the PHP value or the CKEditor value.
+				sExplain = Dict.S('UI:ValueMustBeChanged');
+			}
 		}
 		else
 		{
@@ -288,9 +341,10 @@ function ValidateCKEditField(sFieldId, sPattern, bMandatory, sFormId, nullValue)
 		}
 	}
 
-	ReportFieldValidationStatus(sFieldId, sFormId, bValid, '');
+	ReportFieldValidationStatus(sFieldId, sFormId, bValid, sExplain);
 
-	setTimeout(function(){ValidateCKEditField(sFieldId, sPattern, bMandatory, sFormId, nullValue);}, 500);
+	// We need to check periodically as CKEditor doesn't trigger our events. More details in UIHTMLEditorWidget::Display() @ line 92
+	setTimeout(function(){ValidateCKEditField(sFieldId, sPattern, bMandatory, sFormId, nullValue, originalValue);}, 500);
 }
 
 /*
@@ -356,32 +410,39 @@ function ValidatePasswordField(id, sFormId)
 
 //Special validation function for case log fields, taking into account the history
 // to determine if the field is empty or not
-function ValidateCaseLogField(sFieldId, bMandatory, sFormId)
+function ValidateCaseLogField(sFieldId, bMandatory, sFormId, nullValue, originalValue)
 {
-	bValid = true;
+	var bValid = true;
+	var sExplain = '';
+	var sTextContent;
 	
-	if ($('#'+sFieldId).attr('disabled'))
+	if ($('#'+sFieldId).prop('disabled'))
 	{
 		bValid = true; // disabled fields are not checked
 	}
-	else if (!bMandatory)
-	{
-		bValid = true;
-	}
 	else
 	{
-		if (bMandatory)
+		// Get the contents (with tags)
+		// Note: For CaseLog we can't retrieve the formatted contents from CKEditor (unlike in ValidateCKEditorField() method) because of the place holder.
+		sTextContent = $('#' + sFieldId).val();
+		var count = $('#'+sFieldId+'_count').val();
+
+		if (bMandatory && (count == 0) && (sTextContent == nullValue))
 		{
-			var count = $('#'+sFieldId+'_count').val();
-			if ( (count == 0) && ($('#'+sFieldId).val() == '') )
-			{
-				// No previous entry and no content typed
-				bValid = false;
-			}
+			// No previous entry and no content typed
+			bValid = false;
+			sExplain = Dict.S('UI:ValueMustBeSet');
+		}
+		else if ((originalValue != undefined) && (sTextContent == originalValue))
+		{
+			bValid = false;
+			sExplain = Dict.S('UI:ValueMustBeChanged');
 		}
 	}
-	ReportFieldValidationStatus(sFieldId, sFormId, bValid, '');
-	return bValid;
+	ReportFieldValidationStatus(sFieldId, sFormId, bValid, '' /* sExplain */);
+
+	// We need to check periodically as CKEditor doesn't trigger our events. More details in UIHTMLEditorWidget::Display() @ line 92
+	setTimeout(function(){ValidateCaseLogField(sFieldId, bMandatory, sFormId, nullValue, originalValue);}, 500);
 }
 
 // Validate the inputs depending on the current setting

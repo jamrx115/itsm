@@ -1,5 +1,22 @@
+// Copyright (C) 2010-2018 Combodo SARL
+//
+//   This file is part of iTop.
+//
+//   iTop is free software; you can redistribute it and/or modify
+//   it under the terms of the GNU Affero General Public License as published by
+//   the Free Software Foundation, either version 3 of the License, or
+//   (at your option) any later version.
+//
+//   iTop is distributed in the hope that it will be useful,
+//   but WITHOUT ANY WARRANTY; without even the implied warranty of
+//   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//   GNU Affero General Public License for more details.
+//
+//   You should have received a copy of the GNU Affero General Public License
+//   along with iTop. If not, see <http://www.gnu.org/licenses/>
+
 // JavaScript Document
-function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizHelper, sExtKeyToRemote)
+function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizHelper, sExtKeyToRemote, bDoSearch)
 {
 	this.id = id;
 	this.iInputId = iInputId;
@@ -9,41 +26,57 @@ function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizH
 	this.bDuplicates = bDuplicates;
 	this.oWizardHelper = oWizHelper;
 	this.sExtKeyToRemote = sExtKeyToRemote;
+    this.iMaxAddedId = 0;
+	this.aAdded = [];
+	this.aRemoved = [];
+	this.aModified = {};
+	this.bDoSearch = bDoSearch; // false if the search is not launched
 	var me = this;
+
 	this.Init = function()
 	{
 		// make sure that the form is clean
 		$('#linkedset_'+this.id+' .selection').each( function() { this.checked = false; });
-		$('#'+this.id+'_btnRemove').attr('disabled','disabled');
-		$('#'+this.id+'_linksToRemove').val('');
-		
+		$('#'+this.id+'_btnRemove').prop('disabled', true);
+
 		$('#linkedset_'+me.id).on('remove', function() {
 			// prevent having the dlg div twice
 			$('#dlg_'+me.id).remove();
 		});
+
+        me.RegisterChange();
+
+		var oInput = $('#'+this.iInputId);
+		oInput.bind('update_value', function() { $(this).val(me.GetUpdatedValue()); });
+		oInput.closest('form').submit(function() { return me.OnFormSubmit(); });
 	};
 	
 	this.RemoveSelected = function()
 	{
 		var my_id = '#'+me.id;
-		$('#linkedset_'+me.id+' .selection:checked').each(
-			function()
+		$('#linkedset_'+me.id+' .selection:checked').each(function() {
+			$(my_id+'_row_'+this.value).remove();
+			var iLink = $(this).attr('data-link-id');
+			if (iLink > 0)
 			{
-				$linksToRemove = $(my_id+'_linksToRemove');
-				prevValue = $linksToRemove.val();
-				if (prevValue != '')
+				me.aRemoved.push(iLink);
+				if (me.aModified.hasOwnProperty(iLink))
 				{
-					$linksToRemove.val(prevValue + ',' + this.value);
+					delete me.aModified[iLink];
 				}
-				else
-				{
-					$linksToRemove.val(this.value);
-				}
-				$(my_id+'_row_'+this.value).remove();
 			}
-		);
+			else
+			{
+				var iUniqueId = $(this).attr('data-unique-id');
+				if (iUniqueId < 0)
+				{
+					iUniqueId = -iUniqueId;
+				}
+				me.aAdded[iUniqueId] = null;
+			}
+		});
 		// Disable the button since all the selected items have been removed
-		$(my_id+'_btnRemove').attr('disabled','disabled');
+		$(my_id+'_btnRemove').prop('disabled', true);
 		// Re-run the zebra plugin to properly highlight the remaining lines & and take into account the removed ones
 		$('#linkedset_'+this.id+' .listResults').trigger('update').trigger("applyWidgets");
 		
@@ -59,11 +92,11 @@ function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizH
 		var nbChecked = $('#linkedset_'+me.id+' .selection:checked').length;
 		if (nbChecked > 0)
 		{
-			$('#'+me.id+'_btnRemove').removeAttr('disabled');
+			$('#'+me.id+'_btnRemove').prop('disabled', false);
 		}
 		else
 		{
-			$('#'+me.id+'_btnRemove').attr('disabled','disabled');
+			$('#'+me.id+'_btnRemove').prop('disabled', true);
 		}
 	};
 	
@@ -80,21 +113,53 @@ function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizH
 				   operation: 'addObjects',
 				   json: me.oWizardHelper.ToJSON()
 				 };
-		$.post( GetAbsoluteUrlAppRoot()+'pages/ajax.render.php', theMap, 
-				function(data)
+
+		// Gather the already linked target objects
+		theMap.aAlreadyLinked = [];
+		$('#linkedset_'+me.id+' .selection:input').each(function (i) {
+			var iRemote = $(this).attr('data-remote-id');
+			theMap.aAlreadyLinked.push(iRemote);
+		});
+
+		$.ajax({
+				"url": GetAbsoluteUrlAppRoot()+'pages/ajax.render.php',
+				"method": "POST",
+				"data": theMap,
+				"dataType": "html"
+			})
+			.done(function (data)
+			{
+				$('#dlg_'+me.id).html(data);
+				$('#dlg_'+me.id).dialog('open');
+				me.UpdateSizes(null, null);
+				if (me.bDoSearch)
 				{
-					$('#dlg_'+me.id).html(data);
-					$('#dlg_'+me.id).dialog('open');
-					me.UpdateSizes(null, null);
 					me.SearchObjectsToAdd();
-					$('#'+me.id+'_indicatorAdd').html('');
-				},
-				'html'
-			);
+				}
+				else
+				{
+					$('#count_'+me.id).change(function () {
+						var c = this.value;
+						me.UpdateButtons(c);
+					});
+				}
+				$('#'+me.id+'_indicatorAdd').html('');
+			})
+		;
 	};
 	
 	this.SearchObjectsToAdd = function()
 	{
+		$('#count_'+me.id).change(function () {
+			var c = this.value;
+			me.UpdateButtons(c);
+		});
+		me.UpdateSizes(null, null);
+
+		$("#fs_SearchFormToAdd_"+me.id).trigger('itop.search.form.submit');
+
+		return false; // Don't submit the form, stay in the current page !
+
 		var theMap = { sAttCode: me.sAttCode,
 					   iInputId: me.iInputId,
 					   sSuffix: me.sSuffix,
@@ -115,13 +180,11 @@ function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizH
 		});
 		
 		// Gather the already linked target objects
-		theMap.aAlreadyLinked = new Array();
-		$('#linkedset_'+me.id+' .selection:input').each(
-			function(i)
-			{
-				theMap.aAlreadyLinked.push(this.value);
-			}
-		);
+		theMap.aAlreadyLinked = [];
+		$('#linkedset_'+me.id+' .selection:input').each(function(i) {
+			var iRemote = $(this).attr('data-remote-id');
+			theMap.aAlreadyLinked.push(iRemote);
+		});
 		theMap['sRemoteClass'] = theMap['class'];  // swap 'class' (defined in the form) and 'remoteClass'
 		theMap['class'] = me.sClass;
 		theMap.operation = 'searchObjectsToAdd'; // Override what is defined in the form itself
@@ -139,7 +202,6 @@ function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizH
 					var c = this.value;
 					me.UpdateButtons(c);
 				});
-				FixSearchFormsDisposition();
 				me.UpdateSizes(null, null);
 				$(sSearchAreaId).unblock();		
 			},
@@ -154,11 +216,11 @@ function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizH
 		var okBtn = $('#btn_ok_'+me.id);
 		if (iCount > 0)
 		{
-			okBtn.removeAttr('disabled');
+			okBtn.prop('disabled', false);
 		}
 		else
 		{
-			okBtn.attr('disabled', 'disabled');
+			okBtn.prop('disabled', true);
 		}
 	};
 	
@@ -190,7 +252,7 @@ function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizH
 			$(' :input[name^=storedSelection]', context).each(function() {
 				if (theMap[this.name] == undefined)
 				{
-					theMap[this.name] = new Array();
+					theMap[this.name] = [];
 				}
 				theMap[this.name].push(this.value);
 				$(this).remove(); // Remove the selection for the next time the dialog re-opens
@@ -208,14 +270,13 @@ function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizH
 				{
 					if ( (this.name != '') && ((this.type != 'checkbox') || (this.checked)) ) 
 					{
-						//console.log(this.type);
 						arrayExpr = /\[\]$/;
 						if (arrayExpr.test(this.name))
 						{
 							// Array
 							if (theMap[this.name] == undefined)
 							{
-								theMap[this.name] = new Array();
+								theMap[this.name] = [];
 							}
 							theMap[this.name].push(this.value);
 						}
@@ -230,6 +291,7 @@ function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizH
 //		}
 		
 		theMap['operation'] = 'doAddObjects';
+        theMap['max_added_id'] = this.iMaxAddedId;
 		if (me.oWizardHelper == null)
 		{
 			theMap['json'] = '';
@@ -245,7 +307,6 @@ function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizH
 		$.post( GetAbsoluteUrlAppRoot()+'pages/ajax.render.php', theMap, 
 			function(data)
 			{
-				//console.log('Data: ' + data);
 				if (data != '')
 				{
 					$('#'+me.id+'_empty_row').hide();
@@ -262,7 +323,24 @@ function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizH
 		$('#dlg_'+me.id).dialog('close');
 		return false;
 	};
-	
+
+	this.AddLink = function (iAddedId, iRemote)
+	{
+        // Assumption: this identifier will be higher than the previous one
+        me.iMaxAddedId = iAddedId;
+        var sFormPrefix = me.iInputId;
+        oAdded = {};
+        oAdded['formPrefix'] = sFormPrefix;
+        oAdded['attr_' + sFormPrefix + this.sExtKeyToRemote] = iRemote;
+        me.aAdded[iAddedId] = oAdded;
+    };
+
+    this.OnLinkAdded = function(iAddedId, iRemote)
+    {
+		this.AddLink(iAddedId, iRemote);
+		me.RegisterChange();
+    };
+
 	this.UpdateSizes = function(event, ui)
 	{
 		var dlg = $('#dlg_'+me.id);
@@ -335,5 +413,67 @@ function LinksWidget(id, sClass, sAttCode, iInputId, sSuffix, bDuplicates, oWizH
 			}
 		});
 		return JSON.stringify(aValues);
+	};
+
+	this.RegisterChange = function()
+	{
+		// Listen only used inputs
+		$('#linkedset_'+me.id+' :input[name^="attr_'+me.sAttCode+'["]').off('change').on('change', function() {
+			if (!($(this).hasClass('selection'))) {
+				var oCheckbox = $(this).closest('tr').find('.selection');
+				var iLink = oCheckbox.attr('data-link-id');
+				var iUniqueId = oCheckbox.attr('data-unique-id');
+				var sAttCode = $(this).closest('.attribute-edit').attr('data-attcode');
+				var value = $(this).val();
+				return me.OnValueChange(iLink, iUniqueId, sAttCode, value);
+			}
+			return true;
+		});
+	};
+
+	this.OnValueChange = function(iLink, iUniqueId, sAttCode, value)
+	{
+		var sFormPrefix = me.iInputId;
+        if (iLink > 0) {
+            // Modifying an existing link
+            var oModified = me.aModified[iLink];
+            if (oModified == undefined) {
+                // Still not marked as modified
+                oModified = {};
+                oModified['formPrefix'] = sFormPrefix;
+            }
+            // Weird formatting, aligned with the output of the direct links widget (new links to be created)
+            oModified['attr_' + sFormPrefix + sAttCode] = value;
+            me.aModified[iLink] = oModified;
+        }
+        else {
+            // Modifying a newly added link - the structure should already be up to date
+            me.aAdded[iUniqueId]['attr_' + sFormPrefix + sAttCode] = value;
+        }
+	};
+
+	this.OnFormSubmit = function()
+	{
+		var oDiv = $('#linkedset_'+me.id);
+
+		var sToBeDeleted = JSON.stringify(me.aRemoved);
+		$('<input type="hidden" name="attr_'+me.sAttCode+'_tbd">').val(sToBeDeleted).appendTo(oDiv);
+
+
+		var sToBeModified = JSON.stringify(me.aModified);
+		$('<input type="hidden" name="attr_'+me.sAttCode+'_tbm">').val(sToBeModified).appendTo(oDiv);
+
+		var aToBeCreated = [];
+		me.aAdded.forEach(function(oAdded){
+			if (oAdded != null)
+			{
+				aToBeCreated.push(oAdded);
+			}
+		});
+		var sToBeCreated = JSON.stringify(aToBeCreated);
+		$('<input type="hidden" name="attr_'+me.sAttCode+'_tbc">').val(sToBeCreated).appendTo(oDiv);
+
+		// Remove unused inputs
+		$('#linkedset_'+me.id+' :input[name^="attr_'+me.sAttCode+'["]').prop("disabled", true);
 	};
 }

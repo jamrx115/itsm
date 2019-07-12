@@ -203,7 +203,7 @@ class DesignerForm
 	
 	public function RenderAsPropertySheet($oP, $bReturnHTML = false, $sNotifyParentSelector = null)
 	{
-		$sReturn = '';		
+		$sReturn = '';
 		$sActionUrl = addslashes($this->sSubmitTo);
 		$sJSSubmitParams = json_encode($this->aSubmitParams);
 		$sFormId = $this->GetFormId();
@@ -360,6 +360,7 @@ EOF
 <<<EOF
 $('#$sDialogId').dialog({
 		height: 'auto',
+		maxHeight: $(window).height() - 8,
 		width: $iDialogWidth,
 		modal: true,
 		autoOpen: $sAutoOpen,
@@ -377,9 +378,9 @@ $('#$sDialogId').dialog({
 				}
 			}
 		} },
-		{ text: "$sCancelButtonLabel", click: function() { KillAllMenus(); $(this).dialog( "close" ); $(this).remove(); } },
+		{ text: "$sCancelButtonLabel", click: function() { $(this).dialog( "close" ); $(this).remove(); } },
 		],
-		close: function() { KillAllMenus(); $(this).remove(); }
+		close: function() { $(this).remove(); }
 	});
 	var oForm = $('#$sDialogId form');
 	var sFormId = oForm.attr('id');
@@ -681,6 +682,7 @@ class DesignerFormField
 	protected $sLabel;
 	protected $sCode;
 	protected $defaultValue;
+	/** @var \DesignerForm $oForm */
 	protected $oForm;
 	protected $bMandatory;
 	protected $bReadOnly;
@@ -706,8 +708,11 @@ class DesignerFormField
 	{
 		return $this->sCode;
 	}
-	
-	public function SetForm($oForm)
+
+    /**
+     * @param \DesignerForm $oForm
+     */
+	public function SetForm(\DesignerForm $oForm)
 	{
 		$this->oForm = $oForm;
 	}
@@ -1368,6 +1373,36 @@ class RunTimeIconSelectionField extends DesignerIconSelectionField
 
 	static protected function FindIconsOnDisk($sBaseDir, $sDir = '')
 	{
+		$aFiles = null;
+		$sKey = $sBaseDir.'/'.$sDir;
+		$sShortKey = abs(crc32($sKey));
+		$sCacheFile = utils::GetCachePath().'available-icons-'.$sShortKey.'.php';
+		$sCacheClass = 'AvailableIcons_'.$sShortKey;
+		if (file_exists($sCacheFile))
+		{
+			require_once($sCacheFile);
+			if ($sCacheClass::$sKey === $sKey) // crc32 collision detection
+			{
+				$aFiles = $sCacheClass::$aIconFiles;
+			}
+		}
+		if ($aFiles === null)
+		{
+			$aFiles = self::_FindIconsOnDisk($sBaseDir, $sDir);
+			$sAvailableIcons = '<?php'.PHP_EOL;
+			$sAvailableIcons .= '// Generated and used by '.__METHOD__.PHP_EOL;
+			$sAvailableIcons .= 'class '.$sCacheClass.PHP_EOL;
+			$sAvailableIcons .= '{'.PHP_EOL;
+			$sAvailableIcons .= '   static $sKey = '.var_export($sKey, true).';'.PHP_EOL;
+			$sAvailableIcons .= '   static $aIconFiles = '.var_export($aFiles, true).';'.PHP_EOL;
+			$sAvailableIcons .= '}'.PHP_EOL;
+			file_put_contents($sCacheFile, $sAvailableIcons, LOCK_EX);
+		}
+		return $aFiles;
+	}
+
+	static protected function _FindIconsOnDisk($sBaseDir, $sDir = '')
+	{
 		$aResult = array();
 		// Populate automatically the list of icon files
 		if ($hDir = @opendir($sBaseDir.'/'.$sDir))
@@ -1378,7 +1413,7 @@ class RunTimeIconSelectionField extends DesignerIconSelectionField
 				if (($sFile != '.') && ($sFile != '..') && ($sFile != 'lifecycle') && is_dir($sBaseDir.'/'.$sDir.'/'.$sFile))
 				{
 					$sDirSubPath = ($sDir == '') ? $sFile : $sDir.'/'.$sFile;
-					$aResult = array_merge($aResult, self::FindIconsOnDisk($sBaseDir, $sDirSubPath));
+					$aResult = array_merge($aResult, self::_FindIconsOnDisk($sBaseDir, $sDirSubPath));
 				}
 				if (preg_match("/\.(png|jpg|jpeg|gif)$/i", $sFile, $aMatches)) // png, jp(e)g and gif are considered valid
 				{
@@ -1494,7 +1529,6 @@ class DesignerFormSelectorField extends DesignerFormField
 	
 	public function AddSubForm($oSubForm, $sLabel, $sValue)
 	{
-		$idx = count($this->aSubForms);
 		$this->aSubForms[] = array('form' => $oSubForm, 'label' => $sLabel, 'value' => $sValue);
 		if ($sValue == $this->defaultRealValue)
 		{
@@ -1508,7 +1542,7 @@ class DesignerFormSelectorField extends DesignerFormField
 		$sId = $this->oForm->GetFieldId($this->sCode);
 		$sName = $this->oForm->GetFieldName($this->sCode);
 		$sReadOnly = $this->IsReadOnly() ? 'disabled="disabled"' :  '';
-		
+
 		$this->aCSSClasses[] = 'formSelector';
 		
 		$sCSSClasses = '';
@@ -1524,8 +1558,6 @@ class DesignerFormSelectorField extends DesignerFormField
 		
 		if ($this->IsReadOnly())
 		{
-			$aSelected = array();
-			$aHiddenValues = array();
 			$sDisplayValue = '';
 			$sHiddenValue = '';
 			foreach($this->aSubForms as $iKey => $aFormData)
@@ -1541,8 +1573,6 @@ class DesignerFormSelectorField extends DesignerFormField
 		}
 		else
 		{
-			
-			
 			$sHtml = "<select $sCSSClasses id=\"$sId\" name=\"$sName\" $sReadOnly>";
 			foreach($this->aSubForms as $iKey => $aFormData)
 			{
@@ -1558,7 +1588,6 @@ class DesignerFormSelectorField extends DesignerFormField
 		{
 			$sHtml .= '</td><td class="prop_icon prop_apply"><span title="Apply" class="ui-icon ui-icon-circle-check"/></td><td  class="prop_icon prop_cancel"><span title="Revert" class="ui-icon ui-icon-circle-close"/></td></tr>';
 		}
-				
 		foreach($this->aSubForms as $sKey => $aFormData)
 		{
 			$sId = $this->oForm->GetFieldId($this->sCode);
@@ -1584,25 +1613,7 @@ class DesignerFormSelectorField extends DesignerFormField
 				$oSubForm->SetHierarchyPath($sPath);
 
 				$oSubForm->SetDisplayed($sKey == $this->defaultValue);
-				$sState = ($sKey == $this->defaultValue) ? 'visible' : 'hidden';
-				//$sHtml .= "</tbody><tbody data-selector=\"$sSelector\" data-path=\"$sPath\" data-state=\"$sState\" $sStyle>";
 				$sHtml .= $oSubForm->RenderAsPropertySheet($oP, true);
-
-				$sState = $this->oForm->IsDisplayed() ? 'visible' : 'hidden';
-				$sParentStyle = '';
-				if ($oParent = $this->oForm->GetParentForm())
-				{
-					$sParentStyle = ($oParent->IsDisplayed()) ? '' : 'style="display:none"';
-					$sParentSelector = $oParent->GetHierarchyParent();
-					$sParentPath = $oParent->GetHierarchyPath();
-				}
-				else
-				{
-					$sParentSelector = '';
-					$sParentPath = '';
-				}
-				
-				//$sHtml .= "</tbody><tbody data-selector=\"$sParentSelector\" data-path=\"$sParentPath\" data-state=\"$sState\" $sParentStyle>";
 			}
 			else
 			{
@@ -1650,7 +1661,6 @@ EOF
 				if ($selectedValue == $aFormData['value'])
 				{
 					$this->defaultValue =$iKey;
-					$aDefaultValues = $this->oForm->GetDefaultValues();
 					$oSubForm = $aFormData['form'];
 					$oSubForm->SetDefaultValues($aAllDefaultValues);
 				}

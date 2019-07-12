@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (C) 2010-2015 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,38 +19,48 @@
 
 namespace Combodo\iTop\Portal\Controller;
 
-use \Silex\Application;
-use \Symfony\Component\HttpFoundation\Request;
-use \Symfony\Component\HttpFoundation\Response;
-use \Symfony\Component\HttpFoundation\RedirectResponse;
-use \Symfony\Component\HttpKernel\HttpKernelInterface;
-use \Exception;
-use \FileUploadException;
-use \utils;
-use \Dict;
-use \IssueLog;
-use \MetaModel;
-use \DBSearch;
-use \DBObjectSearch;
-use \FalseExpression;
-use \BinaryExpression;
-use \FieldExpression;
-use \VariableExpression;
-use \ListExpression;
-use \ScalarExpression;
-use \DBObjectSet;
-use \cmdbAbstractObject;
-use \AttributeEnum;
-use \AttributeFinalClass;
-use \UserRights;
-use \Combodo\iTop\Portal\Helper\ApplicationHelper;
-use \Combodo\iTop\Portal\Helper\SecurityHelper;
-use \Combodo\iTop\Portal\Helper\ContextManipulatorHelper;
-use \Combodo\iTop\Portal\Form\ObjectFormManager;
-use \Combodo\iTop\Renderer\Bootstrap\BsFormRenderer;
+use Silex\Application;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\HttpKernelInterface;
+use Exception;
+use FileUploadException;
+use utils;
+use Dict;
+use IssueLog;
+use MetaModel;
+use DBObject;
+use DBSearch;
+use DBObjectSearch;
+use FalseExpression;
+use BinaryExpression;
+use FieldExpression;
+use VariableExpression;
+use ListExpression;
+use ScalarExpression;
+use DBObjectSet;
+use AttributeEnum;
+use AttributeImage;
+use AttributeFinalClass;
+use AttributeFriendlyName;
+use UserRights;
+use iPopupMenuExtension;
+use URLButtonItem;
+use JSButtonItem;
+use Combodo\iTop\Portal\Helper\ApplicationHelper;
+use Combodo\iTop\Portal\Helper\SecurityHelper;
+use Combodo\iTop\Portal\Helper\ContextManipulatorHelper;
+use Combodo\iTop\Portal\Form\ObjectFormManager;
+use Combodo\iTop\Renderer\Bootstrap\BsFormRenderer;
 
 /**
- * Controller to handle basic view / edit / create of cmdbAbstractObject
+ * Class ObjectController
+ *
+ * Controller to handle basic view / edit / create of cmdbAbstractObjectClass ManageBrickController
+ *
+ * @package Combodo\iTop\Portal\Controller
+ * @author Guillaume Lajarige <guillaume.lajarige@combodo.com>
+ * @since 2.3.0
  */
 class ObjectController extends AbstractController
 {
@@ -58,17 +68,25 @@ class ObjectController extends AbstractController
 	const ENUM_MODE_VIEW = 'view';
 	const ENUM_MODE_EDIT = 'edit';
 	const ENUM_MODE_CREATE = 'create';
-	const DEFAULT_COUNT_PER_PAGE_LIST = 10;
 
-	/**
-	 * Displays an cmdbAbstractObject if the connected user is allowed to.
-	 *
-	 * @param Request $oRequest
-	 * @param Application $oApp
-	 * @param string $sObjectClass (Class must be instance of cmdbAbstractObject)
-	 * @param string $sObjectId
-	 * @return Response
-	 */
+	const DEFAULT_PAGE_NUMBER = 1;
+	const DEFAULT_LIST_LENGTH = 10;
+
+    /**
+     * Displays an cmdbAbstractObject if the connected user is allowed to.
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $oRequest
+     * @param \Silex\Application $oApp
+     * @param string $sObjectClass (Class must be instance of cmdbAbstractObject)
+     * @param string $sObjectId
+     *
+     * @return \Symfony\Component\HttpFoundation\Response
+     *
+     * @throws \Exception
+     * @throws \ArchivedObjectException
+     * @throws \CoreException
+     * @throws \DictExceptionMissingString
+     */
 	public function ViewAction(Request $oRequest, Application $oApp, $sObjectClass, $sObjectId)
 	{
 		// Checking parameters
@@ -94,6 +112,8 @@ class ObjectController extends AbstractController
 			$oApp->abort(404, Dict::S('UI:ObjectDoesNotExist'));
 		}
 
+		$sOperation = $oApp['request_manipulator']->ReadParam('operation', '');
+
 		$aData = array('sMode' => 'view');
 		$aData['form'] = $this->HandleForm($oRequest, $oApp, $aData['sMode'], $sObjectClass, $sObjectId);
 		$aData['form']['title'] = Dict::Format('Brick:Portal:Object:Form:View:Title', MetaModel::GetName($sObjectClass), $oObject->GetName());
@@ -101,17 +121,20 @@ class ObjectController extends AbstractController
 		// Add an edit button if user is allowed
 		if (SecurityHelper::IsActionAllowed($oApp, UR_ACTION_MODIFY, $sObjectClass, $sObjectId))
 		{
-			$aData['form']['buttons']['links'][] = array(
-				'label' => Dict::S('UI:Menu:Modify'),
-				'url' => $oApp['url_generator']->generate('p_object_edit', array('sObjectClass' => $sObjectClass, 'sObjectId' => $sObjectId))
-			);
+		    $oModifyButton = new URLButtonItem(
+		        'modify_object',
+                Dict::S('UI:Menu:Modify'),
+				$oApp['url_generator']->generate('p_object_edit', array('sObjectClass' => $sObjectClass, 'sObjectId' => $sObjectId))
+            );
+		    // Putting this one first
+		    $aData['form']['buttons']['links'][] = $oModifyButton->GetMenuItem();
 		}
 
 		// Preparing response
 		if ($oRequest->isXmlHttpRequest())
 		{
 			// We have to check whether the 'operation' parameter is defined or not in order to know if the form is required via ajax (to be displayed as a modal dialog) or if it's a lifecycle call from a existing form.
-			if ($oRequest->request->get('operation') === null)
+			if (empty($sOperation))
 			{
 				$oResponse = $oApp['twig']->render('itop-portal-base/portal/src/views/bricks/object/modal.html.twig', $aData);
 			}
@@ -123,8 +146,8 @@ class ObjectController extends AbstractController
 		else
 		{
 			// Adding brick if it was passed
-			$sBrickId = $oRequest->get('sBrickId');
-			if ($sBrickId !== null)
+			$sBrickId = $oApp['request_manipulator']->ReadParam('sBrickId', '');
+			if (!empty($sBrickId))
 			{
 				$oBrick = ApplicationHelper::GetLoadedBrickFromId($oApp, $sBrickId);
 				if ($oBrick !== null)
@@ -139,6 +162,19 @@ class ObjectController extends AbstractController
 		return $oResponse;
 	}
 
+    /**
+     * @param \Symfony\Component\HttpFoundation\Request $oRequest
+     * @param \Silex\Application $oApp
+     * @param $sObjectClass
+     * @param $sObjectId
+     *
+     * @return \Symfony\Component\HttpFoundation\Response
+     *
+     * @throws \Exception
+     * @throws \ArchivedObjectException
+     * @throws \CoreException
+     * @throws \DictExceptionMissingString
+     */
 	public function EditAction(Request $oRequest, Application $oApp, $sObjectClass, $sObjectId)
 	{
 		// Checking parameters
@@ -166,6 +202,8 @@ class ObjectController extends AbstractController
 			$oApp->abort(404, Dict::S('UI:ObjectDoesNotExist'));
 		}
 
+		$sOperation = $oApp['request_manipulator']->ReadParam('operation', '');
+
 		$aData = array('sMode' => 'edit');
 		$aData['form'] = $this->HandleForm($oRequest, $oApp, $aData['sMode'], $sObjectClass, $sObjectId);
 		$aData['form']['title'] = Dict::Format('Brick:Portal:Object:Form:Edit:Title', MetaModel::GetName($sObjectClass), $aData['form']['object_name']);
@@ -174,7 +212,7 @@ class ObjectController extends AbstractController
 		if ($oRequest->isXmlHttpRequest())
 		{
 			// We have to check whether the 'operation' parameter is defined or not in order to know if the form is required via ajax (to be displayed as a modal dialog) or if it's a lifecycle call from a existing form.
-			if ($oRequest->request->get('operation') === null)
+			if (empty($sOperation))
 			{
 				$oResponse = $oApp['twig']->render('itop-portal-base/portal/src/views/bricks/object/modal.html.twig', $aData);
 			}
@@ -186,8 +224,8 @@ class ObjectController extends AbstractController
 		else
 		{
 			// Adding brick if it was passed
-			$sBrickId = $oRequest->get('sBrickId');
-			if ($sBrickId !== null)
+			$sBrickId = $oApp['request_manipulator']->ReadParam('sBrickId', '');
+			if (!empty($sBrickId))
 			{
 				$oBrick = ApplicationHelper::GetLoadedBrickFromId($oApp, $sBrickId);
 				if ($oBrick !== null)
@@ -202,14 +240,19 @@ class ObjectController extends AbstractController
 		return $oResponse;
 	}
 
-	/**
-	 * Creates an cmdbAbstractObject of the $sObjectClass
-	 *
-	 * @param Request $oRequest
-	 * @param Application $oApp
-	 * @param string $sObjectClass
-	 * @return Response
-	 */
+    /**
+     * Creates an cmdbAbstractObject of the $sObjectClass
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $oRequest
+     * @param \Silex\Application $oApp
+     * @param string $sObjectClass
+     *
+     * @return \Symfony\Component\HttpFoundation\Response
+     *
+     * @throws \Exception
+     * @throws \CoreException
+     * @throws \DictExceptionMissingString
+     */
 	public function CreateAction(Request $oRequest, Application $oApp, $sObjectClass)
 	{
 		// Checking security layers
@@ -219,6 +262,8 @@ class ObjectController extends AbstractController
 			$oApp->abort(404, Dict::S('UI:ObjectDoesNotExist'));
 		}
 
+		$sOperation = $oApp['request_manipulator']->ReadParam('operation', '');
+
 		$aData = array('sMode' => 'create');
 		$aData['form'] = $this->HandleForm($oRequest, $oApp, $aData['sMode'], $sObjectClass);
 		$aData['form']['title'] = Dict::Format('Brick:Portal:Object:Form:Create:Title', MetaModel::GetName($sObjectClass));
@@ -227,7 +272,7 @@ class ObjectController extends AbstractController
 		if ($oRequest->isXmlHttpRequest())
 		{
 			// We have to check whether the 'operation' parameter is defined or not in order to know if the form is required via ajax (to be displayed as a modal dialog) or if it's a lifecycle call from a existing form.
-			if ($oRequest->request->get('operation') === null)
+			if (empty($sOperation))
 			{
 				$oResponse = $oApp['twig']->render('itop-portal-base/portal/src/views/bricks/object/modal.html.twig', $aData);
 			}
@@ -239,8 +284,8 @@ class ObjectController extends AbstractController
 		else
 		{
 			// Adding brick if it was passed
-			$sBrickId = $oRequest->get('sBrickId');
-			if ($sBrickId !== null)
+			$sBrickId = $oApp['request_manipulator']->ReadParam('sBrickId', '');
+			if (!empty($sBrickId))
 			{
 				$oBrick = ApplicationHelper::GetLoadedBrickFromId($oApp, $sBrickId);
 				if ($oBrick !== null)
@@ -255,21 +300,26 @@ class ObjectController extends AbstractController
 		return $oResponse;
 	}
 
-	/**
-	 * Creates an cmdbAbstractObject of a class determined by the method encoded in $sEncodedMethodName.
-	 * This method use an origin DBObject in order to determine the created cmdbAbstractObject.
-	 *
-	 * @param Request $oRequest
-	 * @param Application $oApp
-	 * @param string $sObjectClass Class of the origin object
-	 * @param string $sObjectId ID of the origin object
-	 * @param string $sEncodedMethodName Base64 encoded factory method name
-	 * @return Response
-	 */
+    /**
+     * Creates an cmdbAbstractObject of a class determined by the method encoded in $sEncodedMethodName.
+     * This method use an origin DBObject in order to determine the created cmdbAbstractObject.
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $oRequest
+     * @param \Silex\Application $oApp
+     * @param string $sObjectClass Class of the origin object
+     * @param string $sObjectId ID of the origin object
+     * @param string $sEncodedMethodName Base64 encoded factory method name
+     *
+     * @return \Symfony\Component\HttpFoundation\Response
+     *
+     * @throws \Exception
+     * @throws \ArchivedObjectException
+     * @throws \CoreException
+     */
 	public function CreateFromFactoryAction(Request $oRequest, Application $oApp, $sObjectClass, $sObjectId, $sEncodedMethodName)
 	{
 		$sMethodName = base64_decode($sEncodedMethodName);
-		
+
 		// Checking that the factory method is valid
 		if (!is_callable($sMethodName))
 		{
@@ -306,16 +356,21 @@ class ObjectController extends AbstractController
 		return $oApp->handle($oSubRequest, HttpKernelInterface::SUB_REQUEST, true);
 	}
 
-	/**
-	 * Applies a stimulus $sStimulus on an cmdbAbstractObject
-	 *
-	 * @param Request $oRequest
-	 * @param Application $oApp
-	 * @param string $sObjectClass
-	 * @param string $sObjectId
-	 * @param string $sStimulusCode
-	 * @return Response
-	 */
+    /**
+     * Applies a stimulus $sStimulus on an cmdbAbstractObject
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $oRequest
+     * @param \Silex\Application $oApp
+     * @param string $sObjectClass
+     * @param string $sObjectId
+     * @param string $sStimulusCode
+     *
+     * @return \Symfony\Component\HttpFoundation\Response
+     *
+     * @throws \Exception
+     * @throws \ArchivedObjectException
+     * @throws \CoreException
+     */
 	public function ApplyStimulusAction(Request $oRequest, Application $oApp, $sObjectClass, $sObjectId, $sStimulusCode)
 	{
 		// Checking parameters
@@ -326,11 +381,10 @@ class ObjectController extends AbstractController
 		}
 
 		// Checking security layers
-		// TODO : This should call the stimulus check in the security helper
-//		if (!SecurityHelper::IsActionAllowed($oApp, UR_ACTION_MODIFY, $sObjectClass, $sObjectId))
-//		{
-//			$oApp->abort(404, Dict::S('UI:ObjectDoesNotExist'));
-//		}
+        if(!SecurityHelper::IsStimulusAllowed($oApp, $sStimulusCode, $sObjectClass))
+		{
+			$oApp->abort(404, Dict::S('UI:ObjectDoesNotExist'));
+		}
 		
 		// Retrieving object
 		$oObject = MetaModel::GetObject($sObjectClass, $sObjectId, false /* MustBeFound */, $oApp['scope_validator']->IsAllDataAllowedForScope(UserRights::ListProfiles(), $sObjectClass));
@@ -342,35 +396,29 @@ class ObjectController extends AbstractController
 		}
 
 		// Retrieving request parameters
-		$sOperation = $oRequest->request->get('operation');
-		
-		// Preparing a dedicated form for the stimulus application
-		$aFormProperties = array(
-			'id' => 'apply-stimulus',
-			'type' => 'static',
-			'fields' => array(),
-			'layout' => null
-		);
-		// Checking which fields need to be prompt
-		$aTransitions = MetaModel::EnumTransitions($sObjectClass, $oObject->GetState());
-		$aTargetStates = MetaModel::EnumStates($sObjectClass);
-		$aTargetState = $aTargetStates[$aTransitions[$sStimulusCode]['target_state']];
-		$aExpectedAttributes = $aTargetState['attribute_list'];
-		foreach ($aExpectedAttributes as $sAttCode => $iFlags)
-		{
-			if (($iFlags & (OPT_ATT_MUSTCHANGE | OPT_ATT_MUSTPROMPT)) ||
-				(($iFlags & OPT_ATT_MANDATORY) && ($oObject->Get($sAttCode) == '')))
-			{
-				$aFormProperties['fields'][$sAttCode] = array();
-				// Settings flags for the field
-				if ($iFlags & OPT_ATT_MUSTCHANGE)
-					$aFormProperties['fields'][$sAttCode]['must_change'] = true;
-				if ($iFlags & OPT_ATT_MUSTPROMPT)
-					$aFormProperties['fields'][$sAttCode]['must_prompt'] = true;
-				if (($iFlags & OPT_ATT_MANDATORY) && ($oObject->Get($sAttCode) == ''))
-					$aFormProperties['fields'][$sAttCode]['mandatory'] = true;
-			}
-		}
+		$sOperation = $oApp['request_manipulator']->ReadParam('operation', '');
+
+		// Retrieving form properties
+        $aStimuliForms = ApplicationHelper::GetLoadedFormFromClass($oApp, $sObjectClass, 'apply_stimulus');
+        if(array_key_exists($sStimulusCode, $aStimuliForms))
+        {
+            $aFormProperties = $aStimuliForms[$sStimulusCode];
+        }
+        // Or preparing a default form for the stimulus application
+        else
+        {
+            // Preparing default form
+            $aFormProperties = array(
+                'id' => 'apply-stimulus',
+                'type' => 'custom_list',
+                'fields' => array(),
+                'layout' => null
+            );
+        }
+
+        // Adding stimulus code to form
+        $aFormProperties['stimulus_code'] = $sStimulusCode;
+
 		// Adding target_state to current_values
 		$oRequest->request->set('apply_stimulus', array('code' => $sStimulusCode));
 
@@ -383,7 +431,7 @@ class ObjectController extends AbstractController
 
 		// TODO : This is a ugly patch to avoid showing a modal with a readonly form to the user as it would prevent user from finishing the transition.
 		// Instead, we apply the stimulus directly here and then go to the edited object.
-		if ($sOperation === null)
+		if (empty($sOperation))
 		{
 			if (isset($aData['form']['editable_fields_count']) && $aData['form']['editable_fields_count'] === 0)
 			{
@@ -391,7 +439,7 @@ class ObjectController extends AbstractController
 
 				$oSubRequest = $oRequest;
 				$oSubRequest->request->set('operation', 'submit');
-				$oSubRequest->request->set('stimulus_code', null);
+				$oSubRequest->request->set('stimulus_code', '');
 				
 				$aData = array('sMode' => 'apply_stimulus');
 				$aData['form'] = $this->HandleForm($oSubRequest, $oApp, $aData['sMode'], $sObjectClass, $sObjectId, $aFormProperties);
@@ -406,7 +454,7 @@ class ObjectController extends AbstractController
 		if ($oRequest->isXmlHttpRequest())
 		{
 			// We have to check whether the 'operation' parameter is defined or not in order to know if the form is required via ajax (to be displayed as a modal dialog) or if it's a lifecycle call from a existing form.
-			if ($sOperation === null)
+			if (empty($sOperation))
 			{
 				$oResponse = $oApp['twig']->render('itop-portal-base/portal/src/views/bricks/object/modal.html.twig', $aData);
 			}
@@ -427,12 +475,29 @@ class ObjectController extends AbstractController
 		return $oResponse;
 	}
 
+    /**
+     * @param \Symfony\Component\HttpFoundation\Request $oRequest
+     * @param \Silex\Application $oApp
+     * @param string $sMode
+     * @param string $sObjectClass
+     * @param string $sObjectId
+     * @param string $aFormProperties
+     *
+     * @return array
+     *
+     * @throws \Exception
+     * @throws \ArchivedObjectException
+     * @throws \CoreException
+     * @throws \OQLException
+     * @throws \Twig_Error_Loader
+     * @throws \Twig_Error_Runtime
+     * @throws \Twig_Error_Syntax
+     */
 	public static function HandleForm(Request $oRequest, Application $oApp, $sMode, $sObjectClass, $sObjectId = null, $aFormProperties = null)
 	{
 		$aFormData = array();
-		$oRequestParams = $oRequest->request;
-		$sOperation = $oRequestParams->get('operation');
-		$bModal = ($oRequest->isXmlHttpRequest() && ($oRequest->request->get('operation') === null) );
+		$sOperation = $oApp['request_manipulator']->ReadParam('operation', '');
+		$bModal = ($oRequest->isXmlHttpRequest() && empty($sOperation));
 
 		// - Retrieve form properties
 		if ($aFormProperties === null)
@@ -441,14 +506,14 @@ class ObjectController extends AbstractController
 		}
 
 		// - Create and
-		if ($sOperation === null)
+		if (empty($sOperation))
 		{
 			// Retrieving action rules
 			//
 			// Note : The action rules must be a base64-encoded JSON object, this is just so users are tempted to changes values.
 			// But it would not be a security issue as it only presets values in the form.
-			$sActionRulesToken = $oRequest->get('ar_token');
-			$aActionRules = ($sActionRulesToken !== null) ? ContextManipulatorHelper::DecodeRulesToken($sActionRulesToken) : array();
+            $sActionRulesToken = $oApp['request_manipulator']->ReadParam('ar_token', '');
+			$aActionRules = (!empty($sActionRulesToken)) ? ContextManipulatorHelper::DecodeRulesToken($sActionRulesToken) : array();
 			
 			// Preparing object
 			if ($sObjectId === null)
@@ -459,30 +524,76 @@ class ObjectController extends AbstractController
 				// Retrieve action rules information to auto-fill the form if available
 				// Preparing object
 				$oApp['context_manipulator']->PrepareObject($aActionRules, $oObject);
+				$aPrefillFormParam = array( 'user' => $_SESSION["auth_user"],
+											'origin' => 'portal');
+				$oObject->PrefillForm('creation_from_0', $aPrefillFormParam);
 			}
 			else
 			{
 				$oObject = MetaModel::GetObject($sObjectClass, $sObjectId, true, $oApp['scope_validator']->IsAllDataAllowedForScope(UserRights::ListProfiles(), $sObjectClass));
 			}
 
-			// Preparing transitions only if we are currently going through one
+			// Preparing buttons
 			$aFormData['buttons'] = array(
-				'transitions' => array()
+				'transitions' => array(),
+                'actions' => array(),
+                'links' => array(),
+                'submit' => array(
+                    'label' => Dict::S('Portal:Button:Submit'),
+                ),
 			);
 			if ($sMode !== 'apply_stimulus')
 			{
+			    // Add transition buttons
 				$oSetToCheckRights = DBObjectSet::FromObject($oObject);
 				$aStimuli = Metamodel::EnumStimuli($sObjectClass);
 				foreach ($oObject->EnumTransitions() as $sStimulusCode => $aTransitionDef)
 				{
-					$iActionAllowed = (get_class($aStimuli[$sStimulusCode]) == 'StimulusUserAction') ? UserRights::IsStimulusAllowed($sObjectClass, $sStimulusCode, $oSetToCheckRights) : UR_ALLOWED_NO;
-					// Careful, $iAction is an integer whereas UR_ALLOWED_YES is a boolean, therefore we can't use a '===' operator.
-					if ($iActionAllowed == UR_ALLOWED_YES)
-					{
-						$aFormData['buttons']['transitions'][$sStimulusCode] = $aStimuli[$sStimulusCode]->GetLabel();
-					}
+					if(SecurityHelper::IsStimulusAllowed($oApp, $sStimulusCode, $sObjectClass, $oSetToCheckRights))
+                    {
+                        $aFormData['buttons']['transitions'][$sStimulusCode] = $aStimuli[$sStimulusCode]->GetLabel();
+                    }
 				}
+
+                // Add plugin buttons
+                foreach (MetaModel::EnumPlugins('iPopupMenuExtension') as $oExtensionInstance)
+                {
+                    foreach($oExtensionInstance->EnumItems(iPopupMenuExtension::PORTAL_OBJDETAILS_ACTIONS, array('portal_id' => $oApp['combodo.portal.instance.id'], 'object' => $oObject, 'mode' => $sMode)) as $oMenuItem)
+                    {
+                        if (is_object($oMenuItem))
+                        {
+                            if($oMenuItem instanceof JSButtonItem)
+                            {
+                                $aFormData['buttons']['actions'][] = $oMenuItem->GetMenuItem() + array('js_files' => $oMenuItem->GetLinkedScripts());
+                            }
+                            elseif($oMenuItem instanceof URLButtonItem)
+                            {
+                                $aFormData['buttons']['links'][] = $oMenuItem->GetMenuItem();
+                            }
+                        }
+                    }
+                }
+
+                // Hiding submit button or changing its label if necessary
+                if(!empty($aFormData['buttons']['transitions']) && isset($aFormProperties['properties']) &&$aFormProperties['properties']['always_show_submit'] === false)
+                {
+                    unset($aFormData['buttons']['submit']);
+                }
+                elseif($sMode === static::ENUM_MODE_EDIT)
+                {
+                    $aFormData['buttons']['submit']['label'] = Dict::S('Portal:Button:Apply');
+                }
 			}
+			else
+			{
+				$aPrefillFormParam = array(
+				    'user' => $_SESSION["auth_user"],
+					'origin' => 'portal',
+					'stimulus' => $oApp['request_manipulator']->ReadParam('apply_stimulus', null)['code'],
+                );
+				$oObject->PrefillForm('state_change', $aPrefillFormParam);
+			}
+
 			// Preparing callback urls
 			$aCallbackUrls = $oApp['context_manipulator']->GetCallbackUrls($oApp, $aActionRules, $oObject, $bModal);
 			$aFormData['submit_callback'] = $aCallbackUrls['submit'];
@@ -509,12 +620,6 @@ class ObjectController extends AbstractController
 				->SetRenderer($oFormRenderer)
 				->SetFormProperties($aFormProperties);
 
-			if ($sMode === 'apply_stimulus')
-			{
-				$aEditFormProperties = ApplicationHelper::GetLoadedFormFromClass($oApp, $sObjectClass, ObjectFormManager::ENUM_MODE_APPLY_STIMULUS);
-				$oFormManager->MergeFormProperties($aEditFormProperties);
-			}
-
 			$oFormManager->Build();
 
 			// Check the number of editable fields
@@ -523,9 +628,9 @@ class ObjectController extends AbstractController
 		else
 		{
 			// Update / Submit / Cancel
-			$sFormManagerClass = $oRequestParams->get('formmanager_class');
-			$sFormManagerData = $oRequestParams->get('formmanager_data');
-			if ($sFormManagerClass === null || $sFormManagerData === null)
+			$sFormManagerClass = $oApp['request_manipulator']->ReadParam('formmanager_class', '', FILTER_UNSAFE_RAW);
+			$sFormManagerData = $oApp['request_manipulator']->ReadParam('formmanager_data', '', FILTER_UNSAFE_RAW);
+			if ( empty($sFormManagerClass) || empty($sFormManagerData) )
 			{
 				IssueLog::Error(__METHOD__ . ' at line ' . __LINE__ . ' : Parameters formmanager_class and formamanager_data must be defined.');
 				$oApp->abort(500, 'Parameters formmanager_class and formmanager_data must be defined.');
@@ -547,13 +652,13 @@ class ObjectController extends AbstractController
 			{
 				case 'submit':
 					// Applying modification to object
-					$aFormData['validation'] = $oFormManager->OnSubmit(array('currentValues' => $oRequestParams->get('current_values'), 'attachmentIds' => $oRequest->get('attachment_ids'), 'formProperties' => $aFormProperties, 'applyStimulus' => $oRequestParams->get('apply_stimulus')));
+					$aFormData['validation'] = $oFormManager->OnSubmit(array('currentValues' => $oApp['request_manipulator']->ReadParam('current_values', array(), FILTER_UNSAFE_RAW), 'attachmentIds' => $oApp['request_manipulator']->ReadParam('attachment_ids', array(), FILTER_UNSAFE_RAW), 'formProperties' => $aFormProperties, 'applyStimulus' => $oApp['request_manipulator']->ReadParam('apply_stimulus', null)));
 					if ($aFormData['validation']['valid'] === true)
 					{
 						// Note : We don't use $sObjectId there as it can be null if we are creating a new one. Instead we use the id from the created object once it has been seralized
 						// Check if stimulus has to be applied
-						$sStimulusCode = ($oRequestParams->get('stimulus_code') !== null && $oRequestParams->get('stimulus_code') !== '') ? $oRequestParams->get('stimulus_code') : null;
-						if ($sStimulusCode !== null)
+                        $sStimulusCode = $oApp['request_manipulator']->ReadParam('stimulus_code', '');
+						if (!empty($sStimulusCode))
 						{
 							$aFormData['validation']['redirection'] = array(
 								'url' => $oApp['url_generator']->generate('p_object_apply_stimulus', array('sObjectClass' => $sObjectClass, 'sObjectId' => $oFormManager->GetObject()->GetKey(), 'sStimulusCode' => $sStimulusCode)),
@@ -561,17 +666,17 @@ class ObjectController extends AbstractController
 							);
 						}
 						// Otherwise, we show the object if there is no default
-						else
-						{
+//						else
+//						{
 //							$aFormData['validation']['redirection'] = array(
 //								'alternative_url' => $oApp['url_generator']->generate('p_object_edit', array('sObjectClass' => $sObjectClass, 'sObjectId' => $oFormManager->GetObject()->GetKey()))
 //							);
-						}
+//						}
 					}
 					break;
 
 				case 'update':
-					$oFormManager->OnUpdate(array('currentValues' => $oRequestParams->get('current_values'), 'formProperties' => $aFormProperties));
+					$oFormManager->OnUpdate(array('currentValues' => $oApp['request_manipulator']->ReadParam('current_values', array(), FILTER_UNSAFE_RAW), 'formProperties' => $aFormProperties));
 					break;
 
 				case 'cancel':
@@ -590,11 +695,11 @@ class ObjectController extends AbstractController
 		// Preparing fields list regarding the operation
 		if ($sOperation === 'update')
 		{
-			$aRequestedFields = $oRequestParams->get('requested_fields');
-			$sFormPath = $oRequestParams->get('form_path');
+			$aRequestedFields = $oApp['request_manipulator']->ReadParam('requested_fields', array(), FILTER_UNSAFE_RAW);
+			$sFormPath = $oApp['request_manipulator']->ReadParam('form_path', '');
 
 			// Checking if the update was on a subform, if so we need to make the rendering for that part only
-			if ($sFormPath !== null && $sFormPath !== $oFormManager->GetForm()->GetId())
+			if ( !empty($sFormPath) && $sFormPath !== $oFormManager->GetForm()->GetId() )
 			{
 				$oSubForm = $oFormManager->GetForm()->FindSubForm($sFormPath);
 				$oSubFormRenderer = new BsFormRenderer($oSubForm);
@@ -618,21 +723,31 @@ class ObjectController extends AbstractController
 		$aFormData['formmanager_data'] = $oFormManager->ToJSON();
 		$aFormData['renderer'] = $oFormManager->GetRenderer();
 		$aFormData['object_name'] = $oFormManager->GetObject()->GetName();
+		$aFormData['object_class'] = get_class($oFormManager->GetObject());
+		$aFormData['object_id'] = $oFormManager->GetObject()->GetKey();
+		$aFormData['object_state'] = $oFormManager->GetObject()->GetState();
 		$aFormData['fieldset'] = $aFieldSetData;
+        $aFormData['display_mode'] = (isset($aFormProperties['properties'])) ? $aFormProperties['properties']['display_mode'] : ApplicationHelper::FORM_DEFAULT_DISPLAY_MODE;
 
 		return $aFormData;
 	}
 
-	/**
-	 * Handles the autocomplete search
-	 *
-	 * @param Request $oRequest
-	 * @param Application $oApp
-	 * @param string $sTargetAttCode Attribute code of the host object pointing to the Object class to search
-	 * @param string $sHostObjectClass Class name of the host object
-	 * @param string $sHostObjectId Id of the host object
-	 * @return Response
-	 */
+    /**
+     * Handles the autocomplete search
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $oRequest
+     * @param \Silex\Application $oApp
+     * @param string $sTargetAttCode Attribute code of the host object pointing to the Object class to search
+     * @param string $sHostObjectClass Class name of the host object
+     * @param string $sHostObjectId Id of the host object
+     *
+     * @return \Symfony\Component\HttpFoundation\Response
+     *
+     * @throws \Exception
+     * @throws \ArchivedObjectException
+     * @throws \CoreException
+     * @throws \OQLException
+     */
 	public function SearchAutocompleteAction(Request $oRequest, Application $oApp, $sTargetAttCode, $sHostObjectClass, $sHostObjectId = null)
 	{
 		$aData = array(
@@ -654,7 +769,6 @@ class ObjectController extends AbstractController
 
 		// Retrieving parameters
 		$sQuery = $aRequestContent['sQuery'];
-		$sFormPath = $aRequestContent['sFormPath'];
 		$sFieldId = $aRequestContent['sFieldId'];
 
 		// Checking security layers
@@ -677,8 +791,8 @@ class ObjectController extends AbstractController
 			//
 			// Note : The action rules must be a base64-encoded JSON object, this is just so users are tempted to changes values.
 			// But it would not be a security issue as it only presets values in the form.
-			$sActionRulesToken = $oRequest->get('ar_token');
-			$aActionRules = ($sActionRulesToken !== null) ? ContextManipulatorHelper::DecodeRulesToken($sActionRulesToken) : array();
+            $sActionRulesToken = $oApp['request_manipulator']->ReadParam('ar_token', '');
+			$aActionRules = (!empty($sActionRulesToken)) ? ContextManipulatorHelper::DecodeRulesToken($sActionRulesToken) : array();
 			// Preparing object
 			$oApp['context_manipulator']->PrepareObject($aActionRules, $oHostObject);
 		}
@@ -686,7 +800,7 @@ class ObjectController extends AbstractController
 		// Updating host object with form data / values
 		$sFormManagerClass = $aRequestContent['formmanager_class'];
 		$sFormManagerData = $aRequestContent['formmanager_data'];
-		if ($sFormManagerClass !== null && $sFormManagerData !== null)
+		if (!empty($sFormManagerClass) && !empty($sFormManagerData))
 		{
 			$oFormManager = $sFormManagerClass::FromJSON($sFormManagerData);
 			$oFormManager->SetApplication($oApp);
@@ -755,7 +869,7 @@ class ObjectController extends AbstractController
 		// Note : This limit is also used in the field renderer by typeahead to determine how many suggestions to display
 		if ($oTargetAttDef->GetEditClass() === 'CustomFields')
 		{
-			$oSet->SetLimit(static::DEFAULT_COUNT_PER_PAGE_LIST);
+			$oSet->SetLimit(static::DEFAULT_LIST_LENGTH);
 		}
 		else
 		{
@@ -781,16 +895,23 @@ class ObjectController extends AbstractController
 		return $oResponse;
 	}
 
-	/**
-	 * Handles the regular (table) search from an attribute
-	 *
-	 * @param Request $oRequest
-	 * @param Application $oApp
-	 * @param string $sTargetAttCode Attribute code of the host object pointing to the Object class to search
-	 * @param string $sHostObjectClass Class name of the host object
-	 * @param string $sHostObjectId Id of the host object
-	 * @return Response
-	 */
+    /**
+     * Handles the regular (table) search from an attribute
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $oRequest
+     * @param \Silex\Application $oApp
+     * @param string $sTargetAttCode Attribute code of the host object pointing to the Object class to search
+     * @param string $sHostObjectClass Class name of the host object
+     * @param string $sHostObjectId Id of the host object
+     *
+     * @return \Symfony\Component\HttpFoundation\Response
+     *
+     * @throws \Exception
+     * @throws \ArchivedObjectException
+     * @throws \CoreException
+     * @throws \DictExceptionMissingString
+     * @throws \OQLException
+     */
 	public function SearchFromAttributeAction(Request $oRequest, Application $oApp, $sTargetAttCode, $sHostObjectClass, $sHostObjectId = null)
 	{
 		$aData = array(
@@ -798,7 +919,7 @@ class ObjectController extends AbstractController
 			'sTargetAttCode' => $sTargetAttCode,
 			'sHostObjectClass' => $sHostObjectClass,
 			'sHostObjectId' => $sHostObjectId,
-			'sActionRulesToken' => $oRequest->get('ar_token')
+			'sActionRulesToken' => $oApp['request_manipulator']->ReadParam('ar_token', ''),
 		);
 
 		// Checking security layers
@@ -821,16 +942,15 @@ class ObjectController extends AbstractController
 			//
 			// Note : The action rules must be a base64-encoded JSON object, this is just so users are tempted to changes values.
 			// But it would not be a security issue as it only presets values in the form.
-			$aActionRules = ($aData['sActionRulesToken'] !== null) ? ContextManipulatorHelper::DecodeRulesToken($aData['sActionRulesToken']) : array();
+			$aActionRules = !empty($aData['sActionRulesToken']) ? ContextManipulatorHelper::DecodeRulesToken($aData['sActionRulesToken']) : array();
 			// Preparing object
 			$oApp['context_manipulator']->PrepareObject($aActionRules, $oHostObject);
 		}
 
 		// Updating host object with form data / values
-		$oRequestParams = $oRequest->request;
-		$sFormManagerClass = $oRequestParams->get('formmanager_class');
-		$sFormManagerData = $oRequestParams->get('formmanager_data');
-		if ($sFormManagerClass !== null && $sFormManagerData !== null)
+		$sFormManagerClass = $oApp['request_manipulator']->ReadParam('formmanager_class', '', FILTER_UNSAFE_RAW);
+		$sFormManagerData = $oApp['request_manipulator']->ReadParam('formmanager_data', '', FILTER_UNSAFE_RAW);
+		if ( !empty($sFormManagerClass) && !empty($sFormManagerData) )
 		{
 			$oFormManager = $sFormManagerClass::FromJSON($sFormManagerData);
 			$oFormManager->SetApplication($oApp);
@@ -846,18 +966,18 @@ class ObjectController extends AbstractController
 			}
 			
 			// Updating host object
-			$oFormManager->OnUpdate(array('currentValues' => $oRequestParams->get('current_values')));
+			$oFormManager->OnUpdate(array('currentValues' => $oApp['request_manipulator']->ReadParam('current_values', array(), FILTER_UNSAFE_RAW)));
 			$oHostObject = $oFormManager->GetObject();
 		}
 		
 		// Retrieving request parameters
-		$iPageNumber = ($oRequest->get('iPageNumber') !== null) ? $oRequest->get('iPageNumber') : 1;
-		$iCountPerPage = ($oRequest->get('iCountPerPage') !== null) ? $oRequest->get('iCountPerPage') : static::DEFAULT_COUNT_PER_PAGE_LIST;
-		$bInitalPass = ($oRequest->get('draw') === null) ? true : false;
-		$sQuery = $oRequest->get('sSearchValue');
-		$sFormPath = $oRequest->get('sFormPath');
-		$sFieldId = $oRequest->get('sFieldId');
-		$aObjectIdsToIgnore = $oRequest->get('aObjectIdsToIgnore');
+		$iPageNumber = $oApp['request_manipulator']->ReadParam('iPageNumber', static::DEFAULT_PAGE_NUMBER, FILTER_SANITIZE_NUMBER_INT);
+		$iListLength = $oApp['request_manipulator']->ReadParam('iListLength', static::DEFAULT_LIST_LENGTH, FILTER_SANITIZE_NUMBER_INT);
+		$bInitalPass = $oApp['request_manipulator']->HasParam('draw') ? false : true;
+		$sQuery = $oApp['request_manipulator']->ReadParam('sSearchValue', '');
+		$sFormPath = $oApp['request_manipulator']->ReadParam('sFormPath', '');
+		$sFieldId = $oApp['request_manipulator']->ReadParam('sFieldId', '');
+		$aObjectIdsToIgnore = $oApp['request_manipulator']->ReadParam('aObjectIdsToIgnore', null, FILTER_UNSAFE_RAW);
 
 		// Building search query
 		// - Retrieving target object class from attcode
@@ -938,7 +1058,7 @@ class ObjectController extends AbstractController
 		
 		// - Adding query condition
 		$aInternalParams['this'] = $oHostObject;
-		if ($sQuery !== null)
+		if (!empty($sQuery))
 		{
 			$oFullExpr = null;
 			for ($i = 0; $i < count($aAttCodes); $i++)
@@ -1008,7 +1128,7 @@ class ObjectController extends AbstractController
 		// - Preparing object set
 		$oSet = new DBObjectSet($oSearch, array(), $aInternalParams);
 		$oSet->OptimizeColumnLoad(array($oSearch->GetClassAlias() => $aAttCodes));
-		$oSet->SetLimit($iCountPerPage, $iCountPerPage * ($iPageNumber - 1));
+		$oSet->SetLimit($iListLength, $iListLength * ($iPageNumber - 1));
 		// - Retrieving columns properties
 		$aColumnProperties = array();
 		foreach ($aAttCodes as $sAttCode)
@@ -1022,40 +1142,7 @@ class ObjectController extends AbstractController
 		$aItems = array();
 		while ($oItem = $oSet->Fetch())
 		{
-			$aItemProperties = array(
-				'id' => $oItem->GetKey(),
-				'name' => $oItem->GetName(),
-				'attributes' => array()
-			);
-
-			foreach ($aAttCodes as $sAttCode)
-			{
-				if ($sAttCode !== 'id')
-				{
-					$aAttProperties = array(
-						'att_code' => $sAttCode
-					);
-
-					$oAttDef = MetaModel::GetAttributeDef($sTargetObjectClass, $sAttCode);
-					if ($oAttDef->IsExternalKey())
-					{
-						$aAttProperties['value'] = $oItem->Get($sAttCode . '_friendlyname');
-						// Checking if we can view the object
-						if ((SecurityHelper::IsActionAllowed($oApp, UR_ACTION_READ, $oAttDef->GetTargetClass(), $oItem->Get($sAttCode))))
-						{
-							$aAttProperties['url'] = $oApp['url_generator']->generate('p_object_view', array('sObjectClass' => $oAttDef->GetTargetClass(), 'sObjectId' => $oItem->Get($sAttCode)));
-						}
-					}
-					else
-					{
-						$aAttProperties['value'] = $oAttDef->GetValueLabel($oItem->Get($sAttCode));
-					}
-
-					$aItemProperties['attributes'][$sAttCode] = $aAttProperties;
-				}
-			}
-
-			$aItems[] = $aItemProperties;
+			$aItems[] = $this->PrepareObjectInformations($oApp, $oItem, $aAttCodes);
 		}
 		
 		// Preparing response
@@ -1106,236 +1193,126 @@ class ObjectController extends AbstractController
 		return $oResponse;
 	}
 
-	/**
-	 * Handles the hierarchical search from an attribute
-	 *
-	 * @param Request $oRequest
-	 * @param Application $oApp
-	 * @param string $sTargetAttCode Attribute code of the host object pointing to the Object class to search
-	 * @param string $sHostObjectClass Class name of the host object
-	 * @param string $sHostObjectId Id of the host object
-	 * @return Response
-	 */
+    /**
+     * Handles the hierarchical search from an attribute
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $oRequest
+     * @param \Silex\Application $oApp
+     * @param string $sTargetAttCode Attribute code of the host object pointing to the Object class to search
+     * @param string $sHostObjectClass Class name of the host object
+     * @param string $sHostObjectId Id of the host object
+     *
+     * @return void
+     *
+     */
 	public function SearchHierarchyAction(Request $oRequest, Application $oApp, $sTargetAttCode, $sHostObjectClass, $sHostObjectId = null)
 	{
-		$aData = array(
-			'sMode' => 'search_hierarchy',
-			'sTargetAttCode' => $sTargetAttCode,
-			'sHostObjectClass' => $sHostObjectClass,
-			'sHostObjectId' => $sHostObjectId
-		);
-
-		// Checking security layers
-		if (!SecurityHelper::IsActionAllowed($oApp, UR_ACTION_READ, $sHostObjectClass, $sHostObjectId))
-		{
-			IssueLog::Warning(__METHOD__ . ' at line ' . __LINE__ . ' : User #' . UserRights::GetUserId() . ' not allowed to read ' . $sHostObjectClass . '::' . $sHostObjectId . ' object.');
-			$oApp->abort(404, Dict::S('UI:ObjectDoesNotExist'));
-		}
-
-		// Retrieving host object for future DBSearch parameters
-		if ($sHostObjectId !== null)
-		{
-			// Note : AllowAllData set to true here instead of checking scope's flag because we are displaying a value that has been set and validated
-			$oHostObject = MetaModel::GetObject($sHostObjectClass, $sHostObjectId, true, true);
-		}
-		else
-		{
-			$oHostObject = MetaModel::NewObject($sHostObjectClass);
-		}
-
-		// Retrieving request parameters
-		$bInitalPass = ($oRequest->get('draw') === null) ? true : false;
-		$sQuery = $oRequest->get('sSearchValue'); // Note : Not used yet
-		$sFormPath = $oRequest->get('sFormPath');
-		$sFieldId = $oRequest->get('sFieldId');
-
-		// Building search query
-		// - Retrieving target object class from attcode
-		$oTargetAttDef = MetaModel::GetAttributeDef($sHostObjectClass, $sTargetAttCode);
-		if ($oTargetAttDef->IsExternalKey())
-		{
-			$sTargetObjectClass = $oTargetAttDef->GetTargetClass();
-		}
-		elseif ($oTargetAttDef->IsLinkSet())
-		{
-			if (!$oTargetAttDef->IsIndirect())
-			{
-				$sTargetObjectClass = $oTargetAttDef->GetLinkedClass();
-			}
-			else
-			{
-				$oRemoteAttDef = MetaModel::GetAttributeDef($oTargetAttDef->GetLinkedClass(), $oTargetAttDef->GetExtKeyToRemote());
-				$sTargetObjectClass = $oRemoteAttDef->GetTargetClass();
-			}
-		}
-		else
-		{
-			throw new Exception('Search by hierarchy can only apply on AttributeExternalKey or AttributeLinkedSet objects, ' . get_class($oTargetAttDef) . ' given.');
-		}
-
-//		// - Retrieving class attribute list
-//		$aAttCodes = MetaModel::FlattenZList(MetaModel::GetZListItems($sTargetObjectClass, 'list'));
-//		// - Adding friendlyname attribute to the list is not already in it
-//		$sTitleAttrCode = 'friendlyname';
-//		if (($sTitleAttrCode !== null) && !in_array($sTitleAttrCode, $aAttCodes))
-//		{
-//			$aAttCodes = array_merge(array($sTitleAttrCode), $aAttCodes);
-//		}
-		// - Retrieving scope search
-		$oScopeSearch = $oApp['scope_validator']->GetScopeFilterForProfiles(UserRights::ListProfiles(), $sTargetObjectClass, UR_ACTION_READ);
-		if ($oScopeSearch === null)
-		{
-			IssueLog::Info(__METHOD__ . ' at line ' . __LINE__ . ' : User #' . UserRights::GetUserId() . ' has no scope query for ' . $sTargetObjectClass . ' class.');
-			$oApp->abort(404, Dict::S('UI:ObjectDoesNotExist'));
-		}
-
-		// - Base query from meta model
-		if ($oTargetAttDef->IsExternalKey())
-		{
-			$oSearch = DBSearch::FromOQL($oTargetAttDef->GetValuesDef()->GetFilterExpression());
-		}
-//		elseif ($oTargetAttDef->IsLinkSet())
-		else
-		{
-			$oSearch = $oScopeSearch;
-		}
-
-//		// - Adding query condition
-		$aInternalParams = array('this' => $oHostObject);
-//		if ($sQuery !== null)
-//		{
-//			for ($i = 0; $i < count($aAttCodes); $i++)
-//			{
-//				// Checking if the current attcode is an external key in order to search on the friendlyname
-//				$oAttDef = MetaModel::GetAttributeDef($sTargetObjectClass, $aAttCodes[$i]);
-//				$sAttCode = (!$oAttDef->IsExternalKey()) ? $aAttCodes[$i] : $aAttCodes[$i] . '_friendlyname';
-//				// Building expression for the current attcode
-//				$oBinExpr = new BinaryExpression(new FieldExpression($sAttCode, $oSearch->GetClassAlias()), 'LIKE', new VariableExpression('re_query'));
-//				// Adding expression to the full expression (all attcodes)
-//				if ($i === 0)
-//				{
-//					$oFullExpr = $oBinExpr;
-//				}
-//				else
-//				{
-//					$oFullExpr = new BinaryExpression($oFullExpr, 'OR', $oBinExpr);
-//				}
-//			}
-//			// Adding full expression to the search object
-//			$oSearch->AddConditionExpression($oFullExpr);
-//			$aInternalParams['re_query'] = '%' . $sQuery . '%';
-//		}
-		// - Intersecting with scope constraints
-		$oSearch = $oSearch->Intersect($oScopeSearch);
-		// - Allowing all data if necessary
-		if ($oScopeSearch->IsAllDataAllowed())
-		{
-			$oSearch->AllowAllData();
-		}
-
-		// Retrieving results
-		// - Preparing object set
-		$oSet = new DBObjectSet($oSearch, array(), $aInternalParams);
-		$oSet->OptimizeColumnLoad(array($oSearch->GetClassAlias() => array('friendlyname')));
-//		$oSet->SetLimit($iCountPerPage, $iCountPerPage * ($iPageNumber - 1));
-//		// - Retrieving columns properties
-//		$aColumnProperties = array();
-//		foreach ($aAttCodes as $sAttCode)
-//		{
-//			$oAttDef = MetaModel::GetAttributeDef($sTargetObjectClass, $sAttCode);
-//			$aColumnProperties[$sAttCode] = array(
-//				'title' => $oAttDef->GetLabel()
-//			);
-//		}
-		// - Retrieving objects
-		$aItems = array();
-		while ($oItem = $oSet->Fetch())
-		{
-			$aItemProperties = array(
-				'id' => $oItem->GetKey(),
-				'name' => $oItem->GetName(),
-				'attributes' => array()
-			);
-
-//			foreach ($aAttCodes as $sAttCode)
-//			{
-//				if ($sAttCode !== 'id')
-//				{
-//					$aAttProperties = array(
-//						'att_code' => $sAttCode
-//					);
-//
-//					$oAttDef = MetaModel::GetAttributeDef($sTargetObjectClass, $sAttCode);
-//					if ($oAttDef->IsExternalKey())
-//					{
-//						$aAttProperties['value'] = $oItem->Get($sAttCode . '_friendlyname');
-//						// Checking if we can view the object
-//						if ((SecurityHelper::IsActionAllowed($oApp, UR_ACTION_READ, $oAttDef->GetTargetClass(), $oItem->Get($sAttCode))))
-//						{
-//							$aAttProperties['url'] = $oApp['url_generator']->generate('p_object_view', array('sObjectClass' => $oAttDef->GetTargetClass(), 'sObjectId' => $oItem->GetKey()));
-//						}
-//					}
-//					else
-//					{
-//						$aAttProperties['value'] = $oAttDef->GetValueLabel($oItem->Get($sAttCode));
-//					}
-//
-//					$aItemProperties['attributes'][$sAttCode] = $aAttProperties;
-//				}
-//			}
-
-			$aItems[] = $aItemProperties;
-		}
-
-		// Preparing response
-		if ($bInitalPass)
-		{
-			$aData = $aData + array(
-				'form' => array(
-					'id' => 'object_search_form_' . time(),
-					'title' => Dict::Format('Brick:Portal:Object:Search:Hierarchy:Title', $oTargetAttDef->GetLabel(), MetaModel::GetName($sTargetObjectClass))
-				),
-				'aResults' => array(
-					'aItems' => json_encode($aItems),
-					'iCount' => count($aItems)
-				),
-				'aSource' => array(
-					'sFormPath' => $sFormPath,
-					'sFieldId' => $sFieldId
-				)
-			);
-
-			if ($oRequest->isXmlHttpRequest())
-			{
-				$oResponse = $oApp['twig']->render('itop-portal-base/portal/src/views/bricks/object/modal.html.twig', $aData);
-			}
-			else
-			{
-				//$oResponse = $oApp->abort(404, Dict::S('UI:ObjectDoesNotExist'));
-				$oResponse = $oApp['twig']->render('itop-portal-base/portal/src/views/bricks/object/layout.html.twig', $aData);
-			}
-		}
-		else
-		{
-			$aData = $aData + array(
-				'levelsProperties' => $aColumnProperties,
-				'data' => $aItems
-			);
-
-			$oResponse = $oApp->json($aData);
-		}
-
-		return $oResponse;
+		// TODO
 	}
 
-	/**
-	 * Handles attachment add/remove on an object
-	 *
-	 * Note : This is inspired from itop-attachment/ajax.attachment.php
-	 * 
-	 * @param Request $oRequest
-	 * @param Application $oApp
-	 */
+    /**
+     * Handles ormDocument display / download from an object
+     *
+     * Note: This is inspired from pages/ajax.document.php, but duplicated as there is no secret mecanism for ormDocument yet.
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $oRequest
+     * @param \Silex\Application $oApp
+     * @param string $sOperation
+     *
+     * @return \Symfony\Component\HttpFoundation\Response
+     *
+     * @throws \ArchivedObjectException
+     * @throws \CoreException
+     */
+	public function DocumentAction(Request $oRequest, Application $oApp, $sOperation = null)
+    {
+        // Setting default operation
+        if($sOperation === null)
+        {
+            $sOperation = 'display';
+        }
+
+        // Retrieving ormDocument's host object
+        $sObjectClass = $oApp['request_manipulator']->ReadParam('sObjectClass', '');
+        $sObjectId = $oApp['request_manipulator']->ReadParam('sObjectId', '');
+        $sObjectField = $oApp['request_manipulator']->ReadParam('sObjectField', '');
+
+        // When reaching to an Attachment, we have to check security on its host object instead of the Attachment itself
+        if($sObjectClass === 'Attachment')
+        {
+            $oAttachment = MetaModel::GetObject($sObjectClass, $sObjectId, true, true);
+            $sHostClass = $oAttachment->Get('item_class');
+            $sHostId = $oAttachment->Get('item_id');
+        }
+        else
+        {
+            $sHostClass = $sObjectClass;
+            $sHostId = $sObjectId;
+        }
+
+        // Checking security layers
+	    // Note: Checking if host object already exists as we can try to download document from an object that is being created
+        if (($sHostId > 0) && !SecurityHelper::IsActionAllowed($oApp, UR_ACTION_READ, $sHostClass, $sHostId))
+        {
+            IssueLog::Warning(__METHOD__ . ' at line ' . __LINE__ . ' : User #' . UserRights::GetUserId() . ' not allowed to retrieve document from attribute ' . $sObjectField . ' as it not allowed to read ' . $sHostClass . '::' . $sHostId . ' object.');
+            $oApp->abort(404, Dict::S('UI:ObjectDoesNotExist'));
+        }
+
+        // Retrieving object
+        $oObject = MetaModel::GetObject($sObjectClass, $sObjectId, false /* Must not be found */, $oApp['scope_validator']->IsAllDataAllowedForScope(UserRights::ListProfiles(), $sHostClass));
+        if ($oObject === null)
+        {
+            // We should never be there as the secuirty helper makes sure that the object exists, but just in case.
+            IssueLog::Info(__METHOD__ . ' at line ' . __LINE__ . ' : Could not load object ' . $sObjectClass . '::' . $sObjectId . '.');
+            $oApp->abort(404, Dict::S('UI:ObjectDoesNotExist'));
+        }
+
+        // Setting cache timeout
+        // Note: Attachment download should be handle through AttachmentAction()
+        if($sObjectClass === 'Attachment')
+        {
+            // One year ahead: an attachement cannot change
+            $iCacheSec = 31556926;
+        }
+        else
+        {
+            $iCacheSec = $oApp['request_manipulator']->ReadParam('cache', 0, FILTER_SANITIZE_NUMBER_INT);
+        }
+
+        $aHeaders = array();
+        if($iCacheSec > 0)
+        {
+            $aHeaders['Expires'] = '';
+            $aHeaders['Cache-Control'] = 'no-transform, public,max-age='.$iCacheSec.',s-maxage='.$iCacheSec;
+            // Reset the value set previously
+            $aHeaders['Pragma'] = 'cache';
+            // An arbitrary date in the past is ok
+            $aHeaders['Last-Modified'] = 'Wed, 15 Jun 2015 13:21:15 GMT';
+        }
+
+        /** @var \ormDocument $oDocument */
+        $oDocument = $oObject->Get($sObjectField);
+        $aHeaders['Content-Type'] = $oDocument->GetMimeType();
+        $aHeaders['Content-Disposition'] = (($sOperation === 'display') ? 'inline' : 'attachment') . ';filename="'.$oDocument->GetFileName().'"';
+
+        return new Response($oDocument->GetData(), Response::HTTP_OK, $aHeaders);
+    }
+
+    /**
+     * Handles attachment add/remove on an object
+     *
+     * Note: This is inspired from itop-attachment/ajax.attachment.php
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $oRequest
+     * @param \Silex\Application $oApp
+     * @param string $sOperation
+     *
+     * @return \Symfony\Component\HttpFoundation\Response
+     *
+     * @throws \Exception
+     * @throws \CoreException
+     * @throws \CoreUnexpectedValue
+     */
 	public function AttachmentAction(Request $oRequest, Application $oApp, $sOperation = null)
 	{
 		$aData = array(
@@ -1347,16 +1324,16 @@ class ObjectController extends AbstractController
 		// Retrieving sOperation from request only if it wasn't forced (determined by the route)
 		if ($sOperation === null)
 		{
-			$sOperation = $oRequest->get('operation');
+			$sOperation = $oApp['request_manipulator']->ReadParam('operation', null);
 		}
 		switch ($sOperation)
 		{
 			case 'add':
-				$sFieldName = $oRequest->get('field_name');
-				$sObjectClass = $oRequest->get('object_class');
-				$sTempId = $oRequest->get('temp_id');
+				$sFieldName = $oApp['request_manipulator']->ReadParam('field_name', '');
+				$sObjectClass = $oApp['request_manipulator']->ReadParam('object_class', '');
+				$sTempId = $oApp['request_manipulator']->ReadParam('temp_id', '');
 
-				if (($sObjectClass === null) || ($sTempId === null))
+				if (empty($sObjectClass) || empty($sTempId))
 				{
 					$aData['error'] = Dict::Format('UI:Error:2ParametersMissing', 'object_class', 'temp_id');
 				}
@@ -1366,7 +1343,7 @@ class ObjectController extends AbstractController
 					{
 						$oDocument = utils::ReadPostedDocument($sFieldName);
 						$oAttachment = MetaModel::NewObject('Attachment');
-						$oAttachment->Set('expire', time() + 3600); // one hour...
+						$oAttachment->Set('expire', time() + MetaModel::GetConfig()->Get('draft_attachments_lifetime')); // one hour...
 						$oAttachment->Set('temp_id', $sTempId);
 						$oAttachment->Set('item_class', $sObjectClass);
 						$oAttachment->SetDefaultOrgId();
@@ -1391,43 +1368,55 @@ class ObjectController extends AbstractController
 				break;
 
 			case 'download':
-				$sAttachmentId = $oRequest->get('sAttachmentId');
-				$sAttachmentUrl = utils::GetAbsoluteUrlAppRoot() . ATTACHMENT_DOWNLOAD_URL . $sAttachmentId;
+				// Preparing redirection
+                // - Route
+                $aRouteParams = array(
+                    'sObjectClass' => 'Attachment',
+                    'sObjectId' => $oApp['request_manipulator']->ReadParam('sAttachmentId', null),
+                    'sObjectField' => 'contents',
+                );
+                $sRedirectRoute = $oApp['url_generator']->generate('p_object_document_download', $aRouteParams);
+                // - Request
+                $oSubRequest = Request::create($sRedirectRoute, 'GET', $oRequest->query->all(), $oRequest->cookies->all(), array(), $oRequest->server->all());
 
-				$oResponse = new RedirectResponse($sAttachmentUrl);
+                $oResponse = $oApp->handle($oSubRequest, HttpKernelInterface::SUB_REQUEST, true);
 				break;
 
 			default:
-				$oApp->abort(403);
+				$oApp->abort(403, Dict::S('Error:HTTP:400'));
 				break;
 		}
 
 		return $oResponse;
 	}
 
-	/**
-	 * Returns a json response containing an array of objects informations.
-	 *
-	 * The service must be given 3 parameters :
-	 * - sObjectClass : The class of objects to retrieve information from
-	 * - aObjectIds : An array of object ids
-	 * - aObjectAttCodes : An array of attribute codes to retrieve
-	 *
-	 * @param Request $oRequest
-	 * @param Application $oApp
-	 * @return Response
-	 */
+    /**
+     * Returns a json response containing an array of objects informations.
+     *
+     * The service must be given 3 parameters :
+     * - sObjectClass : The class of objects to retrieve information from
+     * - aObjectIds : An array of object ids
+     * - aObjectAttCodes : An array of attribute codes to retrieve
+     *
+     * @param \Symfony\Component\HttpFoundation\Request $oRequest
+     * @param \Silex\Application $oApp
+     *
+     * @return \Symfony\Component\HttpFoundation\Response
+     *
+     * @throws \OQLException
+     * @throws \CoreException
+     */
 	public function GetInformationsAsJsonAction(Request $oRequest, Application $oApp)
 	{
 		$aData = array();
 
 		// Retrieving parameters
-		$sObjectClass = $oRequest->Get('sObjectClass');
-		$aObjectIds = $oRequest->Get('aObjectIds');
-		$aObjectAttCodes = $oRequest->Get('aObjectAttCodes');
-		if ($sObjectClass === null || $aObjectIds === null || $aObjectAttCodes === null)
+		$sObjectClass = $oApp['request_manipulator']->ReadParam('sObjectClass', '');
+		$aObjectIds = $oApp['request_manipulator']->ReadParam('aObjectIds', array(), FILTER_UNSAFE_RAW);
+		$aObjectAttCodes = $oApp['request_manipulator']->ReadParam('aObjectAttCodes', array(), FILTER_UNSAFE_RAW);
+		if ( empty($sObjectClass) || empty($aObjectIds) || empty($aObjectAttCodes) )
 		{
-			IssueLog::Info(__METHOD__ . ' at line ' . __LINE__ . ' : sObjectClass, sObjectId and aObjectAttCodes expected, "' . $sObjectClass . '", "' . $sObjectId . '" given.');
+			IssueLog::Info(__METHOD__ . ' at line ' . __LINE__ . ' : sObjectClass, aObjectIds and aObjectAttCodes expected, "' . $sObjectClass . '", "' . implode('/', $aObjectIds) . '" given.');
 			$oApp->abort(500, 'Invalid request data, some informations are missing');
 		}
 
@@ -1437,16 +1426,6 @@ class ObjectController extends AbstractController
 			$aObjectAttCodes = array_merge(array('id'), $aObjectAttCodes);
 		}
 
-		// Retrieving attributes definitions
-		$aAttDefs = array();
-		foreach ($aObjectAttCodes as $sObjectAttCode)
-		{
-			if ($sObjectAttCode === 'id')
-				continue;
-
-			$aAttDefs[$sObjectAttCode] = MetaModel::GetAttributeDef($sObjectClass, $sObjectAttCode);
-		}
-		
 		// Building the search
 		$bIgnoreSilos = $oApp['scope_validator']->IsAllDataAllowedForScope(UserRights::ListProfiles(), $sObjectClass);
 		$oSearch = DBObjectSearch::FromOQL("SELECT " . $sObjectClass . " WHERE id IN ('" . implode("','", $aObjectIds) . "')");
@@ -1460,44 +1439,96 @@ class ObjectController extends AbstractController
 		// Retrieving objects
 		while ($oObject = $oSet->Fetch())
 		{
-			$aObjectData = array(
-				'id' => $oObject->GetKey(),
-				'attributes' => array()
-			);
-
-			foreach ($aAttDefs as $oAttDef)
-			{
-				$aAttData = array(
-					'att_code' => $oAttDef->GetCode()
-				);
-
-				if ($oAttDef->IsExternalKey())
-				{
-					$aAttData['value'] = $oObject->Get($oAttDef->GetCode() . '_friendlyname');
-					if (SecurityHelper::IsActionAllowed($oApp, UR_ACTION_READ, $oAttDef->GetTargetClass()))
-					{
-						$aAttData['url'] = $oApp['url_generator']->generate('p_object_view', array('sObjectClass' => $oAttDef->GetTargetClass(), 'sObjectId' => $oObject->Get($oAttDef->GetCode())));
-					}
-				}
-				elseif ($oAttDef->IsLinkSet())
-				{
-					// We skip it
-					continue;
-				}
-				else
-				{
-					$aAttData['value'] = $oAttDef->GetValueLabel($oObject->Get($oAttDef->GetCode()));
-				}
-
-				$aObjectData['attributes'][$oAttDef->GetCode()] = $aAttData;
-			}
-
-			$aData['items'][] = $aObjectData;
+			$aData['items'][] = $this->PrepareObjectInformations($oApp, $oObject, $aObjectAttCodes);
 		}
 
 		return $oApp->json($aData);
 	}
 
-}
+    /**
+     * Prepare a DBObject informations as an array for a client side usage (typically, add a row in a table)
+     *
+     * @param \Silex\Application $oApp
+     * @param \DBObject $oObject
+     * @param array $aAttCodes
+     *
+     * @return array
+     *
+     * @throws \Exception
+     * @throws \CoreException
+     */
+	protected function PrepareObjectInformations(Application $oApp, DBObject $oObject, $aAttCodes = array())
+	{
+		$sObjectClass = get_class($oObject);
+		$aObjectData = array(
+			'id' => $oObject->GetKey(),
+			'name' => $oObject->GetName(),
+			'attributes' => array(),
+		);
 
-?>
+		// Retrieving attributes definitions
+		$aAttDefs = array();
+		foreach ($aAttCodes as $sAttCode)
+		{
+			if ($sAttCode === 'id')
+				continue;
+
+			$aAttDefs[$sAttCode] = MetaModel::GetAttributeDef($sObjectClass, $sAttCode);
+		}
+
+		// Preparing attribute data
+		foreach ($aAttDefs as $oAttDef)
+		{
+			$aAttData = array(
+				'att_code' => $oAttDef->GetCode()
+			);
+
+			if ($oAttDef->IsExternalKey())
+			{
+				$aAttData['value'] = $oObject->GetAsHTML($oAttDef->GetCode() . '_friendlyname');
+
+				// Checking if user can access object's external key
+				if (SecurityHelper::IsActionAllowed($oApp, UR_ACTION_READ, $oAttDef->GetTargetClass()))
+				{
+					$aAttData['url'] = $oApp['url_generator']->generate('p_object_view', array('sObjectClass' => $oAttDef->GetTargetClass(), 'sObjectId' => $oObject->Get($oAttDef->GetCode())));
+				}
+			}
+			elseif ($oAttDef->IsLinkSet())
+			{
+				// We skip it
+				continue;
+			}
+			elseif ($oAttDef instanceof AttributeImage)
+            {
+                $oOrmDoc = $oObject->Get($oAttDef->GetCode());
+                if (is_object($oOrmDoc) && !$oOrmDoc->IsEmpty())
+                {
+                    $sUrl = $oApp['url_generator']->generate('p_object_document_display', array('sObjectClass' => get_class($oObject), 'sObjectId' => $oObject->GetKey(), 'sObjectField' => $oAttDef->GetCode(), 'cache' => 86400));
+                }
+                else
+                {
+                    $sUrl = $oAttDef->Get('default_image');
+                }
+                $aAttData['value'] = '<img src="' . $sUrl . '" />';
+            }
+			else
+			{
+				$aAttData['value'] = $oAttDef->GetAsHTML($oObject->Get($oAttDef->GetCode()));
+
+				if ($oAttDef instanceof AttributeFriendlyName)
+				{
+					// Checking if user can access object
+					if(SecurityHelper::IsActionAllowed($oApp, UR_ACTION_READ, $sObjectClass))
+					{
+						$aAttData['url'] = $oApp['url_generator']->generate('p_object_view', array('sObjectClass' => $sObjectClass, 'sObjectId' => $oObject->GetKey()));
+					}
+				}
+			}
+
+			$aObjectData['attributes'][$oAttDef->GetCode()] = $aAttData;
+		}
+
+		return $aObjectData;
+	}
+
+}

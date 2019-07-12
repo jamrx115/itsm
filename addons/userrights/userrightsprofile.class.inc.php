@@ -54,7 +54,7 @@ class URP_Profiles extends UserRightsBaseClassGUI
 	{
 		$aParams = array
 		(
-			"category" => "addon/userrights",
+			"category" => "addon/userrights,grant_by_profile",
 			"key_type" => "autoincrement",
 			"name_attcode" => "name",
 			"state_attcode" => "",
@@ -75,8 +75,8 @@ class URP_Profiles extends UserRightsBaseClassGUI
 		MetaModel::Init_SetZListItems('details', array('name', 'description', 'user_list')); // Attributes to be displayed for the complete details
 		MetaModel::Init_SetZListItems('list', array('description')); // Attributes to be displayed for a list
 		// Search criteria
-		MetaModel::Init_SetZListItems('standard_search', array('name')); // Criteria of the std search form
-		MetaModel::Init_SetZListItems('advanced_search', array('name')); // Criteria of the advanced search form
+		MetaModel::Init_SetZListItems('standard_search', array('name','description')); // Criteria of the std search form
+		MetaModel::Init_SetZListItems('default_search', array ('name','description'));
 	}
 
 	protected static $m_aCacheProfiles = null;
@@ -137,11 +137,8 @@ class URP_Profiles extends UserRightsBaseClassGUI
 		$oUserRights = UserRights::GetModuleInstance();
 	
 		$aDisplayData = array();
-		foreach (MetaModel::GetClasses('bizmodel') as $sClass)
+		foreach (MetaModel::GetClasses('bizmodel,grant_by_profile') as $sClass)
 		{
-			// Skip non instantiable classes
-			if (MetaModel::IsAbstract($sClass)) continue;
-
 			$aStimuli = array();
 			foreach (MetaModel::EnumStimuli($sClass) as $sStimulusCode => $oStimulus)
 			{
@@ -183,7 +180,7 @@ class URP_Profiles extends UserRightsBaseClassGUI
 		if (!$bEditMode)
 		{
 			$oPage->SetCurrentTab(Dict::S('UI:UserManagement:GrantMatrix'));
-			$this->DoShowGrantSumary($oPage);		
+			$this->DoShowGrantSumary($oPage);
 		}
 	}
 
@@ -203,6 +200,12 @@ class URP_Profiles extends UserRightsBaseClassGUI
 	// preserve DB integrity by deleting links to users
 	protected function OnDelete()
 	{
+		// Don't remove admin profile
+		if ($this->Get('name') === ADMIN_PROFILE_NAME)
+		{
+			throw new SecurityException(Dict::Format('UI:Login:Error:AccessAdmin'));
+		}
+
 		// Note: this may break the rule that says: "a user must have at least ONE profile" !
 		$oLnkSet = $this->Get('user_list');
 		while($oLnk = $oLnkSet->Fetch())
@@ -239,7 +242,7 @@ class URP_UserProfile extends UserRightsBaseClassGUI
 	{
 		$aParams = array
 		(
-			"category" => "addon/userrights",
+			"category" => "addon/userrights,grant_by_profile",
 			"key_type" => "autoincrement",
 			"name_attcode" => "userid",
 			"state_attcode" => "",
@@ -284,6 +287,59 @@ class URP_UserProfile extends UserRightsBaseClassGUI
 		}
 		return parent::CheckToDelete($oDeletionPlan);
 	}
+
+	protected function OnInsert()
+	{
+		$this->CheckIfProfileIsAllowed(UR_ACTION_CREATE);
+	}
+
+	protected function OnUpdate()
+	{
+		$this->CheckIfProfileIsAllowed(UR_ACTION_MODIFY);
+	}
+
+	protected function OnDelete()
+	{
+		$this->CheckIfProfileIsAllowed(UR_ACTION_DELETE);
+	}
+
+	/**
+	 * @param $iActionCode
+	 *
+	 * @throws \ArchivedObjectException
+	 * @throws \CoreException
+	 * @throws \SecurityException
+	 */
+	protected function CheckIfProfileIsAllowed($iActionCode)
+	{
+		// When initializing or admin, we need to let everything pass trough
+		if (!UserRights::IsLoggedIn() || UserRights::IsAdministrator()) { return; }
+
+		// Only administrators can manage administrators
+		$iOrigUserId = $this->GetOriginal('userid');
+		if (!empty($iOrigUserId))
+		{
+			$oUser = MetaModel::GetObject('User', $iOrigUserId, true, true);
+			if (UserRights::IsAdministrator($oUser) && !UserRights::IsAdministrator())
+			{
+				throw new SecurityException(Dict::Format('UI:Login:Error:AccessRestricted'));
+			}
+		}
+		$oUser = MetaModel::GetObject('User', $this->Get('userid'), true, true);
+		if (UserRights::IsAdministrator($oUser) && !UserRights::IsAdministrator())
+		{
+			throw new SecurityException(Dict::Format('UI:Login:Error:AccessRestricted'));
+		}
+		if (!UserRights::IsActionAllowed(get_class($this), $iActionCode, DBObjectSet::FromObject($this)))
+		{
+			throw new SecurityException(Dict::Format('UI:Error:ObjectCannotBeUpdated'));
+		}
+		if (!UserRights::IsAdministrator() && ($this->Get('profile') === ADMIN_PROFILE_NAME))
+		{
+			throw new SecurityException(Dict::Format('UI:Login:Error:AccessAdmin'));
+		}
+	}
+
 }
 
 class URP_UserOrg extends UserRightsBaseClassGUI
@@ -292,7 +348,7 @@ class URP_UserOrg extends UserRightsBaseClassGUI
 	{
 		$aParams = array
 		(
-			"category" => "addon/userrights",
+			"category" => "addon/userrights,grant_by_profile",
 			"key_type" => "autoincrement",
 			"name_attcode" => "userid",
 			"state_attcode" => "",
@@ -323,6 +379,42 @@ class URP_UserOrg extends UserRightsBaseClassGUI
 	public function GetName()
 	{
 		return Dict::Format('UI:UserManagement:LinkBetween_User_And_Org', $this->Get('userlogin'), $this->Get('allowed_org_name'));
+	}
+
+
+	protected function OnInsert()
+	{
+		$this->CheckIfOrgIsAllowed();
+	}
+
+	protected function OnUpdate()
+	{
+		$this->CheckIfOrgIsAllowed();
+	}
+
+	protected function OnDelete()
+	{
+		$this->CheckIfOrgIsAllowed();
+	}
+
+	/**
+	 * @throws \CoreException
+	 */
+	protected function CheckIfOrgIsAllowed()
+	{
+		if (!UserRights::IsLoggedIn() || UserRights::IsAdministrator()) { return; }
+
+		$oUser = UserRights::GetUserObject();		
+		$oAddon = UserRights::GetModuleInstance();
+		$aOrgs = $oAddon->GetUserOrgs($oUser, '');
+		if (count($aOrgs) > 0)
+		{
+			$iOrigOrgId = $this->GetOriginal('allowed_org_id');
+			if ((!empty($iOrigOrgId) && !in_array($iOrigOrgId, $aOrgs)) || !in_array($this->Get('allowed_org_id'), $aOrgs))
+			{
+				throw new SecurityException(Dict::Format('Class:User/Error:OrganizationNotAllowed'));
+			}
+		}
 	}
 }
 
@@ -412,11 +504,15 @@ class UserRightsProfile extends UserRightsAddOnAPI
 
 	/**
 	 * Read and cache organizations allowed to the given user
-	 * 
-	 * @param oUser
-	 * @param sClass -not used here but can be used in overloads
+	 *
+	 * @param $oUser
+	 * @param $sClass (not used here but can be used in overloads)
+	 *
+	 * @return array
+	 * @throws \CoreException
+	 * @throws \Exception
 	 */
-	protected function GetUserOrgs($oUser, $sClass)
+	public function GetUserOrgs($oUser, $sClass)
 	{
 		$iUser = $oUser->GetKey();
 		if (!array_key_exists($iUser, $this->m_aUserOrgs))
@@ -430,7 +526,6 @@ class UserRightsProfile extends UserRightsAddOnAPI
 				$oUserOrgSet = new DBObjectSet(DBObjectSearch::FromOQL_AllData($sUserOrgQuery), array(), array('userid' => $iUser));
 				while ($aRow = $oUserOrgSet->FetchAssoc())
 				{
-					$oUserOrg = $aRow['UserOrg'];
 					$oOrg = $aRow['Org'];
 					$this->m_aUserOrgs[$iUser][] = $oOrg->GetKey();
 				}

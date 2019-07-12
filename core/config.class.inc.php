@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2010-2017 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -18,9 +18,10 @@
 
 
 define('ITOP_APPLICATION', 'iTop');
-define('ITOP_VERSION', '2.3.4');
-define('ITOP_REVISION', '3302');
-define('ITOP_BUILD_DATE', '2017-04-14 19:00:51');
+define('ITOP_APPLICATION_SHORT', 'iTop');
+define('ITOP_VERSION', '2.6.1');
+define('ITOP_REVISION', '4463');
+define('ITOP_BUILD_DATE', '2019-03-25 16:49:30');
 
 define('ACCESS_USER_WRITE', 1);
 define('ACCESS_ADMIN_WRITE', 2);
@@ -30,42 +31,50 @@ define('ACCESS_READONLY', 0);
 /**
  * Configuration read/write
  *
- * @copyright   Copyright (C) 2010-2016 Combodo SARL
+ * @copyright   Copyright (C) 2010-2018 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 
 require_once('coreexception.class.inc.php');
 require_once('attributedef.class.inc.php'); // For the defines
+require_once('simplecrypt.class.inc.php');
 
 class ConfigException extends CoreException
 {
 }
 
-define ('DEFAULT_CHARACTER_SET', 'utf8');
-define ('DEFAULT_COLLATION', 'utf8_unicode_ci');
+// was utf8 but it only supports BMP chars (https://dev.mysql.com/doc/refman/5.5/en/charset-unicode-utf8mb4.html)
+// so we switched to utf8mb4 in iTop 2.5, adding dependency to MySQL 5.5.3
+// The config params db_character_set and db_collation were introduced as a temporary workaround and removed in iTop 2.5
+// now everything uses those fixed value !
+define('DEFAULT_CHARACTER_SET', 'utf8mb4');
+define('DEFAULT_COLLATION', 'utf8mb4_unicode_ci');
 
-define ('DEFAULT_LOG_GLOBAL', true);
-define ('DEFAULT_LOG_NOTIFICATION', true);
-define ('DEFAULT_LOG_ISSUE', true);
-define ('DEFAULT_LOG_WEB_SERVICE', true);
+define('DEFAULT_LOG_GLOBAL', true);
+define('DEFAULT_LOG_NOTIFICATION', true);
+define('DEFAULT_LOG_ISSUE', true);
+define('DEFAULT_LOG_WEB_SERVICE', true);
 
-define ('DEFAULT_QUERY_CACHE_ENABLED', true);
+define('DEFAULT_QUERY_CACHE_ENABLED', true);
 
 
-define ('DEFAULT_MIN_DISPLAY_LIMIT', 10);
-define ('DEFAULT_MAX_DISPLAY_LIMIT', 15);
-define ('DEFAULT_STANDARD_RELOAD_INTERVAL', 5*60);
-define ('DEFAULT_FAST_RELOAD_INTERVAL', 1*60);
-define ('DEFAULT_SECURE_CONNECTION_REQUIRED', false);
-define ('DEFAULT_ALLOWED_LOGIN_TYPES', 'form|basic|external');
-define ('DEFAULT_EXT_AUTH_VARIABLE', '$_SERVER[\'REMOTE_USER\']');
-define ('DEFAULT_ENCRYPTION_KEY', '@iT0pEncr1pti0n!'); // We'll use a random value, later...
-
+define('DEFAULT_MIN_DISPLAY_LIMIT', 10);
+define('DEFAULT_MAX_DISPLAY_LIMIT', 15);
+define('DEFAULT_STANDARD_RELOAD_INTERVAL', 5 * 60);
+define('DEFAULT_FAST_RELOAD_INTERVAL', 1 * 60);
+define('DEFAULT_SECURE_CONNECTION_REQUIRED', false);
+define('DEFAULT_ALLOWED_LOGIN_TYPES', 'form|basic|external');
+define('DEFAULT_EXT_AUTH_VARIABLE', '$_SERVER[\'REMOTE_USER\']');
+define('DEFAULT_ENCRYPTION_KEY', '@iT0pEncr1pti0n!'); // We'll use a random generated key later (if possible)
+define('DEFAULT_ENCRYPTION_LIB', 'Mcrypt'); // We'll define the best encryption available later
 /**
  * Config
  * configuration data (this class cannot not be localized, because it is responsible for loading the dictionaries)
  *
  * @package     iTopORM
+ *
+ * @see \MetaModel::GetConfig() to get the config, if the metamodel was already loaded
+ * @see utils::GetConfig() to load config from the current env, if metamodel is not loaded
  */
 class Config
 {
@@ -79,12 +88,16 @@ class Config
 
 	protected $m_aModuleSettings;
 
-	// New way to store the settings !
-	//
+	/**
+	 * New way to store the settings !
+	 *
+	 * @var array
+	 * @since 2.5 db* variables
+	 */
 	protected $m_aSettings = array(
 		'app_env_label' => array(
 			'type' => 'string',
-			'description' => 'Label displayed to describe the current application environnment, defaults to the environment name (e.g. "production")',
+			'description' => 'Label displayed to describe the current application environment, defaults to the environment name (e.g. "production")',
 			'default' => '',
 			'value' => '',
 			'source_of_value' => '',
@@ -102,6 +115,73 @@ class Config
 			'type' => 'string',
 			'description' => 'Hyperlink to redirect the user when clicking on the application icon (in the main window, or login/logoff pages)',
 			'default' => 'http://www.combodo.com/itop',
+			'value' => '',
+			'source_of_value' => '',
+			'show_in_conf_sample' => false,
+		),
+		'db_host' => array(
+			'type' => 'string',
+			'default' => null,
+			'value' => '',
+			'source_of_value' => '',
+			'show_in_conf_sample' => true,
+		),
+		'db_user' => array(
+			'type' => 'string',
+			'default' => null,
+			'value' => '',
+			'source_of_value' => '',
+			'show_in_conf_sample' => true,
+		),
+		'db_pwd' => array(
+			'type' => 'string',
+			'default' => null,
+			'value' => '',
+			'source_of_value' => '',
+			'show_in_conf_sample' => true,
+		),
+		'db_name' => array(
+			'type' => 'string',
+			'default' => null,
+			'value' => '',
+			'source_of_value' => '',
+			'show_in_conf_sample' => true,
+		),
+		'db_subname' => array(
+			'type' => 'string',
+			'default' => null,
+			'value' => '',
+			'source_of_value' => '',
+			'show_in_conf_sample' => true,
+		),
+		'db_tls.enabled' => array(
+			'type' => 'bool',
+			'description' => 'If true then the connection to the DB will be encrypted',
+			'default' => false,
+			'value' => false,
+			'source_of_value' => '',
+			'show_in_conf_sample' => false,
+		),
+		'db_tls.ca' => array(
+			'type' => 'string',
+			'description' => 'Path to certificate authority file for SSL',
+			'default' => null,
+			'value' => '',
+			'source_of_value' => '',
+			'show_in_conf_sample' => false,
+		),
+		'db_character_set' => array( // @deprecated to remove in 2.7 ? N°1001 utf8mb4 switch
+			'type' => 'string',
+			'description' => 'Deprecated since iTop 2.5 : now using utf8mb4',
+			'default' => 'DEPRECATED_2.5',
+			'value' => '',
+			'source_of_value' => '',
+			'show_in_conf_sample' => false,
+		),
+		'db_collation' => array( // @deprecated to remove in 2.7 ? N°1001 utf8mb4 switch
+			'type' => 'string',
+			'description' => 'Deprecated since iTop 2.5 : now using utf8mb4_unicode_ci',
+			'default' => 'DEPRECATED_2.5',
 			'value' => '',
 			'source_of_value' => '',
 			'show_in_conf_sample' => false,
@@ -124,7 +204,7 @@ class Config
 		),
 		'skip_strong_security' => array(
 			'type' => 'bool',
-			'description' => 'Disable strong security - TEMPORY: this flag should be removed when we are more confident in the recent change in security',
+			'description' => 'Disable strong security - TEMPORARY: this flag should be removed when we are more confident in the recent change in security',
 			'default' => true,
 			'value' => true,
 			'source_of_value' => '',
@@ -140,7 +220,7 @@ class Config
 		),
 		'query_indentation_enabled' => array(
 			'type' => 'bool',
-			'description' => 'For developpers: format the SQL queries for human analysis',
+			'description' => 'For developers: format the SQL queries for human analysis',
 			'default' => false,
 			'value' => false,
 			'source_of_value' => '',
@@ -148,7 +228,7 @@ class Config
 		),
 		'disable_mandatory_ext_keys' => array(
 			'type' => 'bool',
-			'description' => 'For developpers: allow every external keys to be undefined',
+			'description' => 'For developers: allow every external keys to be undefined',
 			'default' => false,
 			'value' => false,
 			'source_of_value' => '',
@@ -189,8 +269,16 @@ class Config
 		'min_autocomplete_chars' => array(
 			'type' => 'integer',
 			'description' => 'The minimum number of characters to type in order to trigger the "autocomplete" behavior',
-			'default' => 3,
-			'value' => 3,
+			'default' => 2,
+			'value' => 2,
+			'source_of_value' => '',
+			'show_in_conf_sample' => false,
+		),
+		'allow_menu_on_linkset' => array(
+			'type' => 'bool',
+			'description' => 'Display Action menus in view mode on any LinkedSet with edit_mode != none',
+			'default' => false,
+			'value' => false,
 			'source_of_value' => '',
 			'show_in_conf_sample' => false,
 		),
@@ -323,6 +411,14 @@ class Config
 			'source_of_value' => '',
 			'show_in_conf_sample' => true,
 		),
+		'tag_set_item_separator' => array(
+			'type' => 'string',
+			'description' => 'Tag set from string: tag label separator',
+			'default' => '|',
+			'value' => '|',
+			'source_of_value' => '',
+			'show_in_conf_sample' => true,
+		),
 		'cron_max_execution_time' => array(
 			'type' => 'integer',
 			'description' => 'Duration (seconds) of the page cron.php, must be shorter than php setting max_execution_time and shorter than the web server response timeout',
@@ -357,7 +453,7 @@ class Config
 		),
 		'email_transport' => array(
 			'type' => 'string',
-			'description' => 'Mean to send emails: PHPMail (uses the function mail()) or SMTP (implements the client protocole)',
+			'description' => 'Mean to send emails: PHPMail (uses the function mail()) or SMTP (implements the client protocol)',
 			'default' => "PHPMail",
 			'value' => "PHPMail",
 			'source_of_value' => '',
@@ -411,6 +507,22 @@ class Config
 			'source_of_value' => '',
 			'show_in_conf_sample' => false,
 		),
+		'email_default_sender_address' => array(
+			'type' => 'string',
+			'description' => 'Default address provided in the email from header field.',
+			'default' => "",
+			'value' => "",
+			'source_of_value' => '',
+			'show_in_conf_sample' => true,
+		),
+		'email_default_sender_label' => array(
+			'type' => 'string',
+			'description' => 'Default label provided in the email from header field.',
+			'default' => "",
+			'value' => "",
+			'source_of_value' => '',
+			'show_in_conf_sample' => true,
+		),
 		'apc_cache.enabled' => array(
 			'type' => 'bool',
 			'description' => 'If set, the APC cache is allowed (the PHP extension must also be active)',
@@ -427,11 +539,27 @@ class Config
 			'source_of_value' => '',
 			'show_in_conf_sample' => true,
 		),
+		'apc_cache_emulation.max_entries' => array(
+			'type' => 'integer',
+			'description' => 'Maximum number of cache entries (0 means no limit)',
+			'default' => 1000,
+			'value' => 1000,
+			'source_of_value' => '',
+			'show_in_conf_sample' => false,
+		),
 		'timezone' => array(
 			'type' => 'string',
-			'description' => 'Timezone (reference: http://php.net/manual/en/timezones.php). If empty, it will be left unchanged and MUST be explicitely configured in PHP',
+			'description' => 'Timezone (reference: http://php.net/manual/en/timezones.php). If empty, it will be left unchanged and MUST be explicitly configured in PHP',
 			// examples... not used (nor 'description')
-			'examples' => array('America/Sao_Paulo', 'America/New_York (standing for EDT)', 'America/Los_Angeles (standing for PDT)', 'Asia/Istanbul', 'Asia/Singapore', 'Africa/Casablanca', 'Australia/Sydney'),
+			'examples' => array(
+				'America/Sao_Paulo',
+				'America/New_York (standing for EDT)',
+				'America/Los_Angeles (standing for PDT)',
+				'Asia/Istanbul',
+				'Asia/Singapore',
+				'Africa/Casablanca',
+				'Australia/Sydney'
+			),
 			'default' => 'Europe/Paris',
 			'value' => 'Europe/Paris',
 			'source_of_value' => '',
@@ -664,14 +792,46 @@ class Config
 			'source_of_value' => '',
 			'show_in_conf_sample' => true,
 		),
-		'email_validation_pattern' => array(
-			'type' => 'string',
-			'description' => 'Regular expression to validate/detect the format of an eMail address',
-			'default' => "[a-zA-Z0-9._&'-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}",
-			'value' => '',
-			'source_of_value' => '',
-			'show_in_conf_sample' => true,
-		),
+        'email_validation_pattern' => array(
+            'type' => 'string',
+            'description' => 'Regular expression to validate/detect the format of an eMail address',
+            'default' => "[a-zA-Z0-9._&'-]+@[a-zA-Z0-9.-]+\.[a-zA-Z0-9-]{2,}",
+            'value' => '',
+            'source_of_value' => '',
+            'show_in_conf_sample' => true,
+        ),
+        'email_decoration_class' => array(
+            'type' => 'string',
+            'description' => 'CSS class(es) to use as decoration for the HTML rendering of the attribute. eg. "fa fa-envelope" will put a mail icon.',
+            'default' => 'fa fa-envelope',
+            'value' => '',
+            'source_of_value' => '',
+            'show_in_conf_sample' => false,
+        ),
+        'phone_number_validation_pattern' => array(
+            'type' => 'string',
+            'description' => 'Regular expression to validate/detect the format of a phone number',
+            'default' => "[0-9.\-\ \+\(\)]+",
+            'value' => '',
+            'source_of_value' => '',
+            'show_in_conf_sample' => false,
+        ),
+        'phone_number_url_pattern' => array(
+            'type' => 'string',
+            'description' => 'Format for phone number url, use %1$s as a placeholder for the value. eg. "tel:%1$s" for regular phone applications or "callto:%1$s" for Skype. Default is "tel:%1$s".',
+            'default' => 'tel:%1$s',
+            'value' => '',
+            'source_of_value' => '',
+            'show_in_conf_sample' => false,
+        ),
+        'phone_number_decoration_class' => array(
+            'type' => 'string',
+            'description' => 'CSS class(es) to use as decoration for the HTML rendering of the attribute. eg. "fa fa-phone" will put a phone icon.',
+            'default' => 'fa fa-phone',
+            'value' => '',
+            'source_of_value' => '',
+            'show_in_conf_sample' => false,
+        ),
 		'log_kpi_duration' => array(
 			'type' => 'integer',
 			'description' => 'Level of logging for troubleshooting performance issues (1 to enable, 2 +blame callers)',
@@ -787,7 +947,7 @@ class Config
 		),
 		'tracking_level_linked_set_default' => array(
 			'type' => 'integer',
-			'description' => 'Default tracking level if not explicitely set at the attribute level, for AttributeLinkedSet (defaults to NONE in case of a fresh install, LIST otherwise - this to preserve backward compatibility while upgrading from a version older than 2.0.3 - see TRAC #936)',
+			'description' => 'Default tracking level if not explicitly set at the attribute level, for AttributeLinkedSet (defaults to NONE in case of a fresh install, LIST otherwise - this to preserve backward compatibility while upgrading from a version older than 2.0.3 - see TRAC #936)',
 			'default' => LINKSET_TRACKING_LIST,
 			'value' => LINKSET_TRACKING_LIST,
 			'source_of_value' => '',
@@ -795,11 +955,11 @@ class Config
 		),
 		'tracking_level_linked_set_indirect_default' => array(
 			'type' => 'integer',
-			'description' => 'Default tracking level if not explicitely set at the attribute level, for AttributeLinkedSetIndirect',
+			'description' => 'Default tracking level if not explicitly set at the attribute level, for AttributeLinkedSetIndirect',
 			'default' => LINKSET_TRACKING_ALL,
 			'value' => LINKSET_TRACKING_ALL,
 			'source_of_value' => '',
-			'show_in_conf_sample' => false, 
+			'show_in_conf_sample' => false,
 		),
 		'user_rights_legacy' => array(
 			'type' => 'bool',
@@ -836,7 +996,7 @@ class Config
 		'transaction_storage' => array(
 			'type' => 'string',
 			'description' => 'The type of mechanism to use for storing the unique identifiers for transactions (Session|File).',
-			'default' => 'Session',
+			'default' => 'File',
 			'value' => '',
 			'source_of_value' => '',
 			'show_in_conf_sample' => false,
@@ -872,7 +1032,7 @@ class Config
 			'value' => '',
 			'source_of_value' => '',
 			'show_in_conf_sample' => false,
-		), 
+		),
 		'concurrent_lock_override_profiles' => array(
 			'type' => 'array',
 			'description' => 'The list of profiles allowed to "kill" a lock',
@@ -880,7 +1040,7 @@ class Config
 			'value' => '',
 			'source_of_value' => '',
 			'show_in_conf_sample' => false,
-		), 
+		),
 		'html_sanitizer' => array(
 			'type' => 'string',
 			'description' => 'The class to use for HTML sanitization: HTMLDOMSanitizer, HTMLPurifierSanitizer or HTMLNullSanitizer',
@@ -905,6 +1065,14 @@ class Config
 			'source_of_value' => '',
 			'show_in_conf_sample' => true,
 		),
+		'draft_attachments_lifetime' => array(
+			'type' => 'integer',
+			'description' => 'Lifetime (in seconds) of drafts\' attachments and inline images: after this duration, the garbage collector will delete them.',
+			'default' => 86400,
+			'value' => '',
+			'source_of_value' => '',
+			'show_in_conf_sample' => false,
+		),
 		'date_and_time_format' => array(
 			'type' => 'array',
 			'description' => 'Format for date and time display (per language)',
@@ -921,11 +1089,75 @@ class Config
 			'source_of_value' => '',
 			'show_in_conf_sample' => false,
 		),
-		'legacy_search_drawer_open' => array(
+		'obsolescence.show_obsolete_data' => array(
 			'type' => 'bool',
-			'description' => 'Whether or not to display the "search drawer" open by default as in previous versions of iTop.',
+			'description' => 'Default value for the user preference "show obsolete data"',
 			'default' => false,
 			'value' => '',
+			'source_of_value' => '',
+			'show_in_conf_sample' => false,
+		),
+		'obsolescence.date_update_interval' => array(
+			'type' => 'integer',
+			'description' => 'Delay in seconds between two refreshes of the obsolescence dates.',
+			'default' => 600,
+			'value' => 600,
+			'source_of_value' => '',
+			'show_in_conf_sample' => false,
+		),
+		'disable_attachments_download_legacy_portal' => array(
+			'type' => 'bool',
+			'description' => 'Disable attachments download from legacy portal',
+			'default' => true,
+			'value' => true,
+			'source_of_value' => '',
+			'show_in_conf_sample' => true,
+		),
+		'secure_rest_services' => array(
+			'type' => 'bool',
+			'description' => 'When set to true, only the users with the profile "REST Services User" are allowed to use the REST web services.',
+			'default' => true,
+			'value' => true,
+			'source_of_value' => '',
+			'show_in_conf_sample' => false,
+		),
+		'search_manual_submit' => array(
+			'type' => 'array',
+			'description' => 'Force manual submit of search all requests',
+			'default' => false,
+			'value' => true,
+			'source_of_value' => '',
+			'show_in_conf_sample' => true,
+		),
+		'optimize_requests_for_join_count' => array(
+			'type' => 'bool',
+			'description' => 'Optimize request joins to minimize the count (default is true, try to set it to false in case of performance issues)',
+			'default' => true,
+			'value' => true,
+			'source_of_value' => '',
+			'show_in_conf_sample' => true,
+		),
+		'high_cardinality_classes' => array(
+			'type' => 'array',
+			'description' => 'List of classes with high cardinality (Force manual submit of search)',
+			'default' => array(),
+			'value' => array(),
+			'source_of_value' => '',
+			'show_in_conf_sample' => true,
+		),
+		'newsroom_enabled' => array(
+			'type' => 'bool',
+			'description' => 'Whether or not the whole newsroom is enabled',
+			'default' => true,
+			'value' => true,
+			'source_of_value' => '',
+			'show_in_conf_sample' => false,
+		),
+		'regenerate_session_id_enabled' => array(
+			'type' => 'bool',
+			'description' => 'If true then session id will be regenerated on each login, to prevent session fixation.',
+			'default' => true,
+			'value' => true,
 			'source_of_value' => '',
 			'show_in_conf_sample' => false,
 		),
@@ -935,55 +1167,72 @@ class Config
 	{
 		return (array_key_exists($sPropCode, $this->m_aSettings));
 	}
+
+	/**
+	 * @return string identifier that can be used for example to name WebStorage/SessionStorage keys (they
+	 *     are related to a whole domain, and a domain can host multiple itop)
+	 *     Beware: do not expose server side information to the client !
+	 */
+	public function GetItopInstanceid()
+	{
+		return md5(utils::GetAbsoluteUrlAppRoot()
+			.'==='.$this->Get('db_host')
+			.'/'.$this->Get('db_name')
+			.'/'.$this->Get('db_subname'));
+	}
+
 	public function GetDescription($sPropCode)
 	{
 		return $this->m_aSettings[$sPropCode];
 	}
 
+	/**
+	 * @param string $sPropCode
+	 * @param mixed $value
+	 * @param string $sSourceDesc mandatory for variables with show_in_conf_sample=false
+	 *
+	 * @throws \CoreException
+	 */
 	public function Set($sPropCode, $value, $sSourceDesc = 'unknown')
 	{
 		$sType = $this->m_aSettings[$sPropCode]['type'];
-		switch($sType)
+		switch ($sType)
 		{
-		case 'bool':
-			$value = (bool) $value;
-			break;
-		case 'string':
-			$value = (string) $value;
-			break;
-		case 'integer':
-			$value = (integer) $value;
-			break;
-		case 'float':
-			$value = (float) $value;
-			break;
-		case 'array':
-			break;
-		default:
-			throw new CoreException('Unknown type for setting', array('property' => $sPropCode, 'type' => $sType));
+			case 'bool':
+				$value = (bool)$value;
+				break;
+			case 'string':
+				$value = (string)$value;
+				break;
+			case 'integer':
+				$value = (integer)$value;
+				break;
+			case 'float':
+				$value = (float)$value;
+				break;
+			case 'array':
+				break;
+			default:
+				throw new CoreException('Unknown type for setting', array('property' => $sPropCode, 'type' => $sType));
 		}
 		$this->m_aSettings[$sPropCode]['value'] = $value;
 		$this->m_aSettings[$sPropCode]['source_of_value'] = $sSourceDesc;
 
 	}
 
-	public function Get($sPropCode)
-	{
-		return $this->m_aSettings[$sPropCode]['value'];
-	}
-
-	// Those variables will be deprecated later, when the transition to ...Get('my_setting') will be done
-	protected $m_sDBHost;
-	protected $m_sDBUser;
-	protected $m_sDBPwd;
-	protected $m_sDBName;
-	protected $m_sDBSubname;
-	protected $m_sDBCharacterSet;
-	protected $m_sDBCollation;
+    /**
+     * @param string $sPropCode
+     *
+     * @return mixed
+     */
+    public function Get($sPropCode)
+    {
+        return $this->m_aSettings[$sPropCode]['value'];
+    }
 
 	/**
 	 * Event log options (see LOG_... definition)
-	 */	 	
+	 */
 	// Those variables will be deprecated later, when the transition to ...Get('my_setting') will be done
 	protected $m_bLogGlobal;
 	protected $m_bLogNotification;
@@ -993,58 +1242,74 @@ class Config
 
 	/**
 	 * @var integer Number of elements to be displayed when there are more than m_iMaxDisplayLimit elements
-	 */	 	
+	 */
 	protected $m_iMinDisplayLimit;
 	/**
 	 * @var integer Max number of elements before truncating the display
-	 */	 	
+	 */
 	protected $m_iMaxDisplayLimit;
 
 	/**
 	 * @var integer Number of seconds between two reloads of the display (standard)
-	 */	 	
+	 */
 	protected $m_iStandardReloadInterval;
 	/**
 	 * @var integer Number of seconds between two reloads of the display (fast)
-	 */	 	
+	 */
 	protected $m_iFastReloadInterval;
-	
+
 	/**
 	 * @var boolean Whether or not a secure connection is required for using the application.
 	 *              If set, any attempt to connect to an iTop page with http:// will be redirected
 	 *              to https://
-	 */	 	
+	 */
 	protected $m_bSecureConnectionRequired;
 
 	/**
 	 * @var string Langage code, default if the user language is undefined
-	 */	 	
+	 */
 	protected $m_sDefaultLanguage;
-	
+
 	/**
 	 * @var string Type of login process allowed: form|basic|url|external
 	 */
-	 protected $m_sAllowedLoginTypes;
-	 
+	protected $m_sAllowedLoginTypes;
+
 	/**
 	 * @var string Name of the PHP variable in which external authentication information is passed by the web server
 	 */
-	 protected $m_sExtAuthVariable;
+	protected $m_sExtAuthVariable;
 
 	/**
 	 * @var string Encryption key used for all attributes of type "encrypted string". Can be set to a random value
 	 *             unless you want to import a database from another iTop instance, in which case you must use
 	 *             the same encryption key in order to properly decode the encrypted fields
 	 */
-	 protected $m_sEncryptionKey;
+	protected $m_sEncryptionKey;
+
+	/**
+	 * @var string Encryption key used for all attributes of type "encrypted string". Can be set to a random value
+	 *             unless you want to import a database from another iTop instance, in which case you must use
+	 *             the same encryption key in order to properly decode the encrypted fields
+	 */
+	protected $m_sEncryptionLibrary;
 
 	/**
 	 * @var array Additional character sets to be supported by the interactive CSV import
 	 *            'iconv_code' => 'display name'
 	 */
-	 protected $m_aCharsets;
+	protected $m_aCharsets;
 
-	public function __construct($sConfigFile = null, $bLoadConfig = true)
+    /**
+     * Config constructor.
+     *
+     * @param string|null $sConfigFile
+     * @param bool $bLoadConfig
+     *
+     * @throws \ConfigException
+     * @throws \CoreException
+     */
+    public function __construct($sConfigFile = null, $bLoadConfig = true)
 	{
 		$this->m_sFile = $sConfigFile;
 		if (is_null($sConfigFile))
@@ -1056,19 +1321,12 @@ class Config
 			// Default AddOn, always present can be moved to an official iTop Module later if needed
 			'user rights' => 'addons/userrights/userrightsprofile.class.inc.php',
 		);
-		
-		foreach($this->m_aSettings as $sPropCode => $aSettingInfo)
+
+		foreach ($this->m_aSettings as $sPropCode => $aSettingInfo)
 		{
 			$this->m_aSettings[$sPropCode]['value'] = $aSettingInfo['default'];
 		}
 
-		$this->m_sDBHost = '';
-		$this->m_sDBUser = '';
-		$this->m_sDBPwd = '';
-		$this->m_sDBName = '';
-		$this->m_sDBSubname = '';
-		$this->m_sDBCharacterSet = DEFAULT_CHARACTER_SET;
-		$this->m_sDBCollation = DEFAULT_COLLATION;
 		$this->m_bLogGlobal = DEFAULT_LOG_GLOBAL;
 		$this->m_bLogNotification = DEFAULT_LOG_NOTIFICATION;
 		$this->m_bLogIssue = DEFAULT_LOG_ISSUE;
@@ -1081,10 +1339,14 @@ class Config
 		$this->m_sDefaultLanguage = 'EN US';
 		$this->m_sAllowedLoginTypes = DEFAULT_ALLOWED_LOGIN_TYPES;
 		$this->m_sExtAuthVariable = DEFAULT_EXT_AUTH_VARIABLE;
-		$this->m_sEncryptionKey = DEFAULT_ENCRYPTION_KEY;
 		$this->m_aCharsets = array();
 		$this->m_bQueryCacheEnabled = DEFAULT_QUERY_CACHE_ENABLED;
-		
+
+		//define default encryption params according to php install
+		$aEncryptParams = SimpleCrypt::GetNewDefaultParams();
+		$this->m_sEncryptionLibrary = isset($aEncryptParams['lib']) ? $aEncryptParams['lib'] : DEFAULT_ENCRYPTION_LIB;
+		$this->m_sEncryptionKey= isset($aEncryptParams['key']) ? $aEncryptParams['key'] : DEFAULT_ENCRYPTION_KEY;
+
 		$this->m_aModuleSettings = array();
 
 		if ($bLoadConfig)
@@ -1093,23 +1355,29 @@ class Config
 			$this->Verify();
 		}
 
-      	// Application root url: set a default value, then normalize it
-/*
- * Does not work in CLI/unattended mode
-		$sAppRootUrl = trim($this->Get('app_root_url'));
-		if (strlen($sAppRootUrl) == 0)
-		{
-			$sAppRootUrl = utils::GetDefaultUrlAppRoot();
-		}
-		if (substr($sAppRootUrl, -1, 1) != '/')
-		{
-			$sAppRootUrl .= '/';
-		}
-		$this->Set('app_root_url', $sAppRootUrl);
- */
+		// Application root url: set a default value, then normalize it
+		/*
+		 * Does not work in CLI/unattended mode
+				$sAppRootUrl = trim($this->Get('app_root_url'));
+				if (strlen($sAppRootUrl) == 0)
+				{
+					$sAppRootUrl = utils::GetDefaultUrlAppRoot();
+				}
+				if (substr($sAppRootUrl, -1, 1) != '/')
+				{
+					$sAppRootUrl .= '/';
+				}
+				$this->Set('app_root_url', $sAppRootUrl);
+		 */
 	}
 
-	protected function CheckFile($sPurpose, $sFileName)
+    /**
+     * @param string $sPurpose
+     * @param string $sFileName
+     *
+     * @throws \ConfigException
+     */
+    protected function CheckFile($sPurpose, $sFileName)
 	{
 		if (!file_exists($sFileName))
 		{
@@ -1117,15 +1385,30 @@ class Config
 		}
 		if (!is_readable($sFileName))
 		{
-			throw new ConfigException("Could not read $sPurpose file (the file exists but cannot be read). Do you have the rights to access this file?", array('file' => $sFileName));			
+			throw new ConfigException("Could not read $sPurpose file (the file exists but cannot be read). Do you have the rights to access this file?",
+				array('file' => $sFileName));
 		}
 	}
 
+	/**
+	 * @param string $sConfigFile
+	 *
+	 * @throws \ConfigException
+	 * @throws \CoreException
+	 */
 	protected function Load($sConfigFile)
 	{
 		$this->CheckFile('configuration', $sConfigFile);
 
 		$sConfigCode = trim(file_get_contents($sConfigFile));
+
+		// Variables created when doing an eval() on the config file
+		/** @var array $MySettings */
+		$MySettings = null;
+		/** @var array $MyModuleSettings */
+		$MyModuleSettings = null;
+		/** @var array $MyModules */
+		$MyModules = null;
 
 		// This does not work on several lines
 		// preg_match('/^<\\?php(.*)\\?'.'>$/', $sConfigCode, $aMatches)...
@@ -1141,22 +1424,32 @@ class Config
 		{
 			// well, never reach in case of parsing error :-(
 			// will be improved in PHP 6 ?
-			throw new ConfigException('Error in configuration file', array('file' => $sConfigFile, 'error' => $e->getMessage()));
+			throw new ConfigException('Error in configuration file',
+				array('file' => $sConfigFile, 'error' => $e->getMessage()));
+		}
+		catch(Error $e)
+		{
+		    // PHP 7
+		    throw new ConfigException('Error in configuration file',
+		        array('file' => $sConfigFile, 'error' => $e->getMessage().' at line '.$e->getLine()));
 		}
 		if (strlen($sNoise) > 0)
 		{
 			// Note: sNoise is an html output, but so far it was ok for me (e.g. showing the entire call stack) 
-			throw new ConfigException('Syntax error in configuration file', array('file' => $sConfigFile, 'error' => '<tt>'.htmlentities($sNoise, ENT_QUOTES, 'UTF-8').'</tt>'));
+			throw new ConfigException('Syntax error in configuration file',
+				array('file' => $sConfigFile, 'error' => '<tt>'.htmlentities($sNoise, ENT_QUOTES, 'UTF-8').'</tt>'));
 		}
 
 		if (!isset($MySettings) || !is_array($MySettings))
 		{
-			throw new ConfigException('Missing array in configuration file', array('file' => $sConfigFile, 'expected' => '$MySettings'));
+			throw new ConfigException('Missing array in configuration file',
+				array('file' => $sConfigFile, 'expected' => '$MySettings'));
 		}
 
 		if (!array_key_exists('addons', $MyModules))
 		{
-			throw new ConfigException('Missing item in configuration file', array('file' => $sConfigFile, 'expected' => '$MyModules[\'addons\']'));
+			throw new ConfigException('Missing item in configuration file',
+				array('file' => $sConfigFile, 'expected' => '$MyModules[\'addons\']'));
 		}
 		if (!array_key_exists('user rights', $MyModules['addons']))
 		{
@@ -1166,7 +1459,7 @@ class Config
 
 		$this->m_aAddons = $MyModules['addons'];
 
-		foreach($MySettings as $sPropCode => $rawvalue)
+		foreach ($MySettings as $sPropCode => $rawvalue)
 		{
 			if ($this->IsProperty($sPropCode))
 			{
@@ -1182,33 +1475,25 @@ class Config
 			}
 		}
 
-		$this->m_sDBHost = trim($MySettings['db_host']);
-		$this->m_sDBUser = trim($MySettings['db_user']);
-		$this->m_sDBPwd = trim($MySettings['db_pwd']);
-		$this->m_sDBName = trim($MySettings['db_name']);
-		$this->m_sDBSubname = trim($MySettings['db_subname']);
-
-		$this->m_sDBCharacterSet = isset($MySettings['db_character_set']) ? trim($MySettings['db_character_set']) : DEFAULT_CHARACTER_SET;
-		$this->m_sDBCollation = isset($MySettings['db_collation']) ? trim($MySettings['db_collation']) : DEFAULT_COLLATION;
-
-		$this->m_bLogGlobal = isset($MySettings['log_global']) ? (bool) trim($MySettings['log_global']) : DEFAULT_LOG_GLOBAL;
-		$this->m_bLogNotification = isset($MySettings['log_notification']) ? (bool) trim($MySettings['log_notification']) : DEFAULT_LOG_NOTIFICATION;
-		$this->m_bLogIssue = isset($MySettings['log_issue']) ? (bool) trim($MySettings['log_issue']) : DEFAULT_LOG_ISSUE;
-		$this->m_bLogWebService = isset($MySettings['log_web_service']) ? (bool) trim($MySettings['log_web_service']) : DEFAULT_LOG_WEB_SERVICE;
-		$this->m_bQueryCacheEnabled = isset($MySettings['query_cache_enabled']) ? (bool) trim($MySettings['query_cache_enabled']) : DEFAULT_QUERY_CACHE_ENABLED;
+		$this->m_bLogGlobal = isset($MySettings['log_global']) ? (bool)trim($MySettings['log_global']) : DEFAULT_LOG_GLOBAL;
+		$this->m_bLogNotification = isset($MySettings['log_notification']) ? (bool)trim($MySettings['log_notification']) : DEFAULT_LOG_NOTIFICATION;
+		$this->m_bLogIssue = isset($MySettings['log_issue']) ? (bool)trim($MySettings['log_issue']) : DEFAULT_LOG_ISSUE;
+		$this->m_bLogWebService = isset($MySettings['log_web_service']) ? (bool)trim($MySettings['log_web_service']) : DEFAULT_LOG_WEB_SERVICE;
+		$this->m_bQueryCacheEnabled = isset($MySettings['query_cache_enabled']) ? (bool)trim($MySettings['query_cache_enabled']) : DEFAULT_QUERY_CACHE_ENABLED;
 
 		$this->m_iMinDisplayLimit = isset($MySettings['min_display_limit']) ? trim($MySettings['min_display_limit']) : DEFAULT_MIN_DISPLAY_LIMIT;
 		$this->m_iMaxDisplayLimit = isset($MySettings['max_display_limit']) ? trim($MySettings['max_display_limit']) : DEFAULT_MAX_DISPLAY_LIMIT;
 		$this->m_iStandardReloadInterval = isset($MySettings['standard_reload_interval']) ? trim($MySettings['standard_reload_interval']) : DEFAULT_STANDARD_RELOAD_INTERVAL;
 		$this->m_iFastReloadInterval = isset($MySettings['fast_reload_interval']) ? trim($MySettings['fast_reload_interval']) : DEFAULT_FAST_RELOAD_INTERVAL;
-		$this->m_bSecureConnectionRequired = isset($MySettings['secure_connection_required']) ? (bool) trim($MySettings['secure_connection_required']) : DEFAULT_SECURE_CONNECTION_REQUIRED;
+		$this->m_bSecureConnectionRequired = isset($MySettings['secure_connection_required']) ? (bool)trim($MySettings['secure_connection_required']) : DEFAULT_SECURE_CONNECTION_REQUIRED;
 
-		$this->m_aModuleSettings = isset($MyModuleSettings) ?  $MyModuleSettings : array();
+		$this->m_aModuleSettings = isset($MyModuleSettings) ? $MyModuleSettings : array();
 
 		$this->m_sDefaultLanguage = isset($MySettings['default_language']) ? trim($MySettings['default_language']) : 'EN US';
 		$this->m_sAllowedLoginTypes = isset($MySettings['allowed_login_types']) ? trim($MySettings['allowed_login_types']) : DEFAULT_ALLOWED_LOGIN_TYPES;
 		$this->m_sExtAuthVariable = isset($MySettings['ext_auth_variable']) ? trim($MySettings['ext_auth_variable']) : DEFAULT_EXT_AUTH_VARIABLE;
-		$this->m_sEncryptionKey = isset($MySettings['encryption_key']) ? trim($MySettings['encryption_key']) : DEFAULT_ENCRYPTION_KEY;
+		$this->m_sEncryptionKey = isset($MySettings['encryption_key']) ? trim($MySettings['encryption_key']) : $this->m_sEncryptionKey;
+		$this->m_sEncryptionLibrary = isset($MySettings['encryption_library']) ? trim($MySettings['encryption_library']) : $this->m_sEncryptionLibrary;
 		$this->m_aCharsets = isset($MySettings['csv_import_charsets']) ? $MySettings['csv_import_charsets'] : array();
 	}
 
@@ -1224,24 +1509,33 @@ class Config
 		{
 			return $this->m_aModuleSettings[$sModule][$sProperty];
 		}
+
 		// Fall back to the predefined XML parameter, if any
 		return $this->GetModuleParameter($sModule, $sProperty, $defaultvalue);
 	}
 
-	public function GetModuleParameter($sModule, $sProperty, $defaultvalue = null)
+    /**
+     * @param string $sModule
+     * @param string $sProperty
+     * @param mixed|null $defaultvalue
+     *
+     * @return mixed|null
+     */
+    public function GetModuleParameter($sModule, $sProperty, $defaultvalue = null)
 	{
 		$ret = $defaultvalue;
 		if (class_exists('ModulesXMLParameters'))
 		{
 			$aAllParams = ModulesXMLParameters::GetData($sModule);
-			if(array_key_exists($sProperty, $aAllParams))
+			if (array_key_exists($sProperty, $aAllParams))
 			{
 				$ret = $aAllParams[$sProperty];
 			}
 		}
+
 		return $ret;
 	}
-	
+
 	public function SetModuleSetting($sModule, $sProperty, $value)
 	{
 		$this->m_aModuleSettings[$sModule][$sProperty] = $value;
@@ -1251,44 +1545,87 @@ class Config
 	{
 		return $this->m_aAddons;
 	}
+
 	public function SetAddons($aAddons)
 	{
 		$this->m_aAddons = $aAddons;
 	}
 
+	/**
+	 * @return string
+	 *
+	 * @deprecated 2.5 will be removed in 2.6
+	 * @see Config::Get() as a replacement
+	 */
 	public function GetDBHost()
 	{
-		return $this->m_sDBHost;
+		return $this->Get('db_host');
 	}
-	
+
+	/**
+	 * @return string
+	 *
+	 * @deprecated 2.5 will be removed in 2.6
+	 * @see Config::Get() as a replacement
+	 */
 	public function GetDBName()
 	{
-		return $this->m_sDBName;
+		return $this->Get('db_name');
 	}
 
+	/**
+	 * @return string
+	 *
+	 * @deprecated 2.5 will be removed in 2.6
+	 * @see Config::Get() as a replacement
+	 */
 	public function GetDBSubname()
 	{
-		return $this->m_sDBSubname;
+		return $this->Get('db_subname');
 	}
 
+	/**
+	 * @return string
+	 *
+	 * @deprecated 2.5 will be removed in 2.6 N°1001 utf8mb4 switch
+	 * @see Config::DEFAULT_CHARACTER_SET
+	 */
 	public function GetDBCharacterSet()
 	{
-		return $this->m_sDBCharacterSet;
+		return DEFAULT_CHARACTER_SET;
 	}
 
+	/**
+	 * @return string
+	 *
+	 * @deprecated 2.5 will be removed in 2.6 N°1001 utf8mb4 switch
+	 * @see Config::DEFAULT_COLLATION
+	 */
 	public function GetDBCollation()
 	{
-		return $this->m_sDBCollation;
+		return DEFAULT_COLLATION;
 	}
 
+	/**
+	 * @return string
+	 *
+	 * @deprecated 2.5 will be removed in 2.6
+	 * @see Config::Get() as a replacement
+	 */
 	public function GetDBUser()
 	{
-		return $this->m_sDBUser;
+		return $this->Get('db_user');
 	}
 
+	/**
+	 * @return string
+	 *
+	 * @deprecated 2.5 will be removed in 2.6
+	 * @see Config::Get() as a replacement
+	 */
 	public function GetDBPwd()
 	{
-		return $this->m_sDBPwd;
+		return $this->Get('db_pwd');
 	}
 
 	public function GetLogGlobal()
@@ -1356,6 +1693,11 @@ class Config
 		return $this->m_sEncryptionKey;
 	}
 
+	public function GetEncryptionLibrary()
+	{
+		return $this->m_sEncryptionLibrary;
+	}
+
 	public function GetAllowedLoginTypes()
 	{
 		return explode('|', $this->m_sAllowedLoginTypes);
@@ -1369,41 +1711,6 @@ class Config
 	public function GetCSVImportCharsets()
 	{
 		return $this->m_aCharsets;
-	}
-	
-	public function SetDBHost($sDBHost)
-	{
-		$this->m_sDBHost = $sDBHost;
-	}
-	
-	public function SetDBName($sDBName)
-	{
-		$this->m_sDBName = $sDBName;
-	}
-
-	public function SetDBSubname($sDBSubName)
-	{
-		$this->m_sDBSubname = $sDBSubName;
-	}
-
-	public function SetDBCharacterSet($sDBCharacterSet)
-	{
-		$this->m_sDBCharacterSet = $sDBCharacterSet;
-	}
-
-	public function SetDBCollation($sDBCollation)
-	{
-		$this->m_sDBCollation = $sDBCollation;
-	}
-
-	public function SetDBUser($sUser)
-	{
-		$this->m_sDBUser = $sUser;
-	}
-
-	public function SetDBPwd($sPwd)
-	{
-		$this->m_sDBPwd = $sPwd;
 	}
 
 	public function SetLogGlobal($iLogGlobal)
@@ -1479,7 +1786,7 @@ class Config
 	public function AddCSVImportCharset($sIconvCode, $sDisplayName)
 	{
 		$this->m_aCharsets[$sIconvCode] = $sDisplayName;
-	}	
+	}
 
 	public function GetLoadedFile()
 	{
@@ -1492,25 +1799,19 @@ class Config
 			return $this->m_sFile;
 		}
 	}
-	
+
 	/**
 	 * Render the configuration as an associative array
-	 * @return boolean True otherwise throws an Exception
-	 */	 	 	 	 	
+	 *
+	 * @return array
+	 */
 	public function ToArray()
 	{
 		$aSettings = array();
-		foreach($this->m_aSettings as $sPropCode => $aSettingInfo)
+		foreach ($this->m_aSettings as $sPropCode => $aSettingInfo)
 		{
 			$aSettings[$sPropCode] = $aSettingInfo['value'];
 		}
-		$aSettings['db_host'] = $this->m_sDBHost;
-		$aSettings['db_user'] = $this->m_sDBUser;
-		$aSettings['db_pwd'] = $this->m_sDBPwd;
-		$aSettings['db_name'] = $this->m_sDBName;
-		$aSettings['db_subname'] = $this->m_sDBSubname;
-		$aSettings['db_character_set'] = $this->m_sDBCharacterSet;
-		$aSettings['db_collation'] = $this->m_sDBCollation;
 		$aSettings['log_global'] = $this->m_bLogGlobal;
 		$aSettings['log_notification'] = $this->m_bLogNotification;
 		$aSettings['log_issue'] = $this->m_bLogIssue;
@@ -1525,6 +1826,7 @@ class Config
 		$aSettings['allowed_login_types'] = $this->m_sAllowedLoginTypes;
 		$aSettings['ext_auth_variable'] = $this->m_sExtAuthVariable;
 		$aSettings['encryption_key'] = $this->m_sEncryptionKey;
+		$aSettings['encryption_library'] = $this->m_sEncryptionLibrary;
 		$aSettings['csv_import_charsets'] = $this->m_aCharsets;
 
 		foreach ($this->m_aModuleSettings as $sModule => $aProperties)
@@ -1534,19 +1836,24 @@ class Config
 				$aSettings['module_settings'][$sModule][$sProperty] = $value;
 			}
 		}
-		foreach($this->m_aAddons as $sKey => $sFile)
+		foreach ($this->m_aAddons as $sKey => $sFile)
 		{
 			$aSettings['addon_list'][] = $sFile;
 		}
+
 		return $aSettings;
 	}
 
-	/**
-	 * Write the configuration to a file (php format) that can be reloaded later
-	 * By default write to the same file that was specified when constructing the object
-	 * @param $sFileName string Name of the file to write to (emtpy to write to the same file)
-	 * @return boolean True otherwise throws an Exception
-	 */	 	 	 	 	
+    /**
+     * Write the configuration to a file (php format) that can be reloaded later
+     * By default write to the same file that was specified when constructing the object
+     *
+     * @param string $sFileName string Name of the file to write to (emtpy to write to the same file)
+     *
+     * @return boolean True otherwise throws an Exception
+	 *
+     * @throws \ConfigException
+     */
 	public function WriteToFile($sFileName = '')
 	{
 		if (empty($sFileName))
@@ -1561,12 +1868,13 @@ class Config
 			fwrite($hFile, " *\n");
 			fwrite($hFile, " * Configuration file, generated by the ".ITOP_APPLICATION." configuration wizard\n");
 			fwrite($hFile, " *\n");
-			fwrite($hFile, " * The file is used in MetaModel::LoadConfig() which does all the necessary initialization job\n");
+			fwrite($hFile,
+				" * The file is used in MetaModel::LoadConfig() which does all the necessary initialization job\n");
 			fwrite($hFile, " *\n");
 			fwrite($hFile, " */\n");
-			
+
 			$aConfigSettings = $this->m_aSettings;
-			
+
 			// Old fashioned boolean settings
 			$aBoolValues = array(
 				'log_global' => $this->m_bLogGlobal,
@@ -1576,7 +1884,7 @@ class Config
 				'query_cache_enabled' => $this->m_bQueryCacheEnabled,
 				'secure_connection_required' => $this->m_bSecureConnectionRequired,
 			);
-			foreach($aBoolValues as $sKey => $bValue)
+			foreach ($aBoolValues as $sKey => $bValue)
 			{
 				$aConfigSettings[$sKey] = array(
 					'show_in_conf_sample' => true,
@@ -1584,7 +1892,7 @@ class Config
 					'value' => $bValue,
 				);
 			}
-	
+
 			// Old fashioned integer settings
 			$aIntValues = array(
 				'fast_reload_interval' => $this->m_iFastReloadInterval,
@@ -1592,7 +1900,7 @@ class Config
 				'min_display_limit' => $this->m_iMinDisplayLimit,
 				'standard_reload_interval' => $this->m_iStandardReloadInterval,
 			);
-			foreach($aIntValues as $sKey => $iValue)
+			foreach ($aIntValues as $sKey => $iValue)
 			{
 				$aConfigSettings[$sKey] = array(
 					'show_in_conf_sample' => true,
@@ -1603,20 +1911,14 @@ class Config
 
 			// Old fashioned remaining values
 			$aOtherValues = array(
-				'db_host' => $this->m_sDBHost,
-				'db_user' => $this->m_sDBUser,
-				'db_pwd' => $this->m_sDBPwd,
-				'db_name' => $this->m_sDBName,
-				'db_subname' => $this->m_sDBSubname,
-				'db_character_set' => $this->m_sDBCharacterSet,
-				'db_collation' => $this->m_sDBCollation,
 				'default_language' => $this->m_sDefaultLanguage,
 				'allowed_login_types' => $this->m_sAllowedLoginTypes,
 				'ext_auth_variable' => $this->m_sExtAuthVariable,
 				'encryption_key' => $this->m_sEncryptionKey,
+				'encryption_library' => $this->m_sEncryptionLibrary,
 				'csv_import_charsets' => $this->m_aCharsets,
 			);
-			foreach($aOtherValues as $sKey => $value)
+			foreach ($aOtherValues as $sKey => $value)
 			{
 				$aConfigSettings[$sKey] = array(
 					'show_in_conf_sample' => true,
@@ -1624,22 +1926,22 @@ class Config
 					'value' => $value,
 				);
 			}
-			
+
 			ksort($aConfigSettings);
 			fwrite($hFile, "\$MySettings = array(\n");
-			foreach($aConfigSettings as $sPropCode => $aSettingInfo)
+			foreach ($aConfigSettings as $sPropCode => $aSettingInfo)
 			{
 				// Write all values that are either always visible or present in the cloned config file
-				if ($aSettingInfo['show_in_conf_sample'] || (!empty($aSettingInfo['source_of_value']) && ($aSettingInfo['source_of_value'] != 'unknown')) )
+				if ($aSettingInfo['show_in_conf_sample'] || (!empty($aSettingInfo['source_of_value']) && ($aSettingInfo['source_of_value'] != 'unknown')))
 				{
 					$sType = $aSettingInfo['type'];
-					switch($sType)
+					switch ($sType)
 					{
-					case 'bool':
-						$sSeenAs = $aSettingInfo['value'] ? 'true' : 'false';
-						break;
-					default:
-						$sSeenAs = self::PrettyVarExport($aSettingInfo['value'], "\t");
+						case 'bool':
+							$sSeenAs = $aSettingInfo['value'] ? 'true' : 'false';
+							break;
+						default:
+							$sSeenAs = self::PrettyVarExport($aSettingInfo['value'], "\t");
 					}
 					fwrite($hFile, "\n");
 					if (isset($aSettingInfo['description']))
@@ -1653,13 +1955,14 @@ class Config
 						{
 							$default = $default ? 'true' : 'false';
 						}
-						fwrite($hFile, "\t//\tdefault: ".self::PrettyVarExport($aSettingInfo['default'],"\t//\t\t", true)."\n");
+						fwrite($hFile,
+							"\t//\tdefault: ".self::PrettyVarExport($aSettingInfo['default'], "\t//\t\t", true)."\n");
 					}
 					fwrite($hFile, "\t'$sPropCode' => $sSeenAs,\n");
 				}
 			}
 			fwrite($hFile, ");\n");
-			
+
 			fwrite($hFile, "\n");
 			fwrite($hFile, "/**\n *\n * Modules specific settings\n *\n */\n");
 			fwrite($hFile, "\$MyModuleSettings = array(\n");
@@ -1674,7 +1977,7 @@ class Config
 				fwrite($hFile, "\t),\n");
 			}
 			fwrite($hFile, ");\n");
-			
+
 			fwrite($hFile, "\n/**\n");
 			fwrite($hFile, " *\n");
 			fwrite($hFile, " * Data model modules to be loaded. Names are specified as relative paths\n");
@@ -1682,13 +1985,14 @@ class Config
 			fwrite($hFile, " */\n");
 			fwrite($hFile, "\$MyModules = array(\n");
 			fwrite($hFile, "\t'addons' => array (\n");
-			foreach($this->m_aAddons as $sKey => $sFile)
+			foreach ($this->m_aAddons as $sKey => $sFile)
 			{
 				fwrite($hFile, "\t\t'$sKey' => '$sFile',\n");
 			}
 			fwrite($hFile, "\t),\n");
 			fwrite($hFile, ");\n");
 			fwrite($hFile, '?'.'>'); // Avoid perturbing the syntax highlighting !
+
 			return fclose($hFile);
 		}
 		else
@@ -1697,9 +2001,16 @@ class Config
 		}
 	}
 
-	/**
-	 * Helper function to initialize a configuration from the page arguments
-	 */
+    /**
+     * Helper function to initialize a configuration from the page arguments
+     *
+     * @param array $aParamValues
+     * @param string|null $sModulesDir
+     * @param bool $bPreserveModuleSettings
+     *
+     * @throws \Exception
+     * @throws \CoreException
+     */
 	public function UpdateFromParams($aParamValues, $sModulesDir = null, $bPreserveModuleSettings = false)
 	{
 		if (isset($aParamValues['application_path']))
@@ -1712,26 +2023,47 @@ class Config
 		}
 		if (isset($aParamValues['mode']) && isset($aParamValues['language']))
 		{
-			if (($aParamValues['mode'] == 'install') ||  $this->GetDefaultLanguage() == '')
+			if (($aParamValues['mode'] == 'install') || $this->GetDefaultLanguage() == '')
 			{
 				$this->SetDefaultLanguage($aParamValues['language']);
 			}
 		}
 		if (isset($aParamValues['db_server']))
 		{
-			$this->SetDBHost($aParamValues['db_server']);
-			$this->SetDBUser($aParamValues['db_user']);
-			$this->SetDBPwd($aParamValues['db_pwd']);
+			$this->Set('db_host', $aParamValues['db_server']);
+			$this->Set('db_user', $aParamValues['db_user']);
+			$this->Set('db_pwd', $aParamValues['db_pwd']);
 			$sDBName = $aParamValues['db_name'];
 			if ($sDBName == '')
 			{
 				// Todo - obsolete after the transition to the new setup (2.0) is complete (WARNING: used by the designer)
-				$sDBName = $aParamValues['new_db_name'];
+				if (isset($aParamValues['new_db_name']))
+				{
+					$sDBName = $aParamValues['new_db_name'];
+				}
 			}
-			$this->SetDBName($sDBName);
-			$this->SetDBSubname($aParamValues['db_prefix']);
+			$this->Set('db_name', $sDBName);
+			$this->Set('db_subname', $aParamValues['db_prefix']);
+
+			$bDbTlsEnabled = (bool) $aParamValues['db_tls_enabled'];
+			if ($bDbTlsEnabled)
+			{
+				$this->Set('db_tls.enabled', $bDbTlsEnabled, 'UpdateFromParams');
+			}
+			else
+			{
+				// disabled : we don't want parameter in the file
+				$this->Set('db_tls.enabled', $bDbTlsEnabled, null);
+			}
+			$sDbTlsCa = $bDbTlsEnabled ? $aParamValues['db_tls_ca'] : null;
+			if (isset($sDbTlsCa) && !empty($sDbTlsCa)) {
+				$this->Set('db_tls.ca', $sDbTlsCa, 'UpdateFromParams');
+			} else {
+				// empty parameter : we don't want it in the file
+				$this->Set('db_tls.ca', null, null);
+			}
 		}
-		
+
 		if (isset($aParamValues['selected_modules']))
 		{
 			$aSelectedModules = explode(',', $aParamValues['selected_modules']);
@@ -1739,24 +2071,34 @@ class Config
 		else
 		{
 			$aSelectedModules = null;
-		}		
+		}
 		$this->UpdateIncludes($sModulesDir, $aSelectedModules);
+
+		if (isset($aParamValues['source_dir']))
+		{
+			$this->Set('source_dir', $aParamValues['source_dir']);
+		}
 	}
 
 	/**
-	 * Helper function to rebuild the default configuration and the list of includes from a directory and a list of selected modules
-	 * @param string $sModulesDir The relative path to the directory to scan for modules (typically the 'env-xxx' directory resulting from the compilation)
-	 * @param array $aSelectedModules An array of selected modules' identifiers. If null all modules found will be considered as installed
+	 * Helper function to rebuild the default configuration and the list of includes from a directory and a list of
+	 * selected modules
+	 *
+	 * @param string $sModulesDir The relative path to the directory to scan for modules (typically the 'env-xxx'
+	 *     directory resulting from the compilation)
+	 * @param array $aSelectedModules An array of selected modules' identifiers. If null all modules found will be
+	 *     considered as installed
+	 *
 	 * @throws Exception
 	 */
 	public function UpdateIncludes($sModulesDir, $aSelectedModules = null)
 	{
 		if (!is_null($sModulesDir))
-		{	
+		{
 			// Initialize the arrays below with default values for the application...
 			$oEmptyConfig = new Config('dummy_file', false); // Do NOT load any config file, just set the default values
 			$aAddOns = $oEmptyConfig->GetAddOns();
-			
+
 			$aModules = ModuleDiscovery::GetAvailableModules(array(APPROOT.$sModulesDir));
 			foreach ($aModules as $sModuleId => $aModuleInfo)
 			{
@@ -1789,7 +2131,7 @@ class Config
 						{
 							throw new Exception("Wrong installer class: '$sModuleInstallerClass' is not derived from 'ModuleInstallerAPI' - Module: ".$aModuleInfo['label']);
 						}
-						$aCallSpec = array($sModuleInstallerClass,'BeforeWritingConfig');
+						$aCallSpec = array($sModuleInstallerClass, 'BeforeWritingConfig');
 						call_user_func_array($aCallSpec, array($this));
 					}
 				}
@@ -1798,11 +2140,15 @@ class Config
 		}
 	}
 
-	/**
-	 * Helper: for an array of string, change the prefix when found
-	 */
-	 protected static function ChangePrefix(&$aStrings, $sSearchPrefix, $sNewPrefix)
-	 {	 	
+    /**
+     * Helper: for an array of string, change the prefix when found
+     *
+     * @param array $aStrings
+     * @param string $sSearchPrefix
+     * @param string $sNewPrefix
+     */
+	protected static function ChangePrefix(&$aStrings, $sSearchPrefix, $sNewPrefix)
+	{
 		foreach ($aStrings as &$sFile)
 		{
 			if (substr($sFile, 0, strlen($sSearchPrefix)) == $sSearchPrefix)
@@ -1812,20 +2158,26 @@ class Config
 		}
 	}
 
-	/**
-	 * Obsolete: kept only for backward compatibility of the Toolkit
-     * Quick and dirty way to clone a config file into another environment	
-	 */	
+    /**
+     * Obsolete: kept only for backward compatibility of the Toolkit
+     * Quick and dirty way to clone a config file into another environment
+     *
+     * @param string $sSourceEnv
+     * @param string $sTargetEnv
+     */
 	public function ChangeModulesPath($sSourceEnv, $sTargetEnv)
 	{
 		// Now does nothing since the includes are built into the environment itself
 	}
-	
+
 	/**
 	 * Pretty format a var_export'ed value so that (if possible) the identation is preserved on every line
+	 *
 	 * @param mixed $value The value to export
 	 * @param string $sIndentation The string to use to indent the text
-	 * @param bool $bForceIndentation Forces the identation (enven if it breaks/changes an eval, for example to ouput a value inside a comment)
+	 * @param bool $bForceIndentation Forces the identation (enven if it breaks/changes an eval, for example to ouput a
+	 *     value inside a comment)
+	 *
 	 * @return string The indented export string
 	 */
 	protected static function PrettyVarExport($value, $sIndentation, $bForceIndentation = false)
@@ -1834,16 +2186,18 @@ class Config
 		$sNiceExport = str_replace(array("\r\n", "\n", "\r"), "\n".$sIndentation, trim($sExport));
 		if (!$bForceIndentation)
 		{
+			/** @var array $aImported */
+			$aImported = null;
 			eval('$aImported='.$sNiceExport.';');
 			// Check if adding the identations at the beginning of each line
 			// did not modify the values (in case of a string containing a line break)
-			if($aImported != $value)
+			if ($aImported != $value)
 			{
 				$sNiceExport = $sExport;
 			}
 		}
-		return $sNiceExport;	
+
+		return $sNiceExport;
 	}
 
 }
-?>

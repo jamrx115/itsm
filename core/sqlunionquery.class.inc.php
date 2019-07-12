@@ -38,8 +38,9 @@ class SQLUnionQuery extends SQLQuery
 {
 	protected $aQueries;
 	protected $aGroupBy;
+	protected $aSelectExpr;
 
-	public function __construct($aQueries, $aGroupBy)
+	public function __construct($aQueries, $aGroupBy, $aSelectExpr = array())
 	{
 		parent::__construct();
 
@@ -49,6 +50,7 @@ class SQLUnionQuery extends SQLQuery
 			$this->aQueries[] = $oSQLQuery->DeepClone();
 		}
 		$this->aGroupBy = $aGroupBy;
+		$this->aSelectExpr = $aSelectExpr;
 	}
 
 	public function DisplayHtml()
@@ -58,7 +60,7 @@ class SQLUnionQuery extends SQLQuery
 		{
 			$aQueriesHtml[] = '<p>'.$oSQLQuery->DisplayHtml().'</p>';
 		}
-		echo implode('UNION', $aQueries);
+		echo implode('UNION', $aQueriesHtml);
 	}
 
 	public function AddInnerJoin($oSQLQuery, $sLeftField, $sRightField, $sRightTable = '')
@@ -69,12 +71,21 @@ class SQLUnionQuery extends SQLQuery
 		}
 	}
 
+	/**
+	 * @param array $aArgs
+	 * @throws Exception
+	 */
 	public function RenderDelete($aArgs = array())
 	{
 		throw new Exception(__class__.'::'.__function__.'Not implemented !');
 	}
 
 	// Interface, build the SQL query
+
+	/**
+	 * @param array $aArgs
+	 * @throws Exception
+	 */
 	public function RenderUpdate($aArgs = array())
 	{
 		throw new Exception(__class__.'::'.__function__.'Not implemented !');
@@ -85,7 +96,6 @@ class SQLUnionQuery extends SQLQuery
 	{
 		$this->m_bBeautifulQuery = $bBeautifulQuery;
 		$sLineSep = $this->m_bBeautifulQuery ? "\n" : '';
-		$sIndent = $this->m_bBeautifulQuery ? "   " : null;
 
 		$aSelects = array();
 		foreach ($this->aQueries as $oSQLQuery)
@@ -93,46 +103,52 @@ class SQLUnionQuery extends SQLQuery
 			// Render SELECTS without orderby/limit/count
 			$aSelects[] = $oSQLQuery->RenderSelect(array(), $aArgs, 0, 0, false, $bBeautifulQuery);
 		}
-		$sSelects = '('.implode(")$sLineSep UNION$sLineSep(", $aSelects).')';
-
-		if ($bGetCount)
+		if ($iLimitCount > 0)
 		{
-			$sFrom = "($sLineSep$sSelects$sLineSep) as __selects__";
-			$sSQL = "SELECT$sLineSep COUNT(*) AS COUNT$sLineSep FROM $sFrom$sLineSep";
+			$sLimit = 'LIMIT '.$iLimitStart.', '.$iLimitCount;
 		}
 		else
 		{
-			$aSelects = array();
-			foreach ($this->aQueries as $oSQLQuery)
-			{
-				// Render SELECT without orderby/limit/count
-				$aSelects[] = $oSQLQuery->RenderSelect(array(), $aArgs, 0, 0, false, $bBeautifulQuery);
-			}
-			$sSelect = $this->aQueries[0]->RenderSelectClause();
+			$sLimit = '';
+		}
+
+		if ($bGetCount)
+		{
+			$sSelects = '('.implode(" $sLimit)$sLineSep UNION$sLineSep(", $aSelects)." $sLimit)";
+			$sFrom = "($sLineSep$sSelects$sLineSep) as __selects__";
+			$sSQL = "SELECT COUNT(*) AS COUNT FROM (SELECT$sLineSep 1 $sLineSep FROM $sFrom$sLineSep) AS _union_tatooine_";
+		}
+		else
+		{
 			$sOrderBy = $this->aQueries[0]->RenderOrderByClause($aOrderBy);
 			if (!empty($sOrderBy))
 			{
-				$sOrderBy = "ORDER BY $sOrderBy$sLineSep";
-			}
-			if ($iLimitCount > 0)
-			{
-				$sLimit = 'LIMIT '.$iLimitStart.', '.$iLimitCount;
+				$sOrderBy = "ORDER BY $sOrderBy$sLineSep $sLimit";
+				$sSQL = '('.implode(")$sLineSep UNION$sLineSep (", $aSelects).')'.$sLineSep.$sOrderBy;
 			}
 			else
 			{
-				$sLimit = '';
+				$sSQL = '('.implode(" $sLimit)$sLineSep UNION$sLineSep (", $aSelects)." $sLimit)";
 			}
-			$sSQL = $sSelects.$sLineSep.$sOrderBy.' '.$sLimit;
 		}
 		return $sSQL;
 	}
 
 	// Interface, build the SQL query
-	public function RenderGroupBy($aArgs = array(), $bBeautifulQuery = false)
+
+	/**
+	 * @param array $aArgs
+	 * @param bool $bBeautifulQuery
+	 * @param array $aOrderBy
+	 * @param int $iLimitCount
+	 * @param int $iLimitStart
+	 * @return string
+	 * @throws CoreException
+	 */
+	public function RenderGroupBy($aArgs = array(), $bBeautifulQuery = false, $aOrderBy = array(), $iLimitCount = 0, $iLimitStart = 0)
 	{
 		$this->m_bBeautifulQuery = $bBeautifulQuery;
 		$sLineSep = $this->m_bBeautifulQuery ? "\n" : '';
-		$sIndent = $this->m_bBeautifulQuery ? "   " : null;
 
 		$aSelects = array();
 		foreach ($this->aQueries as $oSQLQuery)
@@ -143,15 +159,41 @@ class SQLUnionQuery extends SQLQuery
 		$sSelects = '('.implode(")$sLineSep UNION$sLineSep(", $aSelects).')';
 		$sFrom = "($sLineSep$sSelects$sLineSep) as __selects__";
 
-		$aAliases = array();
+		$aSelectAliases = array();
+		$aGroupAliases = array();
 		foreach ($this->aGroupBy as $sGroupAlias => $trash)
 		{
-			$aAliases[] = "`$sGroupAlias`";
+			$aSelectAliases[$sGroupAlias] = "`$sGroupAlias`";
+			$aGroupAliases[] = "`$sGroupAlias`";
 		}
-		$sSelect = implode(', ', $aAliases);
-		$sGroupBy = implode(', ', $aAliases);
+		foreach($this->aSelectExpr as $sSelectAlias => $oExpr)
+		{
+			$aSelectAliases[$sSelectAlias] = $oExpr->RenderExpression(true)." AS `$sSelectAlias`";
+		}
 
-		$sSQL = "SELECT $sSelect,$sLineSep COUNT(*) AS _itop_count_$sLineSep FROM $sFrom$sLineSep GROUP BY $sGroupBy";
+		$sSelect = implode(",$sLineSep ", $aSelectAliases);
+		$sGroupBy = implode(', ', $aGroupAliases);
+
+		$sOrderBy = self::ClauseOrderBy($aOrderBy, $aSelectAliases);
+		if (!empty($sGroupBy))
+		{
+			$sGroupBy = "GROUP BY $sGroupBy$sLineSep";
+		}
+		if (!empty($sOrderBy))
+		{
+			$sOrderBy = "ORDER BY $sOrderBy$sLineSep";
+		}
+		if ($iLimitCount > 0)
+		{
+			$sLimit = 'LIMIT '.$iLimitStart.', '.$iLimitCount;
+		}
+		else
+		{
+			$sLimit = '';
+		}
+
+
+		$sSQL = "SELECT $sSelect,$sLineSep COUNT(*) AS _itop_count_$sLineSep FROM $sFrom$sLineSep $sGroupBy $sOrderBy$sLineSep $sLimit";
 		return $sSQL;
 	}
 

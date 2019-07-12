@@ -1,10 +1,10 @@
 <?php
 
-// Copyright (C) 2010-2016 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
-//   iTop is free software; you can redistribute it and/or modify	
+//   iTop is free software; you can redistribute it and/or modify
 //   it under the terms of the GNU Affero General Public License as published by
 //   the Free Software Foundation, either version 3 of the License, or
 //   (at your option) any later version.
@@ -19,31 +19,36 @@
 
 namespace Combodo\iTop\Portal\Form;
 
-use \Exception;
-use \Silex\Application;
-use \utils;
-use \Dict;
-use \IssueLog;
-use \UserRights;
-use \MetaModel;
-use \CMDBSource;
-use \DBObject;
-use \DBObjectSet;
-use \DBSearch;
-use \DBObjectSearch;
-use \DBObjectSetComparator;
-use \InlineImage;
-use \AttributeDateTime;
-use \Combodo\iTop\Form\FormManager;
-use \Combodo\iTop\Form\Form;
-use \Combodo\iTop\Form\Field\FileUploadField;
-use \Combodo\iTop\Form\Field\LabelField;
-use \Combodo\iTop\Portal\Helper\ApplicationHelper;
+use AttachmentPlugIn;
+use AttributeDateTime;
+use AttributeTagSet;
+use CMDBSource;
+use Combodo\iTop\Form\Field\Field;
+use Combodo\iTop\Form\Field\FileUploadField;
+use Combodo\iTop\Form\Field\LabelField;
+use Combodo\iTop\Form\Form;
+use Combodo\iTop\Form\FormManager;
+use Combodo\iTop\Portal\Helper\ApplicationHelper;
+use CoreCannotSaveObjectException;
+use DBObject;
+use DBObjectSearch;
+use DBObjectSet;
+use DBSearch;
+use Dict;
+use Exception;
+use InlineImage;
+use IssueLog;
+use MetaModel;
+use ormTagSet;
+use Silex\Application;
+use UserRights;
+use utils;
 
 /**
  * Description of objectformmanager
  *
  * @author Guillaume Lajarige <guillaume.lajarige@combodo.com>
+ * @since iTop 2.3.0
  */
 class ObjectFormManager extends FormManager
 {
@@ -52,22 +57,29 @@ class ObjectFormManager extends FormManager
 	const ENUM_MODE_CREATE = 'create';
 	const ENUM_MODE_APPLY_STIMULUS = 'apply_stimulus';
 
+	/** @var \Silex\Application $oApp */
 	protected $oApp;
+    /** @var \DBObject $oObject */
 	protected $oObject;
 	protected $sMode;
 	protected $sActionRulesToken;
 	protected $aFormProperties;
 	protected $aCallbackUrls = array();
 
-	/**
-	 * Creates an instance of \Combodo\iTop\Portal\Form\ObjectFormManager from JSON data that must contain at least :
-	 * - formobject_class : The class of the object that is being edited/viewed
-	 * - formmode : view|edit|create
-	 * - values for parent
-	 *
-	 * @param string $sJson
-	 * @return \Combodo\iTop\Portal\Form\ObjectFormManager
-	 */
+    /**
+     * Creates an instance of \Combodo\iTop\Portal\Form\ObjectFormManager from JSON data that must contain at least :
+     * - formobject_class : The class of the object that is being edited/viewed
+     * - formmode : view|edit|create
+     * - values for parent
+     *
+     * @param string $sJson
+     *
+     * @return \Combodo\iTop\Portal\Form\ObjectFormManager
+     *
+     * @throws \Exception
+     * @throws \ArchivedObjectException
+     * @throws \CoreException
+     */
 	static function FromJSON($sJson)
 	{
 		if (is_array($sJson))
@@ -79,6 +91,7 @@ class ObjectFormManager extends FormManager
 			$aJson = json_decode($sJson, true);
 		}
 
+		/** @var \Combodo\iTop\Portal\Form\ObjectFormManager $oFormManager */
 		$oFormManager = parent::FromJSON($sJson);
 
 		// Retrieving object to edit
@@ -133,7 +146,7 @@ class ObjectFormManager extends FormManager
 	}
 
 	/**
-	 * 
+	 *
 	 * @return \Silex\Application
 	 */
 	public function GetApplication()
@@ -256,6 +269,16 @@ class ObjectFormManager extends FormManager
 		return $this;
 	}
 
+    /**
+     * Returns if the form manager is handling a transition form instead of a state form.
+     *
+     * @return bool
+     */
+	public function IsTransitionForm()
+    {
+        return ($this->sMode === static::ENUM_MODE_APPLY_STIMULUS);
+    }
+
 	/**
 	 * Creates a JSON string from the current object including :
 	 * - formobject_class
@@ -263,7 +286,7 @@ class ObjectFormManager extends FormManager
 	 * - formmode
 	 * - values for parent
 	 *
-	 * @return string
+	 * @return array
 	 */
 	public function ToJSON()
 	{
@@ -274,18 +297,25 @@ class ObjectFormManager extends FormManager
 		$aJson['formmode'] = $this->sMode;
 		$aJson['formactionrulestoken'] = $this->sActionRulesToken;
 		$aJson['formproperties'] = $this->aFormProperties;
-		
+
 		return $aJson;
 	}
 
-	public function Build()
+    /**
+     * @throws \Exception
+     * @throws \CoreException
+     * @throws \OQLException
+     * @throws \Twig_Error_Loader
+     * @throws \Twig_Error_Runtime
+     * @throws \Twig_Error_Syntax
+     */
+    public function Build()
 	{
 		$sObjectClass = get_class($this->oObject);
 
 		$aFieldsAtts = array();
-		$aMandatoryAtts = array();
-		$aReadonlyAtts = array();
-		$aHiddenAtts = array();
+		$aFieldsDMOnlyAttCodes = array();
+		$aFieldsExtraData = array();
 
 		if ($this->oForm !== null)
 		{
@@ -306,37 +336,45 @@ class ObjectFormManager extends FormManager
 			case 'static':
 				foreach ($this->aFormProperties['fields'] as $sAttCode => $aOptions)
 				{
-					$iFieldFlags = OPT_ATT_NORMAL;
+				    // When in a transition and no flags are specified for the field, we will retrieve its flags from DM later
+				    if($this->IsTransitionForm() && empty($aOptions))
+                    {
+                        $aFieldsDMOnlyAttCodes[] = $sAttCode;
+                        continue;
+                    }
+
+                    // Otherwise we proceed as usual
+				    $iFieldFlags = OPT_ATT_NORMAL;
 					// Checking if field should be slave
 					if (isset($aOptions['slave']) && ($aOptions['slave'] === true))
 					{
 						$iFieldFlags = $iFieldFlags | OPT_ATT_SLAVE;
 					}
-					// Checking if field should be must prompt
+                    // Checking if field should be must_change
+                    if (isset($aOptions['must_change']) && ($aOptions['must_change'] === true))
+                    {
+                        $iFieldFlags = $iFieldFlags | OPT_ATT_MUSTCHANGE;
+                    }
+                    // Checking if field should be must prompt
 					if (isset($aOptions['must_prompt']) && ($aOptions['must_prompt'] === true))
 					{
 						$iFieldFlags = $iFieldFlags | OPT_ATT_MUSTPROMPT;
-					}
-					// Checking if field should be must_change
-					if (isset($aOptions['must_change']) && ($aOptions['must_change'] === true))
-					{
-						$iFieldFlags = $iFieldFlags | OPT_ATT_MUSTCHANGE;
 					}
 					// Checking if field should be hidden
 					if (isset($aOptions['hidden']) && ($aOptions['hidden'] === true))
 					{
 						$iFieldFlags = $iFieldFlags | OPT_ATT_HIDDEN;
 					}
-					// Checking if field should be mandatory
-					if (isset($aOptions['mandatory']) && ($aOptions['mandatory'] === true))
-					{
-						$iFieldFlags = $iFieldFlags | OPT_ATT_MANDATORY;
-					}
 					// Checking if field should be readonly
 					if (isset($aOptions['read_only']) && ($aOptions['read_only'] === true))
 					{
 						$iFieldFlags = $iFieldFlags | OPT_ATT_READONLY;
 					}
+                    // Checking if field should be mandatory
+                    if (isset($aOptions['mandatory']) && ($aOptions['mandatory'] === true))
+                    {
+                        $iFieldFlags = $iFieldFlags | OPT_ATT_MANDATORY;
+                    }
 					// Finally, adding the attribute and its flags
 					$aFieldsAtts[$sAttCode] = $iFieldFlags;
 				}
@@ -356,8 +394,9 @@ class ObjectFormManager extends FormManager
 			if ($this->aFormProperties['layout']['type'] === 'twig')
 			{
 				// Creating sandbox twig env. to load and test the custom form template
-				$oTwig = new \Twig_Environment(new \Twig_Loader_String());
-				$sRendered = $oTwig->render($this->aFormProperties['layout']['content'], array('oRenderer' => $this->oRenderer, 'oObject' => $this->oObject));
+				$oTwig = new \Twig_Environment(new \Twig_Loader_Array( array($oForm->GetId() => $this->aFormProperties['layout']['content']) ));
+				ApplicationHelper::RegisterTwigExtensions($oTwig);
+				$sRendered = $oTwig->render($oForm->GetId(), array('oRenderer' => $this->oRenderer, 'oObject' => $this->oObject));
 			}
 			else
 			{
@@ -366,39 +405,69 @@ class ObjectFormManager extends FormManager
 
 			// Parsing rendered template to find the fields
 			$oHtmlDocument = new \DOMDocument();
-			$oHtmlDocument->loadHTML('<root>' . $sRendered . '</root>');
+			// Note: Loading as XML instead of HTML avoid some encoding issues (eg. 'é' was transformed to '&tilde;&copy;')
+			$oHtmlDocument->loadXML('<root>' . $sRendered . '</root>');
 
 			// Adding fields to the list
 			$oXPath = new \DOMXPath($oHtmlDocument);
-			foreach ($oXPath->query('//div[@class="form_field"][@data-field-id]') as $oFieldNode)
+			foreach ($oXPath->query('//div[contains(@class, "form_field")][@data-field-id]') as $oFieldNode)
 			{
 				$sFieldId = $oFieldNode->getAttribute('data-field-id');
 				$sFieldFlags = $oFieldNode->getAttribute('data-field-flags');
 				$iFieldFlags = OPT_ATT_NORMAL;
 
-				// Checking if field has form_path, if not, we add it
+                // When in a transition and no flags are specified for the field, we will retrieve its flags from DM later
+                if($this->IsTransitionForm() && $sFieldFlags === '')
+                {
+                    // (Might have already been added from the "fields" property)
+                    if(!in_array($sFieldId, $aFieldsDMOnlyAttCodes))
+                    {
+                        $aFieldsDMOnlyAttCodes[] = $sFieldId;
+                    }
+                    continue;
+                }
+
+                // Otherwise we proceed as usual
+                foreach (explode(' ', $sFieldFlags) as $sFieldFlag)
+                {
+                    if ($sFieldFlag !== '')
+                    {
+                        $sConst = 'OPT_ATT_' . strtoupper(str_replace('_', '', $sFieldFlag));
+                        if (defined($sConst))
+                        {
+                            $iFieldFlags = $iFieldFlags | constant($sConst);
+                        }
+                        else
+                        {
+                            IssueLog::Error(__METHOD__ . ' at line ' . __LINE__ . ' : Flag "' . $sFieldFlag . '" is not valid for field [@data-field-id="' . $sFieldId . '"] in form[@id="' . $this->aFormProperties['id'] . '"]');
+                            throw new Exception('Flag "' . $sFieldFlag . '" is not valid for field [@data-field-id="' . $sFieldId . '"] in form[@id="' . $this->aFormProperties['id'] . '"]');
+                        }
+                    }
+                }
+
+                // Checking if field has form_path, if not, we add it
 				if (!$oFieldNode->hasAttribute('data-form-path'))
 				{
 					$oFieldNode->setAttribute('data-form-path', $oForm->GetId());
 				}
-
-				// Settings field flags from the data-field-flags attribute
-				foreach (explode(' ', $sFieldFlags) as $sFieldFlag)
-				{
-					if ($sFieldFlag !== '')
-					{
-						$sConst = 'OPT_ATT_' . strtoupper(str_replace('_', '', $sFieldFlag));
-						if (defined($sConst))
-						{
-							$iFieldFlags = $iFieldFlags | constant($sConst);
-						}
-						else
-						{
-							IssueLog::Error(__METHOD__ . ' at line ' . __LINE__ . ' : Flag "' . $sFieldFlag . '" is not valid for field [@data-field-id="' . $sFieldId . '"] in form[@id="' . $this->aFormProperties['id'] . '"]');
-							throw new Exception('Flag "' . $sFieldFlag . '" is not valid for field [@data-field-id="' . $sFieldId . '"] in form[@id="' . $this->aFormProperties['id'] . '"]');
-						}
-					}
-				}
+                // Checking if field should be displayed opened (For linked set)
+                if($oFieldNode->hasAttribute('data-field-opened') && ($oFieldNode->getAttribute('data-field-opened') === 'true') )
+                {
+                    $aFieldsExtraData[$sFieldId]['opened'] = true;
+                }
+                // Checking field display mode
+                if($oFieldNode->hasAttribute('data-field-display-mode') && $oFieldNode->getAttribute('data-field-display-mode') !== '')
+                {
+                    $aFieldsExtraData[$sFieldId]['display_mode'] = $oFieldNode->getAttribute('data-field-display-mode');
+                }
+                elseif(isset($this->aFormProperties['properties']['display_mode']))
+                {
+                    $aFieldsExtraData[$sFieldId]['display_mode'] = $this->aFormProperties['properties']['display_mode'];
+                }
+                else
+                {
+                    $aFieldsExtraData[$sFieldId]['display_mode'] = ApplicationHelper::FORM_DEFAULT_DISPLAY_MODE;
+                }
 
 				// Finally adding field to the list
 				if (!array_key_exists($sFieldId, $aFieldsAtts))
@@ -414,25 +483,68 @@ class ObjectFormManager extends FormManager
 
 		// Merging flags from metamodel with those from the form
 		// Also, retrieving mandatory attributes from metamodel to be able to complete the form with them if necessary
+        //
+        // Note: When in a transition, we don't do this for fields that should be set from DM
 		if ($this->aFormProperties['type'] !== 'static')
 		{
-			foreach (MetaModel::ListAttributeDefs($sObjectClass) as $sAttCode => $oAttDef)
+		    if($this->IsTransitionForm())
+            {
+                $aDatamodelAttCodes = $this->oObject->GetTransitionAttributes($this->aFormProperties['stimulus_code']);
+            }
+            else
+            {
+                $aDatamodelAttCodes = MetaModel::ListAttributeDefs($sObjectClass);
+            }
+
+			foreach ($aDatamodelAttCodes as $sAttCode => $value)
 			{
+			    /** var AttributeDefinition $oAttDef */
+
+			    // Skipping fields that should come from DM only as they will be process later on
+                if(in_array($sAttCode, $aFieldsDMOnlyAttCodes))
+                {
+                    continue;
+                }
+
 				// Retrieving object flags
-				if ($this->oObject->IsNew())
+                if ($this->IsTransitionForm())
+                {
+                    // Retrieving only mandatory flag from DM when on a transition
+                    $iFieldFlags = $value & OPT_ATT_MANDATORY;
+                    $oAttDef = MetaModel::GetAttributeDef(get_class($this->oObject), $sAttCode);
+                }
+				elseif ($this->oObject->IsNew())
 				{
 					$iFieldFlags = $this->oObject->GetInitialStateAttributeFlags($sAttCode);
+					$oAttDef = $value;
 				}
 				else
 				{
 					$iFieldFlags = $this->oObject->GetAttributeFlags($sAttCode);
+					$oAttDef = $value;
 				}
-				
+
+                // Skipping fields that were not specified to DM only list (garbage collector)
+                if($this->IsTransitionForm() && !array_key_exists($sAttCode, $aFieldsAtts))
+                {
+                    if( (($value & OPT_ATT_MANDATORY) === OPT_ATT_MANDATORY && $oAttDef->IsNull($this->oObject->Get($sAttCode)))
+                        || (($value & OPT_ATT_MUSTPROMPT) === OPT_ATT_MUSTPROMPT)
+                        || (($value & OPT_ATT_MUSTCHANGE) === OPT_ATT_MUSTCHANGE))
+                    {
+                        if(!in_array($sAttCode, $aFieldsDMOnlyAttCodes))
+                        {
+                            $aFieldsDMOnlyAttCodes[] = $sAttCode;
+                        }
+                    }
+                    continue;
+                }
+
 				// Merging flags with those from the form definition
-				// - only if the field if it's in fields list
+				// - If the field is in fields list
 				if (array_key_exists($sAttCode, $aFieldsAtts))
 				{
-					$aFieldsAtts[$sAttCode] = $aFieldsAtts[$sAttCode] | $iFieldFlags;
+				    // .. We merge them all
+                    $aFieldsAtts[$sAttCode] = $aFieldsAtts[$sAttCode] | $iFieldFlags;
 				}
 				// - or it is mandatory and has no value
 				if ((($iFieldFlags & OPT_ATT_MANDATORY) === OPT_ATT_MANDATORY) && ($this->oObject->Get($sAttCode) === ''))
@@ -446,16 +558,59 @@ class ObjectFormManager extends FormManager
 			}
 		}
 
+		// Adding fields with DM flags only
+        // Note: This should only happen when in a transition
+		foreach($aFieldsDMOnlyAttCodes as $sAttCode)
+        {
+            // Retrieving object flags from DM
+            if ($this->IsTransitionForm())
+            {
+                $aTransitionAtts = $this->oObject->GetTransitionAttributes($this->aFormProperties['stimulus_code']);
+                $iFieldFlags = $aTransitionAtts[$sAttCode];
+            }
+            elseif ($this->oObject->IsNew())
+            {
+                $iFieldFlags = $this->oObject->GetInitialStateAttributeFlags($sAttCode);
+            }
+            else
+            {
+                $iFieldFlags = $this->oObject->GetAttributeFlags($sAttCode);
+            }
+
+            // Resetting/Forcing flag to read/write
+            $aFieldsAtts[$sAttCode] = OPT_ATT_NORMAL;
+            // Checking if field should be must_change
+            if(($iFieldFlags & OPT_ATT_MUSTCHANGE) === OPT_ATT_MUSTCHANGE)
+            {
+                $aFieldsAtts[$sAttCode] = $aFieldsAtts[$sAttCode] | OPT_ATT_MUSTCHANGE;
+            }
+            // Checking if field should be must_prompt
+            if(($iFieldFlags & OPT_ATT_MUSTPROMPT) === OPT_ATT_MUSTPROMPT)
+            {
+                $aFieldsAtts[$sAttCode] = $aFieldsAtts[$sAttCode] | OPT_ATT_MUSTPROMPT;
+            }
+            // Checking if field should be mandatory
+            if(($iFieldFlags & OPT_ATT_MANDATORY) === OPT_ATT_MANDATORY)
+            {
+                $aFieldsAtts[$sAttCode] = $aFieldsAtts[$sAttCode] | OPT_ATT_MANDATORY;
+            }
+        }
+
 		// Building the form
 		foreach ($aFieldsAtts as $sAttCode => $iFieldFlags)
 		{
 			$oAttDef = MetaModel::GetAttributeDef(get_class($this->oObject), $sAttCode);
 			
-			// Failsafe for AttributeType that would not have MakeFormField and therefore could not be used in a form
+			/** @var Field $oField */
+			$oField = null;
 			if (is_callable(get_class($oAttDef) . '::MakeFormField'))
 			{
 				$oField = $oAttDef->MakeFormField($this->oObject);
-				
+			}
+			
+			// Failsafe for AttributeType that would not have MakeFormField and therefore could not be used in a form
+			if($oField !== null)
+			{
 				if ($this->sMode !== static::ENUM_MODE_VIEW)
 				{
 					// Field dependencies
@@ -471,12 +626,20 @@ class ObjectFormManager extends FormManager
 					{
 						$oField->SetReadOnly(true);
 					}
-					// - Else if it's mandatory and has no value, we force it as mandatory
-					elseif ((($iFieldFlags & OPT_ATT_MANDATORY) === OPT_ATT_MANDATORY) && $oAttDef->IsNull($this->oObject->Get($sAttCode)))
-					{
-						$oField->SetMandatory(true);
-					}
-					// - Else if it wasn't mandatory or already had a value, and it's hidden, we force it as hidden
+                    // - Else if it's must change (transition), we force it as mustchange, not readonly and not hidden
+                    elseif (($iFieldFlags & OPT_ATT_MUSTCHANGE) === OPT_ATT_MUSTCHANGE && $this->IsTransitionForm())
+                    {
+	                    $oField->SetMustChange(true);
+	                    $oField->SetReadOnly(false);
+                        $oField->SetHidden(false);
+                    }
+                    // - Else if it's must prompt (transition), we force it as not readonly and not hidden
+                    elseif (($iFieldFlags & OPT_ATT_MUSTPROMPT) === OPT_ATT_MUSTPROMPT && $this->IsTransitionForm())
+                    {
+                    	$oField->SetReadOnly(false);
+                        $oField->SetHidden(false);
+                    }
+                    // - Else if it wasn't mandatory or already had a value, and it's hidden, we force it as hidden
 					elseif (($iFieldFlags & OPT_ATT_HIDDEN) === OPT_ATT_HIDDEN)
 					{
 						$oField->SetHidden(true);
@@ -485,23 +648,33 @@ class ObjectFormManager extends FormManager
 					{
 						$oField->SetReadOnly(true);
 					}
-					// - Else if it's must change, we force it as not readonly and not hidden
-					elseif (($iFieldFlags & OPT_ATT_MUSTCHANGE) === OPT_ATT_MUSTCHANGE)
-					{
-						$oField->SetReadOnly(false);
-						$oField->SetHidden(false);
-					}
-					// - Else if it's must prompt, we force it as not readonly and not hidden
-					elseif (($iFieldFlags & OPT_ATT_MUSTPROMPT) === OPT_ATT_MUSTPROMPT)
-					{
-						$oField->SetReadOnly(false);
-						$oField->SetHidden(false);
-					}
 					else
 					{
-						// Normal field
+						// Normal field, use "flags" set by AttDef::MakeFormField()
+                        // Except if we are in a transition be cause $oAttDef doesn't know if the form is for a transition
+                        if($this->IsTransitionForm())
+                        {
+                            $oField->SetReadOnly(false);
+                            $oField->SetHidden(false);
+                            $oField->SetMandatory(false);
+                        }
 					}
-					
+
+                    // Finally, if it's mandatory ...
+                    if (($iFieldFlags & OPT_ATT_MANDATORY) === OPT_ATT_MANDATORY)
+                    {
+                        // ... and when in a transition, we force it as mandatory
+                        if($this->IsTransitionForm() && $oAttDef->IsNull($this->oObject->Get($sAttCode)))
+                        {
+                            $oField->SetMandatory(true);
+                        }
+                        // .. and has no value, we force it as mandatory
+                        elseif($oAttDef->IsNull($this->oObject->Get($sAttCode)))
+                        {
+                            $oField->SetMandatory(true);
+                        }
+                    }
+
 					// Specific operation on field
 					// - Field that require a transaction id
 					if (in_array(get_class($oField), array('Combodo\\iTop\\Form\\Field\\TextAreaField', 'Combodo\\iTop\\Form\\Field\\CaseLogField')))
@@ -537,7 +710,7 @@ class ObjectFormManager extends FormManager
 						if ($this->oApp !== null)
 						{
 							$oScopeOriginal = ($oField->GetSearch() !== null) ? $oField->GetSearch() : DBSearch::FromOQL($oAttDef->GetValuesDef()->GetFilterExpression());
-							
+
 							$oScopeSearch = $this->oApp['scope_validator']->GetScopeFilterForProfiles(UserRights::ListProfiles(), $oScopeOriginal->GetClass(), UR_ACTION_READ);
 							if ($oScopeSearch === null)
 							{
@@ -554,6 +727,13 @@ class ObjectFormManager extends FormManager
 							$oField->SetSearch($oScopeOriginal);
 						}
 					}
+					// - Field that require to check if the current value is among allowed ones
+                    if (in_array(get_class($oField), array('Combodo\\iTop\\Form\\Field\\SelectObjectField')))
+                    {
+                        // Note: We can't do this in AttributeExternalKey::MakeFormField() in the Field::SetOnFinalizeCallback() because at this point we have no information about the portal scope and ignore_silos flag, hence it always applies silos.
+                        // As a workaround we have to manually check if the field's current value is among the scope
+						$oField->VerifyCurrentValue();
+                    }
 					// - Field that require processing on their subfields
 					if (in_array(get_class($oField), array('Combodo\\iTop\\Form\\Field\\SubFormField')))
 					{
@@ -582,6 +762,11 @@ class ObjectFormManager extends FormManager
 											$oCustomField->SetSearchEndpoint($sSearchEndpoint);
 										}
 									}
+									// - Field that require to check if the current value is among allowed ones
+									if (in_array(get_class($oCustomField), array('Combodo\\iTop\\Form\\Field\\SelectObjectField')))
+									{
+										$oCustomField->VerifyCurrentValue();
+									}
 								}
 							}
 						}
@@ -601,9 +786,9 @@ class ObjectFormManager extends FormManager
 
 				// Specific operation on field
 				// - LinkedSet
-				//   - Overriding attributes to display
 				if (in_array(get_class($oField), array('Combodo\\iTop\\Form\\Field\\LinkedSetField')))
 				{
+                    //   - Overriding attributes to display
 					if ($this->oApp !== null)
 					{
 						// Note : This snippet is inspired from AttributeLinkedSet::MakeFormField()
@@ -623,21 +808,31 @@ class ObjectFormManager extends FormManager
 						}
 						$oField->SetAttributesToDisplay($aAttributesToDisplay);
 					}
+					//    - Displaying as opened
+                    if(array_key_exists($sAttCode, $aFieldsExtraData) && array_key_exists('opened', $aFieldsExtraData[$sAttCode]))
+                    {
+                        $oField->SetDisplayOpened(true);
+                    }
 				}
-
-				$oForm->AddField($oField);
 			}
 			else
 			{
 				$oField = new LabelField($sAttCode);
 				$oField->SetReadOnly(true)
 					->SetHidden(false)
-					->SetCurrentValue(get_class($oAttDef) . ' : Sorry, that AttributeType is not implemented yet.')
+					->SetCurrentValue('Sorry, that AttributeType is not implemented yet.')
 					->SetLabel($oAttDef->GetLabel());
-				$oForm->AddField($oField);
 			}
+
+			// Setting field display mode
+            if(array_key_exists($sAttCode, $aFieldsExtraData) && array_key_exists('display_mode', $aFieldsExtraData[$sAttCode]))
+            {
+                $oField->SetDisplayMode($aFieldsExtraData[$sAttCode]['display_mode']);
+            }
+
+            $oForm->AddField($oField);
 		}
-		
+
 		// Checking dependencies to ensure that all needed fields are in the form
 		// (This is kind of a garbage collector for dependancies)
 		foreach ($oForm->GetDependencies() as $sImpactedFieldId => $aDependancies)
@@ -649,16 +844,16 @@ class ObjectFormManager extends FormManager
 					$oAttDef = MetaModel::GetAttributeDef(get_class($this->oObject), $sDependancyFieldId);
 					$oField = $oAttDef->MakeFormField($this->oObject);
 					$oField->SetHidden(true);
-					
+
 					$oForm->AddField($oField);
 				}
 			}
 		}
 
 		// Checking if the instance has attachments
-		if (class_exists('Attachment'))
+		if (class_exists('Attachment') && class_exists('AttachmentPlugIn'))
 		{
-			// Checking if the object is allowed for attchments
+			// Checking if the object is allowed for attachments
 			$bClassAllowed = false;
 			$aAllowedClasses = MetaModel::GetModuleSetting('itop-attachments', 'allowed_classes', array('Ticket'));
 			foreach ($aAllowedClasses as $sAllowedClass)
@@ -669,7 +864,7 @@ class ObjectFormManager extends FormManager
 					break;
 				}
 			}
-			
+
 			// Adding attachment field
 			if ($bClassAllowed)
 			{
@@ -681,12 +876,19 @@ class ObjectFormManager extends FormManager
 					->SetAllowDelete($this->oApp['combodo.portal.instance.conf']['properties']['attachments']['allow_delete'])
 					->SetObject($this->oObject);
 
-				if (($this->sMode === static::ENUM_MODE_VIEW) || ($oForm->GetEditableFieldCount() === 0))
+				// Checking if we can edit attachments in the current state
+                if (($this->sMode === static::ENUM_MODE_VIEW)
+                    || AttachmentPlugIn::IsReadonlyState($this->oObject, $this->oObject->GetState(), AttachmentPlugIn::ENUM_GUI_PORTALS) === true
+                    || $oForm->GetEditableFieldCount(true) === 0)
 				{
 					$oField->SetReadOnly(true);
 				}
 
-				$oForm->AddField($oField);
+				// Adding attachements field in transition only if it is editable
+				if(!$this->IsTransitionForm() || ($this->IsTransitionForm() && !$oField->GetReadOnly()) )
+                {
+                    $oForm->AddField($oField);
+                }
 			}
 		}
 
@@ -695,96 +897,19 @@ class ObjectFormManager extends FormManager
 		$this->oRenderer->SetForm($this->oForm);
 	}
 
-	/**
-	 * Merging $this->aFormProperties with $aFormPropertiesToMerge. Merge only layout for now
-	 *
-	 * @param array $aFormPropertiesToMerge
-	 * @throws Exception
-	 */
-	public function MergeFormProperties($aFormPropertiesToMerge)
-	{
-		if ($aFormPropertiesToMerge['layout'] !== null)
-		{
-			// Checking if we need to render the template from twig to html in order to parse the fields
-			if ($aFormPropertiesToMerge['layout']['type'] === 'twig')
-			{
-				// Creating sandbox twig env. to load and test the custom form template
-				$oTwig = new \Twig_Environment(new \Twig_Loader_String());
-				$sRendered = $oTwig->render($aFormPropertiesToMerge['layout']['content'], array('oRenderer' => $this->oRenderer, 'oObject' => $this->oObject));
-			}
-			else
-			{
-				$sRendered = $aFormPropertiesToMerge['layout']['content'];
-			}
-
-			// Parsing rendered template to find the fields
-			$oHtmlDocument = new \DOMDocument();
-			$oHtmlDocument->loadHTML('<root>' . $sRendered . '</root>');
-
-			// Adding fields to the list
-			$oXPath = new \DOMXPath($oHtmlDocument);
-			foreach ($oXPath->query('//div[@class="form_field"][@data-field-id]') as $oFieldNode)
-			{
-				$sFieldId = $oFieldNode->getAttribute('data-field-id');
-				$sFieldFlags = $oFieldNode->getAttribute('data-field-flags');
-//				$iFieldFlags = OPT_ATT_NORMAL;
-
-//				// Checking if field has form_path, if not, we add it
-//				if (!$oFieldNode->hasAttribute('data-form-path'))
-//				{
-//					$oFieldNode->setAttribute('data-form-path', $oForm->GetId());
-//				}
-				// Merging only fields that are already in the form
-				if (array_key_exists($sFieldId, $this->aFormProperties['fields']))
-				{
-					// Settings field flags from the data-field-flags attribute
-					foreach (explode(' ', $sFieldFlags) as $sFieldFlag)
-					{
-						if ($sFieldFlag !== '')
-						{
-							$sConst = 'OPT_ATT_' . strtoupper(str_replace('_', '', $sFieldFlag));
-							if (defined($sConst))
-							{
-								switch ($sConst)
-								{
-									case 'OPT_ATT_SLAVE':
-									case 'OPT_ATT_HIDDEN':
-										if (!array_key_exists($sFieldId, $this->aFormProperties['fields']))
-										{
-											$this->aFormProperties['fields'][$sFieldId] = array();
-										}
-										$this->aFormProperties['fields'][$sFieldId]['hidden'] = true;
-										break;
-									case 'OPT_ATT_READONLY':
-										if (!array_key_exists($sFieldId, $this->aFormProperties['fields']))
-										{
-											$this->aFormProperties['fields'][$sFieldId] = array();
-										}
-										$this->aFormProperties['fields'][$sFieldId]['read_only'] = true;
-										break;
-								}
-							}
-							else
-							{
-								IssueLog::Error(__METHOD__ . ' at line ' . __LINE__ . ' : Flag "' . $sFieldFlag . '" is not valid for field [@data-field-id="' . $sFieldId . '"] in form[@id="' . $aFormPropertiesToMerge['id'] . '"]');
-								throw new Exception('Flag "' . $sFieldFlag . '" is not valid for field [@data-field-id="' . $sFieldId . '"] in form[@id="' . $aFormPropertiesToMerge['id'] . '"]');
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	/**
-	 * Calls all form fields OnCancel method in order to delegate them the cleanup;
-	 *
-	 * @param array $aArgs
-	 */
+    /**
+     * Calls all form fields OnCancel method in order to delegate them the cleanup;
+     *
+     * @param array $aArgs
+     *
+     * @throws \DeleteException
+     * @throws \OQLException
+     */
 	public function OnCancel($aArgs = null)
 	{
 		// Ask to each field to clean itself
-		foreach ($this->oForm->GetFields() as $oField)
+        /** @var \Combodo\iTop\Form\Field\Field $oField */
+        foreach ($this->oForm->GetFields() as $oField)
 		{
 			$oField->OnCancel();
 		}
@@ -797,20 +922,31 @@ class ObjectFormManager extends FormManager
 		$this->CancelAttachments();
 	}
 
-	/**
-	 * Validates the form and returns an array with the validation status and the messages.
-	 * If the form is valid, creates/updates the object.
-	 *
-	 * eg :
-	 *  array(
-	 * 	  'status' => true|false
-	 * 	  'messages' => array(
-	 * 		  'errors' => array()
-	 * 	)
-	 *
-	 * @param array $aArgs
-	 * @return array
-	 */
+    /**
+     * Validates the form and returns an array with the validation status and the messages.
+     * If the form is valid, creates/updates the object.
+     *
+     * eg :
+     *  array(
+     *      'status' => true|false
+     *      'messages' => array(
+     *          'errors' => array()
+     *    )
+     *
+     * @param array $aArgs
+     *
+     * @return array
+     *
+     * @throws \ArchivedObjectException
+     * @throws \CoreException
+     * @throws \CoreUnexpectedValue
+     * @throws \MySQLException
+     * @throws \MySQLHasGoneAwayException
+     * @throws \OQLException
+     * @throws \Twig_Error_Loader
+     * @throws \Twig_Error_Runtime
+     * @throws \Twig_Error_Syntax
+     */
 	public function OnSubmit($aArgs = null)
 	{
 		$aData = array(
@@ -845,7 +981,14 @@ class ObjectFormManager extends FormManager
 				// Writing object to DB
 				$bActivateTriggers = (!$this->oObject->IsNew() && $this->oObject->IsModified());
 				$bWasModified = $this->oObject->IsModified();
-				$this->oObject->DBWrite();
+				try
+				{
+					$this->oObject->DBWrite();
+				}
+				catch (CoreCannotSaveObjectException $e)
+				{
+					throw new Exception($e->getHtmlMessage());
+				}
 				// Finalizing images link to object, otherwise it will be cleaned by the GC
 				InlineImage::FinalizeInlineImages($this->oObject);
 				// Finalizing attachments link to object
@@ -901,17 +1044,26 @@ class ObjectFormManager extends FormManager
 			$aData['valid'] = false;
 			$aData['messages']['error'] += $this->oForm->GetErrorMessages();
 		}
-		
+
 		return $aData;
 	}
 
-	/**
-	 * Updates the form and its fields with the current values
-	 *
-	 * Note : Doesn't update the object, see ObjectFormManager::OnSubmit() for that;
-	 *
-	 * @param array $aArgs
-	 */
+    /**
+     * Updates the form and its fields with the current values
+     *
+     * Note : Doesn't update the object, see ObjectFormManager::OnSubmit() for that;
+     *
+     * @param array $aArgs
+     *
+     * @throws \Exception
+     * @throws \ArchivedObjectException
+     * @throws \CoreException
+     * @throws \CoreUnexpectedValue
+     * @throws \OQLException
+     * @throws \Twig_Error_Loader
+     * @throws \Twig_Error_Runtime
+     * @throws \Twig_Error_Syntax
+     */
 	public function OnUpdate($aArgs = null)
 	{
 		$aFormProperties = array();
@@ -927,6 +1079,7 @@ class ObjectFormManager extends FormManager
 				{
 					if (MetaModel::IsValidAttCode($sObjectClass, $sAttCode))
 					{
+					    /** @var \AttributeDefinition $oAttDef */
 						$oAttDef = MetaModel::GetAttributeDef($sObjectClass, $sAttCode);
 						if ($oAttDef->IsLinkSet())
 						{
@@ -936,61 +1089,63 @@ class ObjectFormManager extends FormManager
 							// Which was an issue when deleting all objects from linkedset
 							$value = json_decode($value, true);
 
-							// Creating set from objects of the form
-							$sTargetClass = $oAttDef->GetLinkedClass();
-							$oValueSet = DBObjectSet::FromScratch($sTargetClass);
-							foreach ($value as $aValue)
-							{
-								$iTargetId = (int) $aValue['id'];
-								// LinkedSet
-								if (!$oAttDef->IsIndirect())
-								{
-									// Note : AllowAllData set to true here instead of checking scope's flag because we are displaying a value that has been set and validated
-									$oLinkedObject = MetaModel::GetObject($sTargetClass, abs($iTargetId), true, true);
-									$oValueSet->AddObject($oLinkedObject);
-								}
-								// LinkedSetIndirect
-								else
-								{
-									// New relation
-									if ($iTargetId < 0)
-									{
-										$oLink = MetaModel::NewObject($sTargetClass);
-										$oLink->Set($oAttDef->GetExtKeyToRemote(), -1 * $iTargetId);
-										$oLink->Set($oAttDef->GetExtKeyToMe(), $this->oObject->GetKey());
-									}
-									// Existing relation
-									else
-									{
-										// Note : AllowAllData set to true here instead of checking scope's flag because we are displaying a value that has been set and validated
-										$oLink = MetaModel::GetObject($sTargetClass, $iTargetId, true, true);
-									}
-									$oValueSet->AddObject($oLink);
-								}
-							}
-							// Comparing set from db to set from form if linkedset is DIRECT in order to identify removed objects
-							if (!$oAttDef->IsIndirect())
-							{
-								// Retrieving remote object's extkey definition in order to nullify it or completely remove the object regarding its mandatory status
-								$oExtKeyToMeAttDef = MetaModel::GetAttributeDef($sTargetClass, $oAttDef->GetExtKeyToMe());
-								if ($oExtKeyToMeAttDef->IsNullAllowed())
-								{
-									// Comparing sets
-									$oDBSet = $this->oObject->Get($sAttCode);
-									$oDBSetComparator = new DBObjectSetComparator($oDBSet, $oValueSet);
-									$aDBSetDifferences = $oDBSetComparator->GetDifferences();
-									// Nullifying remote object's ext key
-									foreach ($aDBSetDifferences['removed'] as $oRemovedLinkedObject)
-									{
-										$oRemovedLinkedObject->Set($oExtKeyToMeAttDef->GetCode(), $oExtKeyToMeAttDef->GetNullValue());
-										$oValueSet->AddObject($oRemovedLinkedObject);
-									}
-								}
-							}
+							/** @var \ormLinkSet $oLinkSet */
+                            $oLinkSet = $this->oObject->Get($sAttCode);
+                            $sLinkedClass = $oAttDef->GetLinkedClass();
+
+                            // Checking links to remove
+                            if(isset($value['remove']))
+                            {
+                                foreach($value['remove'] as $iObjKey => $aObjData)
+                                {
+                                    $oLinkSet->RemoveItem($iObjKey);
+                                }
+                            }
+
+							// Checking links to add
+                            if(isset($value['add']))
+                            {
+                                foreach($value['add'] as $iObjKey => $aObjdata)
+                                {
+                                    // Creating link when linkset is indirect...
+                                    if($oAttDef->IsIndirect())
+                                    {
+                                        $oLink = MetaModel::NewObject($sLinkedClass);
+                                        $oLink->Set($oAttDef->GetExtKeyToRemote(), $iObjKey);
+                                        $oLink->Set($oAttDef->GetExtKeyToMe(), $this->oObject->GetKey());
+                                    }
+                                    // ... or adding remote object when linkset id direct
+                                    else
+                                    {
+                                        // Note : AllowAllData set to true here instead of checking scope's flag because we are displaying a value that has been set and validated
+                                        $oLink = MetaModel::GetObject($sLinkedClass, $iObjKey, false, true);
+                                    }
+
+                                    if($oLink !== null)
+                                    {
+                                        $oLinkSet->AddItem($oLink);
+                                    }
+                                }
+                            }
+
+                            // Checking links to modify
+                            // TODO: Not implemented yet as we can't change lnk properties in the portal
+
 							// Setting value in the object
-							$this->oObject->Set($sAttCode, $oValueSet);
+							$this->oObject->Set($sAttCode, $oLinkSet);
 						}
-					    else if ($oAttDef instanceof AttributeDateTime) // AttributeDate is derived from AttributeDateTime
+						elseif ($oAttDef instanceof AttributeTagSet)
+						{
+							/** @var \ormTagSet $oTagSet */
+							$oTagSet = $this->oObject->Get($sAttCode);
+							if (is_null($oTagSet))
+							{
+								$oTagSet = new ormTagSet(get_class($this->oObject), $sAttCode, $oAttDef->GetMaxItems());
+							}
+							$oTagSet->ApplyDelta(json_decode($value, true));
+							$this->oObject->Set($sAttCode, $oTagSet);
+						}
+					    elseif ($oAttDef instanceof AttributeDateTime) // AttributeDate is derived from AttributeDateTime
 					    {
 						    if ($value != null)
 						    {
@@ -1008,10 +1163,30 @@ class ObjectFormManager extends FormManager
 						}
 						elseif ($oAttDef->GetEditClass() === 'CustomFields')
 						{
-							if (isset($value['template_data']) && $value['template_data'] !== '')
+							// We don't update attribute as ormCustomField comparaison is not working as excepted.
+							// When several templates available, "template_id" is not sent by the portal has it is a read-only select input
+							// therefore, the TemplateFieldsHandler::CompareValues() doesn't work.
+							// This use case works in the console as it always send all fields, even hidden and read-only.
+
+							// Different templates
+							if( isset($value['template_id'])
+								&& ($value['template_id'] != $value['current_template_id']) )
 							{
 								$this->oObject->Set($sAttCode, $value);
 							}
+							// Same template, different fields
+							elseif(isset($value['template_id'], $value['template_data'])
+								&& ($value['template_id'] == $value['current_template_id'])
+								&& ($value['template_data'] != $value['current_template_data']) )
+							{
+								$this->oObject->Set($sAttCode, $value);
+							}
+							// Update of current values
+							elseif(isset($value['user_data']))
+							{
+								$this->oObject->Set($sAttCode, $value);
+							}
+							// Else don't update! Otherwise we might loose current value
 						}
 						else
 						{
@@ -1021,7 +1196,7 @@ class ObjectFormManager extends FormManager
 				}
 				$this->oObject->DoComputeValues();
 			}
-			
+
 			// Then we retrieve properties of the form to build
 			if (isset($aArgs['formProperties']))
 			{
@@ -1037,16 +1212,21 @@ class ObjectFormManager extends FormManager
 		$this->Build();
 	}
 
-	/**
-	 * This is a temporary function until the Attachment refactoring is done. It should be remove once it's done.
-	 * It is inspired from itop-attachments/main.attachments.php / UpdateAttachments()
-	 *
-	 * @param array $aAttachmentIds
-	 */
+    /**
+     * This is a temporary function until the Attachment refactoring is done. It should be remove once it's done.
+     * It is inspired from itop-attachments/main.attachments.php / UpdateAttachments()
+     *
+     * @param array $aAttachmentIds
+     *
+     * @throws \CoreException
+     * @throws \CoreUnexpectedValue
+     * @throws \DeleteException
+     * @throws \OQLException
+     */
 	protected function FinalizeAttachments($aAttachmentIds)
 	{
 		$aRemovedAttachmentsIds = (isset($aAttachmentIds['removed_attachments_ids'])) ? $aAttachmentIds['removed_attachments_ids'] : array();
-		$aActualAttachmentsIds = (isset($aAttachmentIds['actual_attachments_ids'])) ? $aAttachmentIds['actual_attachments_ids'] : array();
+		// Not used for now. //$aActualAttachmentsIds = (isset($aAttachmentIds['actual_attachments_ids'])) ? $aAttachmentIds['actual_attachments_ids'] : array();
 
 		// Removing attachments from currents
 		if (!empty($aRemovedAttachmentsIds))
@@ -1064,7 +1244,7 @@ class ObjectFormManager extends FormManager
 		}
 
 		// Processing temporary attachments
-		$sTempId = session_id() . '_' . $this->oForm->GetTransactionId();
+		$sTempId = utils::GetUploadTempId($this->oForm->GetTransactionId());
 		$sOQL = 'SELECT Attachment WHERE temp_id = :temp_id';
 		$oSearch = DBObjectSearch::FromOQL($sOQL);
 		$oSet = new DBObjectSet($oSearch, array(), array('temp_id' => $sTempId));
@@ -1084,14 +1264,17 @@ class ObjectFormManager extends FormManager
 		}
 	}
 
-	/**
-	 * This is a temporary function until the Attachment refactoring is done. It should be remove once it's done.
-	 * It is inspired from itop-attachments/main.attachments.php / UpdateAttachments()
-	 */
+    /**
+     * This is a temporary function until the Attachment refactoring is done. It should be remove once it's done.
+     * It is inspired from itop-attachments/main.attachments.php / UpdateAttachments()
+     *
+     * @throws \OQLException
+     * @throws \DeleteException
+     */
 	protected function CancelAttachments()
 	{
 		// Processing temporary attachments
-		$sTempId = session_id() . '_' . $this->oForm->GetTransactionId();
+		$sTempId = utils::GetUploadTempId($this->oForm->GetTransactionId());
 		$sOQL = 'SELECT Attachment WHERE temp_id = :temp_id';
 		$oSearch = DBObjectSearch::FromOQL($sOQL);
 		$oSet = new DBObjectSet($oSearch, array(), array('temp_id' => $sTempId));
@@ -1100,5 +1283,4 @@ class ObjectFormManager extends FormManager
 			$oAttachment->DBDelete();
 		}
 	}
-
 }

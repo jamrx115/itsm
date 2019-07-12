@@ -1,5 +1,5 @@
 <?php
-// Copyright (C) 2010-2012 Combodo SARL
+// Copyright (C) 2010-2017 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,7 +19,7 @@
 /**
  * Store and retrieve user's preferences (i.e persistent per user settings)
  *
- * @copyright   Copyright (C) 2010-2012 Combodo SARL
+ * @copyright   Copyright (C) 2010-2017 Combodo SARL
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
 require_once(APPROOT.'/core/dbobject.class.php');
@@ -50,7 +50,7 @@ class appUserPreferences extends DBObject
 			self::Load();
 		}
 		$aPrefs = self::$oUserPrefs->Get('preferences');
-		if (isset($aPrefs[$sCode]))
+		if (array_key_exists($sCode, $aPrefs))
 		{
 			return $aPrefs[$sCode];
 		}
@@ -72,9 +72,16 @@ class appUserPreferences extends DBObject
 			self::Load();
 		}
 		$aPrefs = self::$oUserPrefs->Get('preferences');
-		$aPrefs[$sCode] = $sValue;
-		self::$oUserPrefs->Set('preferences', $aPrefs);
-		self::Save();
+		if (array_key_exists($sCode, $aPrefs) && ($aPrefs[$sCode] === $sValue))
+		{
+			// Do not write it again
+		}
+		else
+		{
+			$aPrefs[$sCode] = $sValue;
+			self::$oUserPrefs->Set('preferences', $aPrefs);
+			self::Save();
+		}
 	}
 	
 	/**
@@ -148,7 +155,9 @@ class appUserPreferences extends DBObject
 		{
 			if (self::$oUserPrefs->IsModified())
 			{
+				utils::PushArchiveMode(false);
 				self::$oUserPrefs->DBUpdate();
+				utils::PopArchiveMode();
 			}
 		}
 	}
@@ -172,7 +181,9 @@ class appUserPreferences extends DBObject
 			$oObj->Set('preferences', array()); // Default preferences: an empty array
 			try
 			{
+				utils::PushArchiveMode(false);
 				$oObj->DBInsert();
+				utils::PopArchiveMode();
 			}
 			catch(Exception $e)
 			{
@@ -207,7 +218,8 @@ class appUserPreferences extends DBObject
 	*/
 	public function DBDeleteTracked(CMDBChange $oChange, $bSkipStrongSecurity = null, &$oDeletionPlan = null)
 	{
+		utils::PushArchiveMode(false);
 		$this->DBDelete($oDeletionPlan);
+		utils::PopArchiveMode();
 	}
 }
-?>

@@ -1,6 +1,6 @@
 <?php
 
-// Copyright (C) 2010-2015 Combodo SARL
+// Copyright (C) 2010-2018 Combodo SARL
 //
 //   This file is part of iTop.
 //
@@ -19,20 +19,24 @@
 
 namespace Combodo\iTop\Portal\Brick;
 
-use \ModuleDesign;
-use \Combodo\iTop\DesignElement;
-use \Combodo\iTop\Portal\Brick\AbstractBrick;
+use DOMFormatException;
+use ModuleDesign;
+use Combodo\iTop\DesignElement;
 
 /**
  * Description of PortalBrick
  * 
  * Classes that will be used only in the portal, not the console.
  *
- * @author Guillaume Lajarige
+ * @author Guillaume Lajarige <guillaume.lajarige@combodo.com>
  */
 abstract class PortalBrick extends AbstractBrick
 {
-	const DEFAULT_WIDTH = 1;
+    const ENUM_OPENING_TARGET_MODAL = 'modal';
+    const ENUM_OPENING_TARGET_SELF = 'self';
+    const ENUM_OPENING_TARGET_NEW = 'new';
+
+	const DEFAULT_WIDTH = 6;
 	const DEFAULT_HEIGHT = 1;
 	const DEFAULT_MODAL = false;
 	const DEFAULT_VISIBLE_HOME = true;
@@ -41,8 +45,11 @@ abstract class PortalBrick extends AbstractBrick
 	const DEFAULT_DECORATION_CLASS_NAVIGATION_MENU = '';
 	const DEFAULT_TILE_TEMPLATE_PATH = 'itop-portal-base/portal/src/views/bricks/tile.html.twig';
 	const DEFAULT_TILE_CONTROLLER_ACTION = null;
+    const DEFAULT_OPENING_TARGET = self::ENUM_OPENING_TARGET_MODAL;
 
 	static $sRouteName = null;
+    static $aOpeningTargets = array(self::ENUM_OPENING_TARGET_MODAL, self::ENUM_OPENING_TARGET_SELF, self::ENUM_OPENING_TARGET_NEW);
+
 	protected $iWidth;
 	protected $iHeight;
 	protected $bModal;
@@ -52,6 +59,7 @@ abstract class PortalBrick extends AbstractBrick
 	protected $sDecorationClassNavigationMenu;
 	protected $sTileTemplatePath;
 	protected $sTileControllerAction;
+    protected $sOpeningTarget;
 	// Vars below are itemization from parent class
 	protected $fRankHome;
 	protected $fRankNavigationMenu;
@@ -79,6 +87,7 @@ abstract class PortalBrick extends AbstractBrick
 		$this->sDecorationClassNavigationMenu = static::DEFAULT_DECORATION_CLASS_NAVIGATION_MENU;
 		$this->sTileTemplatePath = static::DEFAULT_TILE_TEMPLATE_PATH;
 		$this->sTileControllerAction = static::DEFAULT_TILE_CONTROLLER_ACTION;
+        $this->sOpeningTarget = static::DEFAULT_OPENING_TARGET;
 	}
 
 	/**
@@ -211,10 +220,22 @@ abstract class PortalBrick extends AbstractBrick
 		return $this->sTileTemplatePath;
 	}
 
+    /**
+     * Returns the brick's objects opening target (modal, new tab, current window)
+     *
+     * @return string
+     */
+    public function GetOpeningTarget()
+    {
+        return $this->sOpeningTarget;
+    }
+
 	/**
 	 * Sets the width of the brick
 	 *
 	 * @param boolean $iWidth
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetWidth($iWidth)
 	{
@@ -225,7 +246,9 @@ abstract class PortalBrick extends AbstractBrick
 	/**
 	 * Sets the width of the brick
 	 *
-	 * @param boolean $iWidth
+	 * @param integer $iHeight
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetHeight($iHeight)
 	{
@@ -237,6 +260,8 @@ abstract class PortalBrick extends AbstractBrick
 	 * Sets if the brick will show in a modal dialog or not
 	 *
 	 * @param boolean $bModal
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetModal($bModal)
 	{
@@ -247,7 +272,9 @@ abstract class PortalBrick extends AbstractBrick
 	/**
 	 * Sets if the brick is visible on the portal's home
 	 *
-	 * @param boolean $iWidth
+	 * @param boolean $bVisibleHome
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetVisibleHome($bVisibleHome)
 	{
@@ -258,7 +285,9 @@ abstract class PortalBrick extends AbstractBrick
 	/**
 	 * Sets if the brick is visible on the portal's navigation menu
 	 *
-	 * @param boolean $iWidth
+	 * @param boolean $bVisibleNavigationMenu
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetVisibleNavigationMenu($bVisibleNavigationMenu)
 	{
@@ -269,7 +298,9 @@ abstract class PortalBrick extends AbstractBrick
 	/**
 	 * Sets if the brick's rank on the portal's home
 	 *
-	 * @param boolean $fRank
+	 * @param float $fRankHome
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetRankHome($fRankHome)
 	{
@@ -280,7 +311,9 @@ abstract class PortalBrick extends AbstractBrick
 	/**
 	 * Sets if the brick's rank on the portal's navigation menu
 	 *
-	 * @param boolean $fRank
+	 * @param float $fRankNavigationMenu
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetRankNavigationMenu($fRankNavigationMenu)
 	{
@@ -291,7 +324,9 @@ abstract class PortalBrick extends AbstractBrick
 	/**
 	 * Sets if the brick's decoration class on the portal's home
 	 *
-	 * @param boolean $sDecorationClassHome
+	 * @param string $sDecorationClassHome
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetDecorationClassHome($sDecorationClassHome)
 	{
@@ -302,7 +337,9 @@ abstract class PortalBrick extends AbstractBrick
 	/**
 	 * Sets if the brick's decoration class on the portal's navigation menu
 	 *
-	 * @param boolean $sDecorationClassNavigationMenu
+	 * @param string $sDecorationClassNavigationMenu
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetDecorationClassNavigationMenu($sDecorationClassNavigationMenu)
 	{
@@ -313,7 +350,9 @@ abstract class PortalBrick extends AbstractBrick
 	/**
 	 * Sets if the brick's title on the portal's home
 	 *
-	 * @param boolean $sTitleHome
+	 * @param string $sTitleHome
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetTitleHome($sTitleHome)
 	{
@@ -324,7 +363,9 @@ abstract class PortalBrick extends AbstractBrick
 	/**
 	 * Sets if the brick's title on the portal's navigation menu
 	 *
-	 * @param boolean $sTitleNavigationMenu
+	 * @param string $sTitleNavigationMenu
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetTitleNavigationMenu($sTitleNavigationMenu)
 	{
@@ -335,7 +376,9 @@ abstract class PortalBrick extends AbstractBrick
 	/**
 	 * Sets the brick tile template path
 	 *
-	 * @param boolean $sTileTemplatePath
+	 * @param string $sTileTemplatePath
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetTileTemplatePath($sTileTemplatePath)
 	{
@@ -346,7 +389,9 @@ abstract class PortalBrick extends AbstractBrick
 	/**
 	 * Sets the brick tile controller action
 	 *
-	 * @param boolean $sTileControllerAction
+	 * @param string $sTileControllerAction
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
 	 */
 	public function SetTileControllerAction($sTileControllerAction)
 	{
@@ -354,13 +399,29 @@ abstract class PortalBrick extends AbstractBrick
 		return $this;
 	}
 
-	/**
-	 * Load the brick's data from the xml passed as a ModuleDesignElement.
-	 * This is used to set all the brick attributes at once.
-	 *
-	 * @param \Combodo\iTop\DesignElement $oMDElement
-	 * @return PortalBrick
-	 */
+    /**
+     * Sets the brick's objects opening target
+     *
+     * @param string $sOpeningTarget
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
+     */
+    public function SetOpeningTarget($sOpeningTarget)
+    {
+        $this->sOpeningTarget = $sOpeningTarget;
+        return $this;
+    }
+
+    /**
+     * Load the brick's data from the xml passed as a ModuleDesignElement.
+     * This is used to set all the brick attributes at once.
+     *
+     * @param \Combodo\iTop\DesignElement $oMDElement
+     *
+     * @return \Combodo\iTop\Portal\Brick\PortalBrick
+     *
+     * @throws \DOMFormatException
+     */
 	public function LoadFromXml(DesignElement $oMDElement)
 	{
 		parent::LoadFromXml($oMDElement);
@@ -373,13 +434,16 @@ abstract class PortalBrick extends AbstractBrick
 				case 'width':
 					$this->SetWidth((int) $oBrickSubNode->GetText(static::DEFAULT_WIDTH));
 					break;
+
 				case 'height':
 					$this->SetHeight((int) $oBrickSubNode->GetText(static::DEFAULT_HEIGHT));
 					break;
+
 				case 'modal':
 					$bModal = ($oBrickSubNode->GetText(static::DEFAULT_MODAL) === 'true');
 					$this->SetModal($bModal);
 					break;
+
 				case 'visible':
 					// Default value
 					$oOptionalNode = $oBrickSubNode->GetOptionalElement('default');
@@ -404,6 +468,7 @@ abstract class PortalBrick extends AbstractBrick
 						$this->SetVisibleNavigationMenu($optionalNodeValue);
 					}
 					break;
+
 				case 'templates':
 					$oTemplateNodeList = $oBrickSubNode->GetNodes('template[@id=' . ModuleDesign::XPathQuote('tile') . ']');
 					if ($oTemplateNodeList->length > 0)
@@ -411,6 +476,7 @@ abstract class PortalBrick extends AbstractBrick
 						$this->SetTileTemplatePath($oTemplateNodeList->item(0)->GetText(static::DEFAULT_TILE_TEMPLATE_PATH));
 					}
 					break;
+
 				case 'rank':
 					// Setting value from parent attribute
 					$this->SetRankHome($this->fRank);
@@ -438,6 +504,7 @@ abstract class PortalBrick extends AbstractBrick
 						$this->SetRankNavigationMenu($optionalNodeValue);
 					}
 					break;
+
 				case 'title':
 					// Setting value from parent attribute
 					$this->SetTitleHome($this->sTitle);
@@ -466,6 +533,7 @@ abstract class PortalBrick extends AbstractBrick
 						$this->SetTitle($optionalNodeValue);
 					}
 					break;
+
 				case 'decoration_class':
 					// Setting value from parent attribute
 					$this->SetDecorationClassHome(static::DEFAULT_DECORATION_CLASS_HOME);
@@ -493,9 +561,20 @@ abstract class PortalBrick extends AbstractBrick
 						$this->SetDecorationClassNavigationMenu($optionalNodeValue);
 					}
 					break;
+
 				case 'tile_controller_action':
 					$this->SetTileControllerAction($oBrickSubNode->GetText(static::DEFAULT_TILE_CONTROLLER_ACTION));
 					break;
+
+                case 'opening_target':
+                    $sOpeningTarget = $oBrickSubNode->GetText(static::DEFAULT_OPENING_TARGET);
+                    if (!in_array($sOpeningTarget, array(static::ENUM_OPENING_TARGET_MODAL, static::ENUM_OPENING_TARGET_NEW, static::ENUM_OPENING_TARGET_SELF)))
+                    {
+                        throw new DOMFormatException('PortalBrick : opening_target tag value must be modal|new|self ("' . $sOpeningTarget . '" given)', null, null, $oBrickSubNode);
+                    }
+
+                    $this->SetOpeningTarget($sOpeningTarget);
+                    break;
 			}
 		}
 
@@ -503,5 +582,3 @@ abstract class PortalBrick extends AbstractBrick
 	}
 
 }
-
-?>
